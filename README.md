@@ -62,4 +62,4 @@ Contributions are welcome! Please read our contributing guidelines before submit
 ## Support
 For support, please open an issue in the GitHub repository or contact the maintainers.
 
-## For detailed code examples and implementation details, please refer to the source code in the repository.
+For detailed code examples and implementation details, please refer to the source code in the repository.
