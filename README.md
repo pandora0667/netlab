@@ -22,7 +22,32 @@ Netlab is a full-stack web application built with Express.js and React, providin
 - **WHOIS Lookup**: Retrieve detailed domain registration and ownership information
 
 ## Project Structure
-
+```
+.
+├── server/                      # Backend server code
+│   ├── index.ts                # Main server entry point
+│   ├── routes.ts               # API route definitions
+│   ├── vite.ts                 # Vite server configuration
+│   └── services/               # Business logic services
+│       └── network.ts          # Network-related services
+│
+├── client/                     # Frontend application
+│   ├── index.html             # Main HTML template
+│   └── src/
+│       ├── main.tsx           # React entry point
+│       ├── index.css          # Global styles
+│       ├── lib/               # Utility functions
+│       ├── pages/             # Page components
+│       └── components/        # React components
+│           ├── layout/        # Layout components
+│           ├── tools/         # Network tool components
+│           └── ui/            # Reusable UI components
+│
+├── dist/                      # Production build output
+│   └── public/               # Static assets
+│
+└── package.json              # Project dependencies and scripts
+```
 
 ## Getting Started
 
