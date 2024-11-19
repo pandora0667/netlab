@@ -19,7 +19,7 @@ const DNS_SERVERS = {
   opendns: '208.67.222.222'
 };
 
-// 유틸리티 함수 추가: IP가 프라이빗인지 확인
+// Utility function: Check if IP is private
 function isPrivateIP(ip: string): boolean {
   const parts = ip.split('.').map(Number);
   return (
@@ -166,7 +166,7 @@ class PingService {
       }
 
       // Windows format
-      const winMatch = output.match(/[시간|time][=<](\d+)ms/i);
+      const winMatch = output.match(/[time][=<](\d+)ms/i);
       if (winMatch) {
         return parseFloat(winMatch[1]);
       }
@@ -196,7 +196,7 @@ export const networkServices = {
         region: "Private",
         isp: "Private",
         timezone: "Private",
-        message: "프라이빗 IP 주소입니다."
+        message: "This is a private IP address"
       };
     }
 
@@ -250,7 +250,7 @@ export const networkServices = {
       }
     }
 
-    throw new Error('모든 IP 정보 서비스에 실패했습니다.');
+    throw new Error('All IP information services failed');
   },
 
   async dnsLookup(domain: string, recordType?: string, server?: string) {

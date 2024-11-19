@@ -112,17 +112,17 @@ export default function PingTool() {
       if (!response.ok || !contentType?.includes('application/json')) {
         const errorText = await response.text();
         console.error('Server response:', errorText);
-        throw new Error('서버 연결에 실패했습니다. 잠시 후 다시 시도해주세요.');
+        throw new Error('Failed to connect to server. Please try again later.');
       }
 
       const result = await response.json();
       if (!result || !result.results) {
-        throw new Error('잘못된 응답 형식입니다.');
+        throw new Error('Invalid response format.');
       }
 
       setResults(result);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다';
+      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
       setError(errorMessage);
       toast.error('Ping test failed');
     } finally {

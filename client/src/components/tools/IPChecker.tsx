@@ -45,10 +45,10 @@ export default function IPChecker() {
     return (
       <div className="space-y-4">
         <Alert variant="destructive">
-          <AlertDescription>IP 정보를 불러오는 데 실패했습니다.</AlertDescription>
+          <AlertDescription>Failed to load IP information.</AlertDescription>
         </Alert>
         <Button onClick={handleRetry} className="w-full">
-          다시 시도
+          Try Again
         </Button>
       </div>
     );
@@ -65,7 +65,7 @@ export default function IPChecker() {
           IP Address Checker
         </h2>
         <p className="text-muted-foreground text-lg">
-          현재 IP 주소 및 위치 정보를 확인하세요
+          Check your current IP address and location information
         </p>
       </motion.div>
 

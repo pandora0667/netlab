@@ -8,13 +8,13 @@ export function registerRoutes(app: Express) {
       const ip = typeof forwarded === 'string' ? forwarded.split(/, /)[0] : req.socket.remoteAddress;
 
       if (!ip) {
-        return res.status(400).json({ error: "IP 주소를 추출할 수 없습니다." });
+        return res.status(400).json({ error: "Unable to extract IP address" });
       }
 
       const ipInfo = await networkServices.getIPInfo(ip);
       res.json(ipInfo);
     } catch (error: any) {
-      res.status(500).json({ error: "IP 정보를 가져오는 데 실패했습니다." });
+      res.status(500).json({ error: "Failed to fetch IP information" });
     }
   });
 
