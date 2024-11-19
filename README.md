@@ -8,8 +8,6 @@ Netlab is a full-stack web application built with Express.js and React, providin
 - **Frontend**: React 
 - **Build Tool**: Vite
 - **Package Manager**: npm/yarn
-- **Database**: PostgreSQL with Drizzle ORM
-- **Authentication**: Passport.js
 - **UI Components**: Radix UI, Shadcn
 - **Form Handling**: React Hook Form
 - **Data Fetching**: SWR
