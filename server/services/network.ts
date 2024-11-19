@@ -176,8 +176,50 @@ class PingService {
 
 export const networkServices = {
   async getIPInfo() {
-    const response = await fetch("https://ipapi.co/json/");
-    return response.json();
+    const APIs = [
+      {
+        url: "https://ipapi.co/json/",
+        transform: (data: any) => data
+      },
+      {
+        url: "https://api.ipify.org?format=json",
+        transform: (data: any) => ({
+          ip: data.ip,
+          city: "Unknown",
+          country: "Unknown",
+          region: "Unknown",
+          isp: "Unknown",
+          timezone: "Unknown"
+        })
+      }
+    ];
+
+    for (const api of APIs) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+        const response = await fetch(api.url, {
+          headers: {
+            'User-Agent': 'Netlab/1.0',
+            'Accept': 'application/json',
+          },
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) continue;
+
+        const data = await response.json();
+        return api.transform(data);
+      } catch (error) {
+        console.error(`Failed to fetch from ${api.url}:`, error);
+        continue;
+      }
+    }
+
+    throw new Error('All IP information services failed');
   },
 
   async dnsLookup(domain: string, recordType?: string, server?: string) {

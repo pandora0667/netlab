@@ -24,8 +24,16 @@ export default function IPChecker() {
     errorRetryInterval: 5000,
     onErrorRetry: (error, key, config, revalidate, { retryCount }) => {
       if (retryCount >= 3) return;
-      setTimeout(() => revalidate({ retryCount }), 3000);
+      setTimeout(() => revalidate({ retryCount }), 5000);
     },
+    fallbackData: {
+      ip: "Loading...",
+      city: "",
+      country: "",
+      region: "",
+      isp: "",
+      timezone: ""
+    }
   });
 
   const handleRetry = () => {
