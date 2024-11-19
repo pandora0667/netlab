@@ -19,6 +19,18 @@ const DNS_SERVERS = {
   opendns: '208.67.222.222'
 };
 
+// 유틸리티 함수 추가: IP가 프라이빗인지 확인
+function isPrivateIP(ip: string): boolean {
+  const parts = ip.split('.').map(Number);
+  return (
+    (parts[0] === 10) ||
+    (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
+    (parts[0] === 192 && parts[1] === 168) ||
+    (ip === '127.0.0.1') ||
+    (ip === '::1')
+  );
+}
+
 export interface PingOptions {
   type: 'icmp' | 'tcp';
   host: string;
@@ -175,11 +187,30 @@ class PingService {
 }
 
 export const networkServices = {
-  async getIPInfo() {
+  async getIPInfo(ip: string): Promise<any> {
+    if (isPrivateIP(ip)) {
+      return {
+        ip,
+        city: "Private IP",
+        country: "Private",
+        region: "Private",
+        isp: "Private",
+        timezone: "Private",
+        message: "프라이빗 IP 주소입니다."
+      };
+    }
+
     const APIs = [
       {
-        url: "https://ipapi.co/json/",
-        transform: (data: any) => data
+        url: `https://ipapi.co/${ip}/json/`,
+        transform: (data: any) => ({
+          ip: data.ip,
+          city: data.city,
+          country: data.country_name,
+          region: data.region,
+          isp: data.org,
+          timezone: data.timezone
+        })
       },
       {
         url: "https://api.ipify.org?format=json",
@@ -219,7 +250,7 @@ export const networkServices = {
       }
     }
 
-    throw new Error('All IP information services failed');
+    throw new Error('모든 IP 정보 서비스에 실패했습니다.');
   },
 
   async dnsLookup(domain: string, recordType?: string, server?: string) {

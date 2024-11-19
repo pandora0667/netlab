@@ -4,10 +4,17 @@ import { networkServices, PingOptions } from "./services/network";
 export function registerRoutes(app: Express) {
   app.get("/api/ip", async (req, res) => {
     try {
-      const ipInfo = await networkServices.getIPInfo();
+      const forwarded = req.headers['x-forwarded-for'];
+      const ip = typeof forwarded === 'string' ? forwarded.split(/, /)[0] : req.socket.remoteAddress;
+
+      if (!ip) {
+        return res.status(400).json({ error: "IP 주소를 추출할 수 없습니다." });
+      }
+
+      const ipInfo = await networkServices.getIPInfo(ip);
       res.json(ipInfo);
     } catch (error: any) {
-      res.status(500).json({ error: "Failed to fetch IP information" });
+      res.status(500).json({ error: "IP 정보를 가져오는 데 실패했습니다." });
     }
   });
 

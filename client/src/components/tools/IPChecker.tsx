@@ -14,6 +14,7 @@ interface IPInfo {
   region: string;
   isp: string;
   timezone: string;
+  message?: string;
 }
 
 export default function IPChecker() {
@@ -44,10 +45,10 @@ export default function IPChecker() {
     return (
       <div className="space-y-4">
         <Alert variant="destructive">
-          <AlertDescription>Failed to load IP information.</AlertDescription>
+          <AlertDescription>IP 정보를 불러오는 데 실패했습니다.</AlertDescription>
         </Alert>
         <Button onClick={handleRetry} className="w-full">
-          Retry
+          다시 시도
         </Button>
       </div>
     );
@@ -64,7 +65,7 @@ export default function IPChecker() {
           IP Address Checker
         </h2>
         <p className="text-muted-foreground text-lg">
-          View your current IP address and location details
+          현재 IP 주소 및 위치 정보를 확인하세요
         </p>
       </motion.div>
 
@@ -93,6 +94,11 @@ export default function IPChecker() {
                       {data?.ip || "N/A"}
                     </span>
                   </div>
+                  {data?.message && (
+                    <div className="text-red-500 text-sm">
+                      {data.message}
+                    </div>
+                  )}
                 </div>
                 <Button
                   variant="outline"
