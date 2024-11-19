@@ -1,5 +1,5 @@
 import type { Express } from "express";
-import { networkServices } from "./services/network";
+import { networkServices, PingOptions } from "./services/network";
 
 export function registerRoutes(app: Express) {
   app.get("/api/ip", async (req, res) => {
@@ -70,10 +70,11 @@ export function registerRoutes(app: Express) {
 
   app.post("/api/ping", async (req, res) => {
     try {
-      const { host } = req.body;
-      const result = await networkServices.ping(host);
+      const options: PingOptions = req.body;
+      const result = await networkServices.ping(options);
       res.json(result);
     } catch (error: any) {
+      console.error('Ping error:', error);
       res.status(500).json({ error: "Ping failed" });
     }
   });

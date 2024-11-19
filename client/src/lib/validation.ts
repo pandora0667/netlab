@@ -16,13 +16,13 @@ export const dnsLookupSchema = z.object({
   domains: z.array(
     z.object({
       id: z.string(),
-      value: z.string().min(1, "도메인을 입력해주세요")
+      value: z.string().min(1, "Please enter a domain")
     })
-  ).min(1, "최소 하나의 도메인이 필요합니다"),
-  servers: z.array(z.string()).min(1, "DNS 서버를 선택해주세요"),
+  ).min(1, "At least one domain is required"),
+  servers: z.array(z.string()).min(1, "Please select a DNS server"),
   customServer: z.string()
     .refine(val => !val || isValidDNSServer(val), {
-      message: "유효한 DNS 서버 IP를 입력해주세요"
+      message: "Please enter a valid DNS server IP"
     })
     .optional(),
   includeAllRecords: z.boolean().default(true)
@@ -85,8 +85,28 @@ export const subnetCalculatorSchema = z.object({
 });
 
 export const pingSchema = z.object({
-  host: z.string().min(1, "Host is required")
+  host: z.string().min(1, "Host is required"),
+  type: z.enum(["icmp", "tcp"]),
+  port: z.coerce
+    .number()
+    .int()
+    .min(1, "Port must be between 1 and 65535")
+    .max(65535, "Port must be between 1 and 65535")
+    .optional(),
+  count: z.coerce
+    .number()
+    .int()
+    .min(1, "Attempts must be between 1 and 10")
+    .max(10, "Attempts must be between 1 and 10"),
+  timeout: z.coerce
+    .number()
+    .int()
+    .min(1000, "Timeout must be between 1-30 seconds")
+    .max(30000, "Timeout must be between 1-30 seconds")
+    .default(5000),
 });
+
+export type PingFormData = z.infer<typeof pingSchema>;
 
 export const whoisSchema = z.object({
   domain: z.string().min(1, "Domain is required")

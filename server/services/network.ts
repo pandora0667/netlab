@@ -6,9 +6,10 @@ import {
   calculateSubnetInfo,
   netmaskToCidr,
 } from "../../client/src/lib/utils/subnet";
+import net from "net";
 
 const execAsync = promisify(exec);
-const whoisAsync = promisify(whois.lookup);
+const whoisLookup = whois.lookup;
 
 const allRecordTypes = ["A", "AAAA", "CNAME", "MX", "TXT", "NS", "SOA", "PTR"];
 
@@ -17,6 +18,161 @@ const DNS_SERVERS = {
   cloudflare: '1.1.1.1',
   opendns: '208.67.222.222'
 };
+
+export interface PingOptions {
+  type: 'icmp' | 'tcp';
+  host: string;
+  port?: number;
+  count?: number;
+  timeout?: number;
+  retries?: number;
+}
+
+interface PingResult {
+  success: boolean;
+  latency?: number;
+  error?: string;
+  attempt: number;
+}
+
+interface PingSummary {
+  host: string;
+  type: string;
+  results: PingResult[];
+  statistics: {
+    sent: number;
+    received: number;
+    lost: number;
+    successRate: number;
+    minLatency: number;
+    maxLatency: number;
+    avgLatency: number;
+  }
+}
+
+class PingService {
+  private async tcpPing(host: string, port: number, timeout: number): Promise<number> {
+    return new Promise((resolve, reject) => {
+      const startTime = process.hrtime();
+      const socket = new net.Socket();
+      
+      socket.setTimeout(timeout);
+      
+      socket.on('connect', () => {
+        const [seconds, nanoseconds] = process.hrtime(startTime);
+        const latency = seconds * 1000 + nanoseconds / 1000000;
+        socket.destroy();
+        resolve(latency);
+      });
+
+      socket.on('timeout', () => {
+        socket.destroy();
+        reject(new Error('Timeout'));
+      });
+
+      socket.on('error', (err) => {
+        socket.destroy();
+        reject(err);
+      });
+
+      socket.connect(port, host);
+    });
+  }
+
+  private async icmpPing(host: string, timeout: number): Promise<number> {
+    const isWindows = process.platform === 'win32';
+    const command = isWindows
+      ? `ping -n 1 -w ${timeout} ${host}`
+      : `ping -c 1 -W ${Math.ceil(timeout / 1000)} ${host}`;
+    
+    const { stdout } = await execAsync(command);
+    return this.parseICMPPingOutput(stdout, isWindows);
+  }
+
+  async ping(options: PingOptions): Promise<PingSummary> {
+    try {
+      const results = await this.executePing(options);
+      const statistics = this.calculateStatistics(results);
+      
+      return {
+        host: options.host,
+        type: options.type,
+        results,
+        statistics
+      };
+    } catch (err) {
+      console.error('Ping error:', err);
+      throw new Error(err instanceof Error ? err.message : 'Unknown error');
+    }
+  }
+
+  private async executePing(options: PingOptions): Promise<PingResult[]> {
+    const { type, host, port = 80, count = 4, timeout = 5000 } = options;
+    const results: PingResult[] = [];
+
+    for (let attempt = 1; attempt <= count; attempt++) {
+      try {
+        const latency = type === 'tcp' 
+          ? await this.tcpPing(host, port, timeout)
+          : await this.icmpPing(host, timeout);
+        
+        results.push({ success: true, latency, attempt });
+      } catch (err) {
+        results.push({
+          success: false,
+          error: err instanceof Error ? err.message : 'Failed to ping',
+          attempt
+        });
+      }
+    }
+
+    return results;
+  }
+
+  private calculateStatistics(results: PingResult[]): PingSummary['statistics'] {
+    const successful = results.filter(r => r.success);
+    const latencies = successful.map(r => r.latency!);
+
+    return {
+      sent: results.length,
+      received: successful.length,
+      lost: results.length - successful.length,
+      successRate: (successful.length / results.length) * 100,
+      minLatency: latencies.length ? Math.min(...latencies) : 0,
+      maxLatency: latencies.length ? Math.max(...latencies) : 0,
+      avgLatency: latencies.length ? 
+        latencies.reduce((a, b) => a + b, 0) / latencies.length : 0
+    };
+  }
+
+  private parseICMPPingOutput(output: string, isWindows: boolean = false): number {
+    try {
+      // macOS/Linux format: round-trip min/avg/max/stddev = 33.620/33.620/33.620/nan ms
+      const macMatch = output.match(/round-trip.*?=.*?\/(.+?)\/.+?\/.*?ms/);
+      if (macMatch) {
+        return parseFloat(macMatch[1]);
+      }
+
+      // Windows format
+      const winMatch = output.match(/[시간|time][=<](\d+)ms/i);
+      if (winMatch) {
+        return parseFloat(winMatch[1]);
+      }
+
+      // Linux format (alternative)
+      const linuxMatch = output.match(/time=(\d+\.?\d*) ms/);
+      if (linuxMatch) {
+        return parseFloat(linuxMatch[1]);
+      }
+
+      console.error('Ping output:', output);
+      throw new Error('Failed to parse ping output');
+    } catch (err) {
+      console.error('Parse error:', err);
+      throw new Error('Failed to parse ping output');
+    }
+  }
+}
 
 export const networkServices = {
   async getIPInfo() {
@@ -53,7 +209,7 @@ export const networkServices = {
                 return await dns.resolveCname(domain);
               } catch (error: any) {
                 if (error.code === 'ENODATA') {
-                  return [];  // CNAME이 없는 경우 빈 배열 반환
+                  return [];  // Return empty array if no CNAME exists
                 }
                 throw error;
               }
@@ -64,7 +220,7 @@ export const networkServices = {
           }
         } catch (error: any) {
           if (error.code === 'ENODATA') {
-            return [];  // 레코드가 없는 경우 빈 배열 반환
+            return [];  // Return empty array if no records exist
           }
           throw error;
         }
@@ -109,13 +265,17 @@ export const networkServices = {
     return calculateSubnetInfo(networkAddress, maskBits);
   },
 
-  async ping(host: string) {
-    const { stdout } = await execAsync(`ping -c 4 ${host}`);
-    return { output: stdout };
+  async ping(options: PingOptions): Promise<PingSummary> {
+    const pingService = new PingService();
+    try {
+      return await pingService.ping(options);
+    } catch (err) {
+      throw new Error(`Ping failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
   },
 
   async whoisLookup(domain: string) {
-    const result = await whoisAsync(domain);
+    const result = await whoisLookup(domain);
     return { data: result };
   },
 
@@ -128,7 +288,7 @@ export const networkServices = {
     } catch {
       return false;
     } finally {
-      dns.setServers(['8.8.8.8']); // 기본 DNS 서버로 복구
+      dns.setServers(['8.8.8.8']); // Restore default DNS server
     }
   }
 };
