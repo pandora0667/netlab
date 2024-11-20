@@ -1,22 +1,23 @@
 import net from 'net';
+import dgram from 'dgram';
 import { EventEmitter } from 'events';
-import { RemoteInfo } from 'dgram';
+import { promisify } from 'util';
 
-export interface ScanOptions {
+const sleep = promisify(setTimeout);
+
+interface ScanOptions {
   targetIp: string;
   portRange: [number, number];
+  ports?: number[];
   protocol: 'TCP' | 'UDP' | 'BOTH';
   timeout?: number;
-  exportFormat?: 'JSON' | 'CSV';
-  onProgress?: (progress: number, currentResults: ScanResult) => void;
+  onProgress?: (currentPort: number, results: ScanResult) => void;
 }
 
-export interface ScanResult {
+interface ScanResult {
   TCP?: { [key: number]: string };
   UDP?: { [key: number]: string };
 }
-
-export type PortStatus = 'Open' | 'Closed' | 'Filtered';
 
 // Common service signatures for better port detection
 const commonServices = {
@@ -34,35 +35,207 @@ const commonServices = {
     161: { signature: Buffer.from([0x30]), service: 'SNMP' },
     123: { signature: Buffer.from([0x23]), service: 'NTP' }
   }
-} as const;
-
-// Common service probes
-const serviceProbes = {
-  80: 'GET / HTTP/1.0\r\n\r\n',
-  443: '\\x16\\x03\\x01\\x00\\x50\\x01\\x00\\x00\\x4c\\x03\\x03',
-  22: '\\x53\\x53\\x48\\x2d\\x32\\x2e\\x30\\x2d\\x4f\\x70\\x65\\x6e\\x53\\x53\\x48',
-  25: 'EHLO example.com\r\n',
-  21: 'USER anonymous\r\n',
 };
+
+async function scanTCPPort(ip: string, port: number, timeout: number): Promise<string> {
+  return new Promise((resolve) => {
+    const socket = new net.Socket();
+    let resolved = false;
+
+    socket.setTimeout(timeout);
+
+    socket.on('connect', () => {
+      if (!resolved) {
+        resolved = true;
+        socket.destroy();
+        resolve('Open');
+      }
+    });
+
+    socket.on('timeout', () => {
+      if (!resolved) {
+        resolved = true;
+        socket.destroy();
+        resolve('Filtered');
+      }
+    });
+
+    socket.on('error', (error: Error & { code?: string }) => {
+      if (!resolved) {
+        resolved = true;
+        socket.destroy();
+        resolve(error.code === 'ECONNREFUSED' ? 'Closed' : 'Filtered');
+      }
+    });
+
+    try {
+      socket.connect(port, ip);
+    } catch (error) {
+      if (!resolved) {
+        resolved = true;
+        socket.destroy();
+        resolve('Filtered');
+      }
+    }
+  });
+}
+
+async function scanUDPPort(ip: string, port: number, timeout: number): Promise<string> {
+  return new Promise((resolve) => {
+    const socket = dgram.createSocket('udp4');
+    let resolved = false;
+
+    const timeoutId = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        socket.close();
+        resolve('Open|Filtered');
+      }
+    }, timeout);
+
+    socket.on('error', (error: Error & { code?: string }) => {
+      if (!resolved) {
+        resolved = true;
+        clearTimeout(timeoutId);
+        socket.close();
+        resolve(error.code && error.code === 'ECONNREFUSED' ? 'Closed' : 'Filtered');
+      }
+    });
+
+    try {
+      // Send an empty packet
+      socket.send(Buffer.alloc(0), port, ip, (error) => {
+        if (error && !resolved) {
+          resolved = true;
+          clearTimeout(timeoutId);
+          socket.close();
+          resolve('Filtered');
+        }
+      });
+    } catch (error) {
+      if (!resolved) {
+        resolved = true;
+        clearTimeout(timeoutId);
+        socket.close();
+        resolve('Filtered');
+      }
+    }
+  });
+}
+
+export async function portScan(options: ScanOptions): Promise<ScanResult> {
+  const {
+    targetIp,
+    portRange,
+    ports = Array.from(
+      { length: portRange[1] - portRange[0] + 1 },
+      (_, i) => portRange[0] + i
+    ),
+    protocol = 'TCP',
+    timeout = 1000,
+    onProgress
+  } = options;
+
+  const results: ScanResult = {};
+  const scanProtocols = protocol === 'BOTH' ? ['TCP', 'UDP'] : [protocol];
+
+  for (const proto of scanProtocols) {
+    results[proto as 'TCP' | 'UDP'] = {};
+    
+    for (const port of ports) {
+      try {
+        const scanFunction = proto === 'TCP' ? scanTCPPort : scanUDPPort;
+        const status = await scanFunction(targetIp, port, timeout);
+
+        // Type-safe indexing
+        if (proto === 'TCP') {
+          results.TCP![port] = status;
+        } else {
+          results.UDP![port] = status;
+        }
+
+        if (onProgress) {
+          onProgress(port, results);
+        }
+      } catch (error) {
+        // Optional: Handle scan errors
+        console.warn(`Port ${port} (${proto}) scan failed:`, error);
+      }
+    }
+  }
+
+  return results;
+}
 
 export function exportResults(results: ScanResult, format: 'JSON' | 'CSV'): string {
   if (format === 'JSON') {
     return JSON.stringify(results, null, 2);
-  } else {
-    let csv = 'Protocol,Port,Status\n';
-    if (results.TCP) {
-      Object.entries(results.TCP).forEach(([port, status]) => {
-        csv += `TCP,${port},${status}\n`;
-      });
-    }
-    if (results.UDP) {
-      Object.entries(results.UDP).forEach(([port, status]) => {
-        csv += `UDP,${port},${status}\n`;
-      });
-    }
-    return csv;
   }
+
+  // CSV format
+  const rows = ['Protocol,Port,Status'];
+  
+  // Handle TCP results
+  if (results.TCP) {
+    Object.entries(results.TCP).forEach(([port, status]) => {
+      rows.push(`TCP,${port},${status}`);
+    });
+  }
+  
+  // Handle UDP results
+  if (results.UDP) {
+    Object.entries(results.UDP).forEach(([port, status]) => {
+      rows.push(`UDP,${port},${status}`);
+    });
+  }
+  
+  return rows.join('\n');
 }
+
+export const WELL_KNOWN_PORTS = {
+  TCP: {
+    20: { service: 'FTP-DATA', description: 'File Transfer Protocol (Data)' },
+    21: { service: 'FTP', description: 'File Transfer Protocol (Control)' },
+    22: { service: 'SSH', description: 'Secure Shell' },
+    23: { service: 'Telnet', description: 'Telnet protocol' },
+    25: { service: 'SMTP', description: 'Simple Mail Transfer Protocol' },
+    53: { service: 'DNS', description: 'Domain Name System' },
+    80: { service: 'HTTP', description: 'Hypertext Transfer Protocol' },
+    110: { service: 'POP3', description: 'Post Office Protocol v3' },
+    143: { service: 'IMAP', description: 'Internet Message Access Protocol' },
+    443: { service: 'HTTPS', description: 'HTTP over TLS/SSL' },
+    465: { service: 'SMTPS', description: 'SMTP over TLS/SSL' },
+    587: { service: 'SUBMISSION', description: 'Message Submission' },
+    993: { service: 'IMAPS', description: 'IMAP over TLS/SSL' },
+    995: { service: 'POP3S', description: 'POP3 over TLS/SSL' },
+    1433: { service: 'MSSQL', description: 'Microsoft SQL Server' },
+    3306: { service: 'MySQL', description: 'MySQL Database' },
+    5432: { service: 'PostgreSQL', description: 'PostgreSQL Database' },
+    27017: { service: 'MongoDB', description: 'MongoDB Database' },
+    6379: { service: 'Redis', description: 'Redis Database' },
+    3389: { service: 'RDP', description: 'Remote Desktop Protocol' },
+    5900: { service: 'VNC', description: 'Virtual Network Computing' },
+    853: { service: 'DNS-TLS', description: 'DNS over TLS' },
+    1935: { service: 'RTMP', description: 'Real-Time Messaging Protocol' },
+    5353: { service: 'mDNS', description: 'Multicast DNS' },
+    27015: { service: 'Source', description: 'Source Engine Game Server' },
+    161: { service: 'SNMP', description: 'Simple Network Management Protocol' },
+    162: { service: 'SNMPTRAP', description: 'SNMP Trap' },
+    88: { service: 'Kerberos', description: 'Kerberos Authentication' },
+    389: { service: 'LDAP', description: 'Lightweight Directory Access Protocol' },
+    636: { service: 'LDAPS', description: 'LDAP over TLS/SSL' },
+  },
+  UDP: {
+    53: { service: 'DNS', description: 'Domain Name System' },
+    67: { service: 'DHCP', description: 'Dynamic Host Configuration Protocol (Server)' },
+    68: { service: 'DHCP', description: 'Dynamic Host Configuration Protocol (Client)' },
+    69: { service: 'TFTP', description: 'Trivial File Transfer Protocol' },
+    123: { service: 'NTP', description: 'Network Time Protocol' },
+    161: { service: 'SNMP', description: 'Simple Network Management Protocol' },
+    162: { service: 'SNMPTRAP', description: 'SNMP Trap' },
+    514: { service: 'Syslog', description: 'System Logging Protocol' },
+  }
+} as const;
 
 export class PortScanError extends Error {
   constructor(
@@ -73,221 +246,4 @@ export class PortScanError extends Error {
     super(message);
     this.name = 'PortScanError';
   }
-}
-
-export async function portScan(options: ScanOptions): Promise<ScanResult> {
-  const { targetIp, portRange, protocol, timeout = 1000 } = options;
-  const results: ScanResult = {};
-  const [startPort, endPort] = portRange;
-  
-  const BATCH_SIZE = 50;
-  const ports = Array.from(
-    { length: endPort - startPort + 1 }, 
-    (_, i) => startPort + i
-  );
-
-  async function scanPort(port: number): Promise<void> {
-    return new Promise((resolve) => {
-      let tcpCompleted = protocol === 'UDP';  // true if TCP is not needed
-      let udpCompleted = protocol === 'TCP';  // true if UDP is not needed
-
-      const checkCompletion = () => {
-        if (tcpCompleted && udpCompleted) {
-          resolve();
-        }
-      };
-
-      if (protocol === 'TCP' || protocol === 'BOTH') {
-        const socket = new net.Socket();
-        let isResolved = false;
-
-        const timeoutId = setTimeout(() => {
-          if (!isResolved) {
-            isResolved = true;
-            results.TCP = results.TCP || {};
-            results.TCP[port] = 'Filtered';
-            socket.destroy();
-            tcpCompleted = true;
-            checkCompletion();
-          }
-        }, timeout);
-
-        socket.on('connect', () => {
-          if (!isResolved) {
-            isResolved = true;
-            results.TCP = results.TCP || {};
-            results.TCP[port] = 'Open';
-            socket.destroy();
-            clearTimeout(timeoutId);
-            tcpCompleted = true;
-            checkCompletion();
-          }
-        });
-
-        socket.on('error', (error) => {
-          if (!isResolved) {
-            isResolved = true;
-            results.TCP = results.TCP || {};
-            if (error.message.includes('ECONNREFUSED')) {
-              results.TCP[port] = 'Closed';
-            } else {
-              results.TCP[port] = 'Filtered';
-            }
-            socket.destroy();
-            clearTimeout(timeoutId);
-            tcpCompleted = true;
-            checkCompletion();
-          }
-        });
-
-        socket.connect({ port, host: targetIp });
-      }
-      
-      if (protocol === 'UDP' || protocol === 'BOTH') {
-        try {
-          const socket = require('dgram').createSocket('udp4');
-          let isResolved = false;
-          let responseReceived = false;
-
-          // 서비스별 맞춤 페이로드
-          const getUDPPayload = (port: number): Buffer => {
-            switch (port) {
-              case 53:  // DNS
-                return Buffer.from([
-                  0x00, 0x00,  // Transaction ID
-                  0x01, 0x00,  // Flags: standard query
-                  0x00, 0x01,  // Questions: 1
-                  0x00, 0x00,  // Answer RRs: 0
-                  0x00, 0x00,  // Authority RRs: 0
-                  0x00, 0x00,  // Additional RRs: 0
-                  0x07, 0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65,  // "example"
-                  0x03, 0x63, 0x6f, 0x6d,  // "com"
-                  0x00,  // null terminator
-                  0x00, 0x01,  // Type: A
-                  0x00, 0x01   // Class: IN
-                ]);
-              case 161: // SNMP
-                return Buffer.from([
-                  0x30, 0x26, 0x02, 0x01, 0x01, 0x04, 0x06, 0x70,
-                  0x75, 0x62, 0x6c, 0x69, 0x63, 0xa0, 0x19, 0x02,
-                  0x04, 0x6b, 0x8b, 0x44, 0x5b, 0x02, 0x01, 0x00,
-                  0x02, 0x01, 0x00, 0x30, 0x0b, 0x30, 0x09, 0x06,
-                  0x05, 0x2b, 0x06, 0x01, 0x02, 0x01
-                ]);
-              case 123: // NTP
-                return Buffer.from([
-                  0x1b, 0x00, 0x00, 0x00,  // LI, VN, Mode
-                  0x00, 0x00, 0x00, 0x00,  // Stratum, Poll, Precision
-                  0x00, 0x00, 0x00, 0x00,  // Root Delay
-                  0x00, 0x00, 0x00, 0x00,  // Root Dispersion
-                  0x00, 0x00, 0x00, 0x00,  // Reference ID
-                  0x00, 0x00, 0x00, 0x00,  // Reference Timestamp
-                  0x00, 0x00, 0x00, 0x00,
-                  0x00, 0x00, 0x00, 0x00,  // Origin Timestamp
-                  0x00, 0x00, 0x00, 0x00,
-                  0x00, 0x00, 0x00, 0x00,  // Receive Timestamp
-                  0x00, 0x00, 0x00, 0x00,
-                  0x00, 0x00, 0x00, 0x00,  // Transmit Timestamp
-                  0x00, 0x00, 0x00, 0x00
-                ]);
-              default:
-                return Buffer.from([0x00]);
-            }
-          };
-
-          const payload = getUDPPayload(port);
-
-          // 여러 번 시도
-          const maxRetries = 2;
-          let retryCount = 0;
-          
-          const sendProbe = () => {
-            if (retryCount < maxRetries && !isResolved) {
-              socket.send(payload, 0, payload.length, port, targetIp, (err: Error) => {
-                if (err && !isResolved) {
-                  isResolved = true;
-                  results.UDP = results.UDP || {};
-                  results.UDP[port] = 'Error';
-                  socket.close();
-                  udpCompleted = true;
-                  checkCompletion();
-                }
-              });
-              retryCount++;
-            }
-          };
-
-          socket.on('listening', () => {
-            sendProbe();
-            // 첫 번째 시도 후 일정 시간 후에 재시도
-            setTimeout(sendProbe, timeout / 2);
-          });
-
-          socket.on('message', (msg: Buffer, rinfo: RemoteInfo) => {
-            if (!isResolved && rinfo.address === targetIp) {
-              responseReceived = true;
-              isResolved = true;
-              results.UDP = results.UDP || {};
-              results.UDP[port] = 'Open';
-              socket.close();
-              udpCompleted = true;
-              checkCompletion();
-            }
-          });
-
-          socket.on('error', (error: Error & { code?: string }) => {
-            if (!isResolved) {
-              isResolved = true;
-              results.UDP = results.UDP || {};
-              switch (error.code) {
-                case 'ECONNREFUSED':
-                  results.UDP[port] = 'Closed';
-                  break;
-                case 'EHOSTUNREACH':
-                case 'EACCES':
-                  results.UDP[port] = 'Filtered';
-                  break;
-                default:
-                  results.UDP[port] = 'Filtered';
-              }
-              socket.close();
-              udpCompleted = true;
-              checkCompletion();
-            }
-          });
-
-          const timeoutId = setTimeout(() => {
-            if (!isResolved) {
-              isResolved = true;
-              results.UDP = results.UDP || {};
-              // 응답이 없으면 Open|Filtered로 판단
-              results.UDP[port] = responseReceived ? 'Open' : 'Open|Filtered';
-              socket.close();
-              udpCompleted = true;
-              checkCompletion();
-            }
-          }, timeout);
-
-          socket.bind();
-        } catch (error) {
-          results.UDP = results.UDP || {};
-          results.UDP[port] = 'Error';
-          udpCompleted = true;
-          checkCompletion();
-        }
-      }
-    });
-  }
-
-  for (let i = 0; i < ports.length; i += BATCH_SIZE) {
-    const batch = ports.slice(i, i + BATCH_SIZE);
-    await Promise.all(batch.map(port => scanPort(port)));
-    
-    if (options.onProgress) {
-      const progress = Math.min(100, ((i + BATCH_SIZE) / ports.length) * 100);
-      options.onProgress(progress, results);
-    }
-  }
-
-  return results;
 }
