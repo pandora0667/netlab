@@ -25,6 +25,12 @@ const features = [
     href: "/dns-lookup"
   },
   {
+    title: "DNS Propagation Checker",
+    description: "Test DNS propagation across global nameservers",
+    icon: "🌍",
+    href: "/dns-propagation"
+  },
+  {
     title: "Subnet Calculator",
     description: "Calculate network details from IP and subnet mask",
     icon: "🧮",

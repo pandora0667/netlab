@@ -1,11 +1,13 @@
 import type { Express } from "express";
-import { networkServices, PingOptions } from "./services/network";
-import dnsRoutes from "./routes/dns";
-import portScannerRoutes from './routes/portScanner';
+import { networkServices, PingOptions } from "./services/network.js";
+import dnsRoutes from "./routes/dns.js";
+import portScannerRoutes from './routes/portScanner.js';
+import dnsPropagationRoutes from './routes/dns-propagation.route.js';
 
 export function registerRoutes(app: Express) {
   // Register DNS routes
   app.use('/api/dns', dnsRoutes);
+  app.use('/dns-propagation', dnsPropagationRoutes);
 
   // Port Scanner routes
   app.use('/api/port-scanner', portScannerRoutes);

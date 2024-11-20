@@ -2,13 +2,13 @@ import express, { type Express } from "express";
 import fs from "fs";
 import path, { dirname } from "path";
 import { fileURLToPath } from "url";
-import { createServer as createViteServer } from "vite";
+import { type ViteDevServer, createServer } from "vite";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 import { type Server } from "http";
 
-export async function setupVite(app: Express, server: Server) {
-  const vite = await createViteServer({
+export async function setupVite(app: Express, server: Server): Promise<ViteDevServer> {
+  const vite = await createServer({
     server: {
       middlewareMode: true,
       hmr: { server },
@@ -37,6 +37,8 @@ export async function setupVite(app: Express, server: Server) {
       next(e);
     }
   });
+
+  return vite;
 }
 
 export function serveStatic(app: Express) {

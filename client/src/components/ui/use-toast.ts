@@ -1,7 +1,7 @@
-import { toast } from "./toast";
+import { Toast } from "./toast";
 
 export const useToast = () => {
   return {
-    toast,
+    toast: Toast,
   };
 };

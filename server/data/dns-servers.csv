@@ -1,0 +1,54 @@
+country_code,name,ip_address,reliability,dnssec,is_working
+US,Google DNS,8.8.8.8,1.0,true,true
+US,Google DNS 2,8.8.4.4,1.0,true,true
+US,Cloudflare DNS,1.1.1.1,1.0,true,true
+US,Cloudflare DNS 2,1.0.0.1,1.0,true,true
+KR,KT DNS,168.126.63.1,0.95,true,true
+KR,SK DNS,219.250.36.130,0.95,true,true
+JP,IIJ DNS,202.232.2.2,0.95,true,true
+SG,Singapore DNS,202.136.162.11,0.9,true,true
+GB,OpenDNS,208.67.222.222,0.95,true,true
+GB,OpenDNS 2,208.67.220.220,0.95,true,true
+DE,Deutsche Telekom,194.25.0.60,0.9,true,true
+FR,Orange DNS,194.98.65.65,0.9,true,true
+AU,Telstra DNS,139.130.4.5,0.9,true,true
+AD,ns1.xena.ad.,194.158.78.137,1.0,false,true
+AF,,180.94.94.195,1.0,false,true
+AM,host-71.1.16.81.ucom.am.,81.16.1.71,1.0,false,true
+AR,host187.advance.com.ar.,200.16.208.187,1.0,false,true
+AU,,1.0.0.2,1.0,true,true
+AU,,1.0.0.3,1.0,true,true
+AU,,1.1.1.3,1.0,true,true
+BE,cache0100.ns.eu.uu.net.,194.7.1.4,1.0,true,true
+BF,caching.onatel.bf.,206.82.130.195,1.0,false,true
+BG,ns2.novatel.bg.,95.158.129.2,1.0,false,true
+BN,smp-80-38.simpur.net.bn.,202.152.80.38,1.0,false,true
+BR,177-184-176-5.netcartelecom.com.br.,177.184.176.5,1.0,false,true
+CA,dns1.van.radiant.net.,216.21.128.22,1.0,true,true
+CH,oltdzpsp-cns005.bluewin.ch.,195.186.1.107,1.0,true,true
+CH,zhhdzpsp-cns002.bluewin.ch.,195.186.4.109,1.0,true,true
+CY,dns.adguard.com.,94.140.14.14,1.0,true,true
+CZ,ns.cesnet.cz.,195.113.144.194,1.0,true,true
+DE,opennic1.eth-services.de.,94.247.43.254,1.0,true,true
+FI,resolver1.dns.trex.fi.,195.140.195.21,1.0,true,true
+GB,cache0000.ns.eu.uu.net.,158.43.128.72,1.0,true,true
+HK,ns250.on-nets.com.,210.0.128.250,1.0,true,true
+IN,ns9.maharashtra.gov.in.,103.23.150.89,1.0,false,true
+IR,ourdns1.tums.ac.ir.,194.225.62.80,1.0,true,true
+IT,dns.aruba.it.,62.149.128.4,1.0,false,true
+JP,dns.nifty.com.,202.248.37.74,1.0,false,true
+KR,fns1.hananet.net.,210.94.0.7,1.0,false,true
+MM,mns2.myanmarapn.com.,103.121.228.5,1.0,true,true
+MN,,202.5.200.8,1.0,true,true
+NL,cache0206.ns.eu.uu.net.,195.129.12.83,1.0,true,true
+NL,nl.ahadns.net.,5.2.75.75,1.0,true,true
+PH,nsvip.skyinet.net.,202.78.97.41,1.0,true,true
+RU,secondary.dns.yandex.ru.,77.88.8.1,1.0,true,true
+RU,secondary.family.dns.yandex.ru.,77.88.8.3,1.0,true,true
+RU,safe.dns.yandex.ru.,77.88.8.88,1.0,true,true
+SG,dns03.ntts-idc.net.sg.,202.136.162.12,1.0,false,true
+SG,dns02.ntts-idc.net.sg.,202.136.163.11,1.0,false,true
+SG,cache300.ns.uu.net.,210.80.58.66,1.0,true,true
+TW,dns.hinet.net.,168.95.1.1,1.0,false,true
+US,dns.google.,8.8.8.8,1.0,true,true
+UZ,89.236.213.118.static.ip.tps.uz.,89.236.213.118,1.0,true,true

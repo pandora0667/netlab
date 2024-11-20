@@ -13,6 +13,7 @@ import SubnetCalculator from "./components/tools/SubnetCalculator";
 import PingTool from "./components/tools/PingTool";
 import WhoisLookup from "./components/tools/WhoisLookup";
 import PortScanner from "./components/tools/PortScanner";
+import DNSPropagationChecker from "./components/tools/DNSPropagationChecker";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -26,6 +27,7 @@ createRoot(document.getElementById("root")!).render(
           <Route path="/ping" component={PingTool} />
           <Route path="/whois" component={WhoisLookup} />
           <Route path="/port-scan" component={PortScanner} />
+          <Route path="/dns-propagation" component={DNSPropagationChecker} />
           <Route>404 Page Not Found</Route>
         </Switch>
       </Layout>
