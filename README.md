@@ -55,6 +55,16 @@ Netlab is a modern full-stack web application built with Express.js and React, l
 - Development and production environment configurations
 - Hot module replacement in development
 
+### Network Tools
+#### Port Scanner
+- Multi-threaded port scanning using Node.js Worker Threads
+- Support for both TCP and UDP protocols
+- Configurable scan parameters (port range, timeout)
+- Real-time scan results with status updates
+- Efficient resource utilization through worker pooling
+- Error handling and timeout management
+- Inline worker implementation for improved deployment reliability
+
 ## Getting Started
 
 ### Prerequisites

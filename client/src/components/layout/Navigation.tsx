@@ -27,7 +27,7 @@ const networkTools: Tool[] = [
 const utilities: Tool[] = [
   { href: "/ssl-checker", label: "SSL Checker" },
   { href: "/traceroute", label: "Traceroute (Coming Soon)" },
-  { href: "/port-scanner", label: "Port Scanner (Coming Soon)" },
+  { href: "/port-scanner", label: "Port Scanner" },
 ];
 
 export default function Navigation() {
@@ -125,10 +125,21 @@ export default function Navigation() {
                 <NavigationMenuContent>
                   <ul className="grid w-[300px] gap-2 p-4" role="menu">
                     {utilities.map((tool) => (
-                      <li key={tool.href} role="menuitem" aria-disabled="true" className="opacity-50 cursor-not-allowed">
-                        <span className="block px-4 py-2 rounded-md text-sm font-medium">
+                      <li key={tool.href} role="menuitem">
+                        <Link
+                          href={tool.href}
+                          onClick={handleNavigation}
+                          className={`
+                            block px-4 py-2 rounded-md text-sm font-medium transition-all duration-200
+                            hover:bg-accent hover:text-accent-foreground
+                            ${isActive(tool.href) ? 'bg-accent/50 text-accent-foreground' : ''}
+                            ${tool.href === '/traceroute' ? 'opacity-50 cursor-not-allowed' : ''}
+                          `}
+                          aria-current={isActive(tool.href) ? "page" : undefined}
+                          aria-disabled={tool.href === '/traceroute'}
+                        >
                           {tool.label}
-                        </span>
+                        </Link>
                       </li>
                     ))}
                   </ul>
@@ -220,12 +231,20 @@ export default function Navigation() {
                           closed: { opacity: 0, y: -10 }
                         }}
                       >
-                        <span 
-                          className="block px-4 py-2 rounded-md text-sm font-medium opacity-50"
-                          aria-disabled="true"
+                        <Link
+                          href={tool.href}
+                          onClick={handleNavigation}
+                          className={`
+                            block px-4 py-2 rounded-md text-sm font-medium transition-all duration-200
+                            hover:bg-accent hover:text-accent-foreground
+                            ${isActive(tool.href) ? 'bg-accent/50 text-accent-foreground' : ''}
+                            ${tool.href === '/traceroute' ? 'opacity-50 cursor-not-allowed' : ''}
+                          `}
+                          aria-current={isActive(tool.href) ? "page" : undefined}
+                          aria-disabled={tool.href === '/traceroute'}
                         >
                           {tool.label}
-                        </span>
+                        </Link>
                       </motion.div>
                     ))}
                   </div>

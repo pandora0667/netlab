@@ -1,10 +1,14 @@
 import type { Express } from "express";
 import { networkServices, PingOptions } from "./services/network";
 import dnsRoutes from "./routes/dns";
+import portScannerRoutes from './routes/port-scanner';
 
 export function registerRoutes(app: Express) {
   // Register DNS routes
   app.use('/api/dns', dnsRoutes);
+
+  // Port Scanner routes
+  app.use('/api/port-scanner', portScannerRoutes);
 
   app.get("/api/ip", async (req, res) => {
     try {
