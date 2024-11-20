@@ -1,7 +1,11 @@
 import type { Express } from "express";
 import { networkServices, PingOptions } from "./services/network";
+import dnsRoutes from "./routes/dns";
 
 export function registerRoutes(app: Express) {
+  // Register DNS routes
+  app.use('/api/dns', dnsRoutes);
+
   app.get("/api/ip", async (req, res) => {
     try {
       const forwarded = req.headers['x-forwarded-for'];
@@ -15,53 +19,6 @@ export function registerRoutes(app: Express) {
       res.json(ipInfo);
     } catch (error: any) {
       res.status(500).json({ error: "Failed to fetch IP information" });
-    }
-  });
-
-  app.post("/api/dns", async (req, res) => {
-    const { domain, servers, includeAllRecords } = req.body;
-
-    if (!domain || !servers || !servers.length) {
-      return res.status(400).json({
-        success: false,
-        error: 'Domain and servers are required'
-      });
-    }
-
-    try {
-      const results: Record<string, any[]> = {};
-      const recordTypes = ['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS', 'SOA'];
-
-      for (const recordType of recordTypes) {
-        results[recordType] = [];
-        for (const server of servers) {
-          try {
-            const result = await networkServices.dnsLookup(domain, recordType, server);
-            if (result.records) {
-              results[recordType].push({
-                server,
-                records: result.records,
-                queryTime: 0,
-                timestamp: Date.now()
-              });
-            }
-          } catch (error) {
-            console.error(`Error querying ${recordType} records from ${server}:`, error);
-          }
-        }
-      }
-
-      return res.json({
-        success: true,
-        domain,
-        results
-      });
-    } catch (error: any) {
-      console.error('DNS Lookup error:', error);
-      return res.status(500).json({
-        success: false,
-        error: error.message || 'DNS lookup failed'
-      });
     }
   });
 

@@ -1,57 +1,65 @@
-# Netlab - Network Tools Suite
+# Netlab - Modern Web Application
 
 ## Overview
-Netlab is a full-stack web application built with Express.js and React, providing comprehensive network utilities for administrators and developers. The suite offers essential networking tools through an intuitive web interface, making network diagnostics and management accessible and efficient.
+Netlab is a modern full-stack web application built with Express.js and React, leveraging TypeScript for type safety and reliability. This project demonstrates best practices in modern web development with a focus on user experience and developer productivity.
 
 ## Tech Stack
-- **Backend**: Express.js
-- **Frontend**: React 
-- **Build Tool**: Vite
-- **Package Manager**: npm/yarn
-- **UI Components**: Radix UI, Shadcn
-- **Form Handling**: React Hook Form
-- **Data Fetching**: SWR
+### Frontend
+- **Framework**: React with TypeScript
+- **Styling**: Tailwind CSS
+- **UI Components**: 
+  - Radix UI (Accessible primitives)
+  - Shadcn UI (Pre-built components)
+- **State Management**: React Hooks
+- **Form Handling**: React Hook Form with Zod validation
+- **Development Tools**: Vite
 
-## Key Features
-- **IP Address Checker**: Validate and analyze IP addresses, including geolocation and network details
-- **DNS Lookup Tool**: Query DNS records, nameservers, and perform reverse DNS lookups
-- **Subnet Calculator**: Calculate network ranges, subnet masks, and CIDR notations
-- **Ping Tool**: Test network connectivity and measure response times
-- **WHOIS Lookup**: Retrieve detailed domain registration and ownership information
+### Backend
+- **Runtime**: Node.js
+- **Framework**: Express.js with TypeScript
+- **Session Management**: Express Session
+- **Development Tools**: tsx for TypeScript execution
 
 ## Project Structure
 ```
 .
-├── server/                      # Backend server code
-│   ├── index.ts                # Main server entry point
-│   ├── routes.ts               # API route definitions
-│   ├── vite.ts                 # Vite server configuration
-│   └── services/               # Business logic services
-│       └── network.ts          # Network-related services
+├── client/                    # Frontend application
+│   ├── src/
+│   │   ├── components/       # Reusable React components
+│   │   ├── hooks/           # Custom React hooks
+│   │   ├── lib/             # Utility functions and configurations
+│   │   ├── pages/           # Page components
+│   │   └── main.tsx         # Application entry point
+│   └── index.html           # HTML template
 │
-├── client/                     # Frontend application
-│   ├── index.html             # Main HTML template
-│   └── src/
-│       ├── main.tsx           # React entry point
-│       ├── index.css          # Global styles
-│       ├── lib/               # Utility functions
-│       ├── pages/             # Page components
-│       └── components/        # React components
-│           ├── layout/        # Layout components
-│           ├── tools/         # Network tool components
-│           └── ui/            # Reusable UI components
+├── server/                   # Backend application
+│   ├── routes/              # API route definitions
+│   ├── services/            # Business logic and services
+│   ├── index.ts             # Server entry point
+│   └── vite.ts              # Vite server configuration
 │
-├── dist/                      # Production build output
-│   └── public/               # Static assets
-│
-└── package.json              # Project dependencies and scripts
+├── dist/                    # Production build output
+├── node_modules/           # Project dependencies
+├── package.json            # Project configuration and scripts
+├── tsconfig.json          # TypeScript configuration
+├── tailwind.config.ts     # Tailwind CSS configuration
+└── vite.config.ts         # Vite build configuration
 ```
+
+## Features
+- Modern React components with TypeScript
+- Server-side rendering support
+- Responsive and accessible UI using Radix UI
+- Efficient styling with Tailwind CSS
+- Type-safe backend with Express and TypeScript
+- Development and production environment configurations
+- Hot module replacement in development
 
 ## Getting Started
 
 ### Prerequisites
-- Node.js >=18
-
+- Node.js >= 18
+- npm or yarn
 
 ### Installation
 ```bash
@@ -69,20 +77,28 @@ npm start
 ```
 
 ### Development
-The server runs on port 8080 and serves both the API and client application. In development mode, it uses Vite's development server for hot module replacement.
+The application runs on port 8080 and serves both the API and client application. In development mode, it utilizes Vite's development server for hot module replacement and fast refresh capabilities.
 
-### API Endpoints   
-- /api/ip - Get IP information
-- /api/dns - DNS lookup
-- /api/subnet - Subnet calculation
-- /api/ping - Ping host
-- /api/whois - WHOIS lookup
+## Project Configuration
+- **TypeScript**: Strict mode enabled for maximum type safety
+- **Tailwind CSS**: Custom theme configuration
+- **Vite**: Optimized build setup for both development and production
+- **Express**: Configured with TypeScript support and session management
 
+## Best Practices
+- Component-based architecture
+- Type-safe development with TypeScript
+- Accessible UI components with Radix UI
+- Responsive design with Tailwind CSS
+- Separation of concerns between client and server
+- Environment-specific configurations
 
 ## Contributing
-Contributions are welcome! Please read our contributing guidelines before submitting pull requests.
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
-## Support
-For support, please open an issue in the GitHub repository or contact the maintainers.
-
-For detailed code examples and implementation details, please refer to the source code in the repository.
+## License
+This project is licensed under the MIT License.

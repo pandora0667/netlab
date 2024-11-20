@@ -1,5 +1,6 @@
+import { cn } from "@/lib/utils";
 import { useState, useCallback, useRef } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { dnsLookupSchema } from "@/lib/validation";
 import {
@@ -8,7 +9,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table, TableBody, TableCell, TableHead,
@@ -16,13 +17,24 @@ import {
 } from "@/components/ui/table";
 import {
   Loader2, AlertCircle, CheckCircle2, XCircle,
-  Download, Plus, Trash2, RefreshCw
+  Download, Plus, Trash2, RefreshCw, Server
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { z } from "zod";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
+import { 
+  Accordion, AccordionItem, AccordionTrigger, 
+  AccordionContent 
+} from "@/components/ui/accordion";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { validateDNSServer } from "@/lib/dns-utils";
 
 interface Domain {
   id: string;
@@ -62,6 +74,14 @@ interface ResultCardProps {
 }
 
 function ResultCard({ result, serverStatuses }: ResultCardProps) {
+  const [activeTab, setActiveTab] = useState("overview");
+  const recordTypes = Object.keys(result.results);
+  
+  const getRecordSummary = (records: any[]): string => {
+    if (!records.length) return "No records";
+    return `${records.length} record${records.length > 1 ? 's' : ''}`;
+  };
+
   const formatRecordValue = (record: any): string => {
     if (typeof record === 'string') return record;
     if (Array.isArray(record)) return record.join(', ');
@@ -75,31 +95,74 @@ function ResultCard({ result, serverStatuses }: ResultCardProps) {
   };
 
   return (
-    <Card className="p-4">
-      <Tabs defaultValue="records" className="w-full">
-        <TabsList>
-          <TabsTrigger value="records">Records</TabsTrigger>
-          <TabsTrigger value="servers">Servers</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="records">
-          <div className="space-y-4">
-            {Object.entries(result.results).map(([recordType, servers]) => (
-              <Accordion
-                key={recordType}
-                type="single"
-                collapsible
-                className="border rounded-lg"
-              >
-                <AccordionItem value={recordType}>
+    <Card className="mb-4">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-lg font-medium">
+          <div className="flex items-center justify-between">
+            <span>{result.domain}</span>
+            <div className="flex gap-2">
+              {serverStatuses.map((status) => (
+                <div
+                  key={status.id}
+                  className="flex items-center gap-1 text-sm text-muted-foreground"
+                >
+                  <Server className="h-4 w-4" />
+                  <span>{status.name}</span>
+                  {status.status === 'success' && (
+                    <CheckCircle2 className="text-green-500 h-4 w-4" />
+                  )}
+                  {status.status === 'error' && (
+                    <AlertCircle className="text-red-500 h-4 w-4" />
+                  )}
+                  {status.status === 'querying' && (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="details">Detailed Records</TabsTrigger>
+            <TabsTrigger value="raw">Raw Data</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 p-4">
+              {recordTypes.map((type) => (
+                <Card key={type} className="p-4">
+                  <h3 className="font-medium mb-2">{type} Records</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {getRecordSummary(result.results[type])}
+                  </p>
+                </Card>
+              ))}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="details">
+            <Accordion type="single" collapsible className="w-full">
+              {recordTypes.map((type) => (
+                <AccordionItem key={type} value={type}>
                   <AccordionTrigger className="px-4">
-                    {recordType} Records
+                    <div className="flex items-center justify-between w-full">
+                      <span>{type} Records</span>
+                      <span className="text-sm text-muted-foreground">
+                        {getRecordSummary(result.results[type])}
+                      </span>
+                    </div>
                   </AccordionTrigger>
                   <AccordionContent className="px-4">
                     <div className="space-y-4">
-                      {servers.map((server, idx) => (
-                        <div key={`${server.server}-${idx}`} className="border-l-2 pl-4">
+                      {result.results[type].map((server, idx) => (
+                        <div key={`${server.server}-${idx}`} 
+                             className="border-l-2 pl-4 py-2">
                           <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
+                            <Server className="h-4 w-4" />
                             <span>{server.server}</span>
                             <span>•</span>
                             <span>{server.queryTime}ms</span>
@@ -108,7 +171,8 @@ function ResultCard({ result, serverStatuses }: ResultCardProps) {
                             {Array.isArray(server.records) ? (
                               <div className="space-y-1">
                                 {server.records.map((record, recordIdx) => (
-                                  <div key={recordIdx} className="font-mono text-sm">
+                                  <div key={recordIdx} 
+                                       className="font-mono text-sm">
                                     {formatRecordValue(record)}
                                   </div>
                                 ))}
@@ -124,53 +188,44 @@ function ResultCard({ result, serverStatuses }: ResultCardProps) {
                     </div>
                   </AccordionContent>
                 </AccordionItem>
-              </Accordion>
-            ))}
-          </div>
-        </TabsContent>
+              ))}
+            </Accordion>
+          </TabsContent>
 
-        <TabsContent value="servers">
-          <div className="space-y-4">
-            {serverStatuses.map((status) => (
-              <div
-                key={status.id}
-                className="flex items-center justify-between p-4 border rounded-lg"
-              >
-                <div>
-                  <div className="font-medium">{status.name}</div>
-                  <div className="text-sm text-muted-foreground">
-                    {status.address}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {status.status === 'success' && (
-                    <CheckCircle2 className="text-green-500 h-5 w-5" />
-                  )}
-                  {status.status === 'error' && (
-                    <AlertCircle className="text-red-500 h-5 w-5" />
-                  )}
-                  {status.status === 'querying' && (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </TabsContent>
-      </Tabs>
+          <TabsContent value="raw">
+            <div className="p-4">
+              <pre className="bg-muted/50 p-4 rounded-lg overflow-auto">
+                {JSON.stringify(result, null, 2)}
+              </pre>
+            </div>
+          </TabsContent>
+        </Tabs>
+      </CardContent>
     </Card>
   );
 }
 
+interface DNSServerValidationStatus {
+  address: string;
+  isValidating: boolean;
+  isValid: boolean;
+  error?: string;
+}
+
 export default function DNSLookup() {
-  const [domains, setDomains] = useState<Domain[]>([{ id: '1', value: '' }]);
   const [serverStatuses, setServerStatuses] = useState<ServerStatus[]>([]);
   const [results, setResults] = useState<DNSResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [customServerValidation, setCustomServerValidation] = useState<DNSServerValidationStatus>({
+    address: '',
+    isValidating: false,
+    isValid: true,
+  });
   const abortController = useRef<AbortController>();
+  const validationTimeout = useRef<NodeJS.Timeout>();
   const { toast } = useToast();
 
-  const form = useForm({
+  const form = useForm<z.infer<typeof dnsLookupSchema>>({
     resolver: zodResolver(dnsLookupSchema),
     defaultValues: {
       domains: [{ id: '1', value: '' }],
@@ -180,13 +235,14 @@ export default function DNSLookup() {
     }
   });
 
-  const addDomain = useCallback(() => {
-    setDomains(prev => [...prev, { id: Date.now().toString(), value: '' }]);
-  }, []);
+  const { fields: domainFields, append: appendDomain, remove: removeDomain } = useFieldArray({
+    control: form.control,
+    name: "domains"
+  });
 
-  const removeDomain = useCallback((id: string) => {
-    setDomains(prev => prev.filter(domain => domain.id !== id));
-  }, []);
+  const addDomain = useCallback(() => {
+    appendDomain({ id: Date.now().toString(), value: '' });
+  }, [appendDomain]);
 
   const handleExport = useCallback((format: 'json' | 'csv') => {
     if (!results.length) return;
@@ -219,7 +275,83 @@ export default function DNSLookup() {
     }
   }, [toast]);
 
-  async function onSubmit(data: z.infer<typeof dnsLookupSchema>) {
+  // DNS 서버 검증 함수
+  const validateCustomServer = useCallback(async (serverIP: string) => {
+    if (!serverIP) {
+      setCustomServerValidation({
+        address: '',
+        isValidating: false,
+        isValid: true,
+      });
+      return;
+    }
+
+    // 이전 검증 타이머가 있다면 취소
+    if (validationTimeout.current) {
+      clearTimeout(validationTimeout.current);
+    }
+
+    // 입력 후 500ms 후에 검증 시작
+    validationTimeout.current = setTimeout(async () => {
+      setCustomServerValidation(prev => ({
+        ...prev,
+        address: serverIP,
+        isValidating: true,
+      }));
+
+      try {
+        const result = await validateDNSServer(serverIP);
+        
+        setCustomServerValidation({
+          address: serverIP,
+          isValidating: false,
+          isValid: result.isValid,
+          error: result.error,
+        });
+
+        if (!result.isValid) {
+          toast({
+            title: "DNS Server Validation Failed",
+            description: result.error,
+            variant: "destructive",
+          });
+        } else if (result.error) {
+          // 경고 메시지가 있는 경우
+          toast({
+            title: "DNS Server Warning",
+            description: result.error,
+            variant: "default",
+          });
+        }
+      } catch (error) {
+        setCustomServerValidation({
+          address: serverIP,
+          isValidating: false,
+          isValid: false,
+          error: error instanceof Error ? error.message : 'Unknown error occurred',
+        });
+        
+        toast({
+          title: "DNS Server Validation Error",
+          description: "Failed to validate DNS server",
+          variant: "destructive",
+        });
+      }
+    }, 500);
+  }, [toast]);
+
+  // 폼 제출 전 검증
+  const onSubmit = useCallback(async (data: z.infer<typeof dnsLookupSchema>) => {
+    // 커스텀 서버가 있고 검증이 실패한 경우
+    if (data.customServer && !customServerValidation.isValid) {
+      toast({
+        title: "Invalid Custom DNS Server",
+        description: customServerValidation.error || "Please enter a valid DNS server address",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
     setResults([]);
     abortController.current = new AbortController();
@@ -315,7 +447,7 @@ export default function DNSLookup() {
       setIsLoading(false);
       abortController.current = undefined;
     }
-  }
+  }, [customServerValidation, toast]);
 
   const updateServerStatus = useCallback((serverId: string, status: ServerStatus['status'], error?: string) => {
     setServerStatuses(prev => prev.map(server => 
@@ -348,175 +480,218 @@ export default function DNSLookup() {
 
   return (
     <div className="space-y-6">
-      <motion.div
-        className="text-center space-y-2"
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-      >
-        <h2 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-          DNS Lookup Tool
-        </h2>
-        <p className="text-muted-foreground text-lg">
-          Query multiple DNS servers and record types simultaneously
-        </p>
-      </motion.div>
-
-      <Card className="p-6">
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <div className="space-y-4">
-              {domains.map((domain, index) => (
-                <div key={domain.id} className="flex gap-2">
-                  <FormField
-                    control={form.control}
-                    name={`domains.${index}`}
-                    render={({ field }) => (
-                      <FormItem className="flex-1">
-                        <FormControl>
-                          <Input
-                            placeholder="example.com"
-                            value={domain.value}
-                            onChange={e => {
-                              const newValue = e.target.value;
-                              field.onChange({ id: domain.id, value: newValue });
-                              setDomains(prev => prev.map(d => 
-                                d.id === domain.id ? { ...d, value: newValue } : d
-                              ));
-                            }}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  {domains.length > 1 && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={() => removeDomain(domain.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Domain Configuration</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Domains Input */}
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={addDomain}
+                    disabled={domainFields.length >= 5}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Domain
+                  </Button>
                 </div>
-              ))}
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={addDomain}
-                className="w-full"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Add Domain
-              </Button>
-            </div>
+                <AnimatePresence>
+                  {domainFields.map((field, index) => (
+                    <motion.div
+                      key={field.id}
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="flex items-center gap-2"
+                    >
+                      <FormField
+                        control={form.control}
+                        name={`domains.${index}.value`}
+                        render={({ field }) => (
+                          <FormItem className="flex-1">
+                            <FormControl>
+                              <Input
+                                {...field}
+                                placeholder="Enter domain (e.g., example.com)"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      {domainFields.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeDomain(index)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="servers"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>DNS Servers</FormLabel>
-                    <div className="space-y-2">
-                      {DNS_SERVERS.map(server => (
-                        <div key={server.id} className="flex items-center space-x-2">
-                          <Checkbox
-                            checked={field.value.includes(server.id)}
-                            onCheckedChange={(checked) => {
-                              const value = checked
-                                ? [...field.value, server.id]
-                                : field.value.filter((id: string) => id !== server.id);
-                              field.onChange(value);
-                            }}
-                          />
-                          <span>{server.name} ({server.address})</span>
-                        </div>
-                      ))}
-                    </div>
-                  </FormItem>
-                )}
-              />
+              {/* DNS Servers Selection */}
+              <div className="space-y-2">
+                <FormLabel>DNS Servers</FormLabel>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {DNS_SERVERS.map((server) => (
+                    <FormField
+                      key={server.id}
+                      control={form.control}
+                      name="servers"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <div className="flex items-center space-x-2">
+                              <Checkbox
+                                checked={field.value?.includes(server.id)}
+                                onCheckedChange={(checked) => {
+                                  const value = field.value || [];
+                                  if (checked) {
+                                    field.onChange([...value, server.id]);
+                                  } else {
+                                    field.onChange(
+                                      value.filter((id) => id !== server.id)
+                                    );
+                                  }
+                                }}
+                              />
+                              <div className="space-y-1">
+                                <FormLabel>{server.name}</FormLabel>
+                                <FormDescription>
+                                  {server.address}
+                                </FormDescription>
+                              </div>
+                            </div>
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                  ))}
+                </div>
+              </div>
 
+              {/* Custom DNS Server Input with Validation */}
               <FormField
                 control={form.control}
                 name="customServer"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Custom DNS Server</FormLabel>
+                    <FormLabel>Custom DNS Server (Optional)</FormLabel>
                     <FormControl>
-                      <Input placeholder="8.8.4.4" {...field} />
+                      <div className="relative">
+                        <Input
+                          {...field}
+                          placeholder="8.8.4.4"
+                          onChange={(e) => {
+                            field.onChange(e);
+                            validateCustomServer(e.target.value);
+                          }}
+                          className={cn(
+                            customServerValidation.isValidating && "pr-10",
+                            !customServerValidation.isValid && "border-red-500",
+                          )}
+                        />
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          {customServerValidation.isValidating && (
+                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                          )}
+                          {!customServerValidation.isValidating && field.value && (
+                            <>
+                              {customServerValidation.isValid ? (
+                                <CheckCircle2 className="h-4 w-4 text-green-500" />
+                              ) : (
+                                <XCircle className="h-4 w-4 text-red-500" />
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </div>
                     </FormControl>
+                    {customServerValidation.error && (
+                      <FormMessage>
+                        {customServerValidation.error}
+                      </FormMessage>
+                    )}
                     <FormDescription>
-                      Optional: Enter a custom DNS server IP
+                      Enter a custom DNS server IP address (IPv4 or IPv6)
                     </FormDescription>
-                    <FormMessage />
                   </FormItem>
                 )}
               />
-            </div>
+            </CardContent>
+          </Card>
 
+          <div className="flex justify-between">
             <div className="flex gap-2">
-              <Button type="submit" disabled={isLoading}>
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Querying DNS...
-                  </>
-                ) : (
-                  'Lookup'
+              <Button
+                type="submit"
+                disabled={isLoading}
+              >
+                {isLoading && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
+                Lookup DNS
               </Button>
               {isLoading && (
-                <Button type="button" variant="outline" onClick={cancelQueries}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={cancelQueries}
+                >
                   Cancel
                 </Button>
               )}
-              {results.length > 0 && (
-                <>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => handleExport('json')}
-                  >
-                    <Download className="mr-2 h-4 w-4" />
-                    Export JSON
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => handleExport('csv')}
-                  >
-                    <Download className="mr-2 h-4 w-4" />
-                    Export CSV
-                  </Button>
-                </>
-              )}
             </div>
-          </form>
-        </Form>
+            {results.length > 0 && (
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleExport('json')}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Export JSON
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleExport('csv')}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  Export CSV
+                </Button>
+              </div>
+            )}
+          </div>
+        </form>
+      </Form>
 
-        <AnimatePresence>
-          {results.length > 0 && (
-            <motion.div
-              className="mt-6 space-y-4"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            >
-              {results.map((result, index) => (
-                <ResultCard
-                  key={`${result.domain}-${index}`}
-                  result={result}
-                  serverStatuses={serverStatuses}
-                />
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </Card>
+      <AnimatePresence>
+        {results.map((result, index) => (
+          <motion.div
+            key={`${result.domain}-${index}`}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+          >
+            <ResultCard
+              result={result}
+              serverStatuses={serverStatuses}
+            />
+          </motion.div>
+        ))}
+      </AnimatePresence>
     </div>
   );
 }

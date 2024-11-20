@@ -1,5 +1,6 @@
 import dns from 'dns/promises';
 import { EventEmitter } from 'events';
+import { isValidIPv4, isValidIPv6 } from '../../client/src/lib/dns-utils';
 
 interface DNSQueryOptions {
   timeout?: number;
@@ -15,6 +16,17 @@ interface DNSResult {
   queryTime: number;
 }
 
+export class DNSError extends Error {
+  constructor(
+    message: string,
+    public code: string,
+    public statusCode: number = 400
+  ) {
+    super(message);
+    this.name = 'DNSError';
+  }
+}
+
 export class DNSResolver extends EventEmitter {
   private resolver: dns.Resolver;
   private timeout: number;
@@ -28,6 +40,40 @@ export class DNSResolver extends EventEmitter {
     
     if (options.servers) {
       this.resolver.setServers(options.servers);
+    }
+  }
+
+  private async validateDNSServer(serverIP: string): Promise<void> {
+    if (!isValidIPv4(serverIP) && !isValidIPv6(serverIP)) {
+      throw new DNSError(
+        'Invalid DNS server IP address format',
+        'INVALID_IP_FORMAT'
+      );
+    }
+
+    try {
+      const testResolver = new dns.Resolver();
+      testResolver.setServers([serverIP]);
+      
+      const startTime = Date.now();
+      await testResolver.resolve('google.com', 'A');
+      const responseTime = Date.now() - startTime;
+
+      if (responseTime > this.timeout) {
+        throw new DNSError(
+          'DNS server response time exceeded timeout',
+          'TIMEOUT',
+          408
+        );
+      }
+    } catch (error) {
+      if (error instanceof DNSError) throw error;
+      
+      throw new DNSError(
+        'Failed to validate DNS server',
+        'VALIDATION_FAILED',
+        503
+      );
     }
   }
 
@@ -85,6 +131,10 @@ export class DNSResolver extends EventEmitter {
     const recordTypes = ['A', 'AAAA', 'MX', 'NS', 'TXT', 'CNAME'];
     const results: DNSResult[] = [];
     
+    for (const server of servers) {
+      await this.validateDNSServer(server);
+    }
+
     for (const server of servers) {
       this.resolver.setServers([server]);
       
