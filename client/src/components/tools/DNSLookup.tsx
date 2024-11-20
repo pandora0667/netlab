@@ -275,7 +275,7 @@ export default function DNSLookup() {
     }
   }, [toast]);
 
-  // DNS 서버 검증 함수
+  // DNS server validation function
   const validateCustomServer = useCallback(async (serverIP: string) => {
     if (!serverIP) {
       setCustomServerValidation({
@@ -286,12 +286,12 @@ export default function DNSLookup() {
       return;
     }
 
-    // 이전 검증 타이머가 있다면 취소
+    // Cancel previous validation timer if exists
     if (validationTimeout.current) {
       clearTimeout(validationTimeout.current);
     }
 
-    // 입력 후 500ms 후에 검증 시작
+    // Start validation after 500ms of input
     validationTimeout.current = setTimeout(async () => {
       setCustomServerValidation(prev => ({
         ...prev,
@@ -316,7 +316,7 @@ export default function DNSLookup() {
             variant: "destructive",
           });
         } else if (result.error) {
-          // 경고 메시지가 있는 경우
+          // If warning message exists
           toast({
             title: "DNS Server Warning",
             description: result.error,
@@ -340,9 +340,9 @@ export default function DNSLookup() {
     }, 500);
   }, [toast]);
 
-  // 폼 제출 전 검증
+  // Validate before form submission
   const onSubmit = useCallback(async (data: z.infer<typeof dnsLookupSchema>) => {
-    // 커스텀 서버가 있고 검증이 실패한 경우
+    // If custom server exists and validation fails
     if (data.customServer && !customServerValidation.isValid) {
       toast({
         title: "Invalid Custom DNS Server",

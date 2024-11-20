@@ -113,7 +113,6 @@ class PingService {
         statistics
       };
     } catch (err) {
-      console.error('Ping error:', err);
       throw new Error(err instanceof Error ? err.message : 'Unknown error');
     }
   }
@@ -177,10 +176,8 @@ class PingService {
         return parseFloat(linuxMatch[1]);
       }
 
-      console.error('Ping output:', output);
       throw new Error('Failed to parse ping output');
     } catch (err) {
-      console.error('Parse error:', err);
       throw new Error('Failed to parse ping output');
     }
   }
@@ -245,12 +242,16 @@ export const networkServices = {
         const data = await response.json();
         return api.transform(data);
       } catch (error) {
-        console.error(`Failed to fetch from ${api.url}:`, error);
         continue;
       }
     }
 
     throw new Error('All IP information services failed');
+  },
+
+  async whoisLookup(domain: string) {
+    const result = await whoisLookup(domain);
+    return { data: result };
   },
 
   async dnsLookup(domain: string, recordType?: string, server?: string) {
@@ -282,7 +283,7 @@ export const networkServices = {
                 return await dns.resolveCname(domain);
               } catch (error: any) {
                 if (error.code === 'ENODATA') {
-                  return [];  // Return empty array if no CNAME exists
+                  return [];
                 }
                 throw error;
               }
@@ -293,7 +294,7 @@ export const networkServices = {
           }
         } catch (error: any) {
           if (error.code === 'ENODATA') {
-            return [];  // Return empty array if no records exist
+            return [];
           }
           throw error;
         }
@@ -323,7 +324,6 @@ export const networkServices = {
         };
       }
       
-      console.error('DNS Lookup error:', error);
       throw new Error(error.message || 'DNS lookup failed');
     } finally {
       dns.setServers(['8.8.8.8']);
@@ -347,21 +347,27 @@ export const networkServices = {
     }
   },
 
-  async whoisLookup(domain: string) {
-    const result = await whoisLookup(domain);
-    return { data: result };
-  },
-
-  async validateDNSServer(serverIP: string): Promise<boolean> {
+  async validateDNSServer(serverIP: string): Promise<{ success: boolean; error?: string }> {
     try {
       const resolver = new dns.Resolver();
       resolver.setServers([serverIP]);
-      await resolver.resolve4('google.com');
-      return true;
-    } catch {
-      return false;
+      
+      // Test with multiple domains for better reliability
+      await Promise.all([
+        resolver.resolve4('google.com'),
+        resolver.resolve4('cloudflare.com')
+      ]);
+      
+      return { success: true };
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'DNS server validation failed' 
+      };
     } finally {
       dns.setServers(['8.8.8.8']); // Restore default DNS server
     }
   }
 };
+
+export const { validateDNSServer } = networkServices;

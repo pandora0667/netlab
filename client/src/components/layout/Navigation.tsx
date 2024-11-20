@@ -27,7 +27,7 @@ const networkTools: Tool[] = [
 const utilities: Tool[] = [
   { href: "/ssl-checker", label: "SSL Checker" },
   { href: "/traceroute", label: "Traceroute (Coming Soon)" },
-  { href: "/port-scanner", label: "Port Scanner" },
+  { href: "/port-scan", label: "Port Scanner" },
 ];
 
 export default function Navigation() {

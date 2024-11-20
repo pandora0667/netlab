@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { networkServices, PingOptions } from "./services/network";
 import dnsRoutes from "./routes/dns";
-import portScannerRoutes from './routes/port-scanner';
+import portScannerRoutes from './routes/portScanner';
 
 export function registerRoutes(app: Express) {
   // Register DNS routes
@@ -42,7 +42,6 @@ export function registerRoutes(app: Express) {
       const result = await networkServices.ping(options);
       res.json(result);
     } catch (error: any) {
-      console.error('Ping error:', error);
       res.status(500).json({ error: "Ping failed" });
     }
   });

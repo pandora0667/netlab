@@ -25,7 +25,7 @@ createRoot(document.getElementById("root")!).render(
           <Route path="/subnet-calc" component={SubnetCalculator} />
           <Route path="/ping" component={PingTool} />
           <Route path="/whois" component={WhoisLookup} />
-          <Route path="/port-scanner" component={PortScanner} />
+          <Route path="/port-scan" component={PortScanner} />
           <Route>404 Page Not Found</Route>
         </Switch>
       </Layout>

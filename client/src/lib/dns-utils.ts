@@ -36,7 +36,7 @@ export const validateDNSServer = async (serverIP: string): Promise<{
   error?: string;
 }> => {
   try {
-    // 기본적인 IP 형식 검증
+    // Basic IP format validation
     if (!isValidIPv4(serverIP) && !isValidIPv6(serverIP)) {
       return {
         isValid: false,
@@ -76,7 +76,7 @@ export const validateDNSServer = async (serverIP: string): Promise<{
   }
 };
 
-// Zod 스키마 업데이트
+// Update Zod schema
 export const dnsServerSchema = z.string().refine(
   (value) => value === '' || isValidIPv4(value) || isValidIPv6(value),
   {

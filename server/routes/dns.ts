@@ -1,15 +1,16 @@
 import { Router } from 'express';
 import { DNSResolver, DNSError } from '../services/dnsResolver';
 import { z } from 'zod';
+import { networkServices } from '../services/network'; // Import networkServices
 
 const router = Router();
 
-// 요청 검증을 위한 Zod 스키마
+// Request validation schema
 const dnsQuerySchema = z.object({
   domain: z.string()
     .min(1, "Domain is required")
     .refine(domain => {
-      // 기본적인 도메인 형식 검증
+      // Basic domain format validation
       const domainRegex = /^([a-zA-Z0-9-]+\.)*[a-zA-Z0-9-]+\.[a-zA-Z]{2,}$/;
       return domainRegex.test(domain);
     }, "Invalid domain format"),
@@ -23,36 +24,27 @@ const dnsQuerySchema = z.object({
 
 router.post('/', async (req, res) => {
   try {
-    // 요청 데이터 검증
+    // Validate request data
     const validatedData = dnsQuerySchema.parse(req.body);
     
-    // DNS 리졸버 인스턴스 생성
+    // Create DNS resolver instance
     const resolver = new DNSResolver({
       timeout: 5000,
       retries: 2
     });
 
-    // 결과 수집
+    // Collect results
     const results = await resolver.queryAll(
       validatedData.domain,
       validatedData.servers
     );
 
-    // 응답 전송
+    // Send response
     res.json({
       domain: validatedData.domain,
-      results: results.reduce((acc, result) => {
-        const { recordType, ...rest } = result;
-        if (!acc[recordType]) {
-          acc[recordType] = [];
-        }
-        acc[recordType].push(rest);
-        return acc;
-      }, {} as Record<string, any[]>)
+      results
     });
   } catch (error) {
-    console.error('DNS query error:', error);
-
     if (error instanceof z.ZodError) {
       res.status(400).json({
         error: "Invalid request data",
@@ -84,25 +76,12 @@ router.post('/validate-server', async (req, res) => {
       throw new DNSError('DNS server IP is required', 'MISSING_SERVER_IP');
     }
 
-    const resolver = new DNSResolver({
-      timeout: 5000,
-      retries: 2,
-      servers: [serverIP]
-    });
-
-    try {
-      await resolver.validateDNSServer(serverIP);
-      res.json({ isValid: true });
-    } catch (error) {
-      if (error instanceof DNSError) {
-        res.json({
-          isValid: false,
-          error: error.message
-        });
-      } else {
-        throw error;
-      }
+    const { success, error } = await networkServices.validateDNSServer(serverIP);
+    if (!success) {
+      throw new DNSError(error || 'DNS server validation failed', 'INVALID_DNS_SERVER');
     }
+    
+    res.json({ success, message: 'DNS server validated successfully' });
   } catch (error) {
     if (error instanceof DNSError) {
       res.status(error.statusCode).json({
