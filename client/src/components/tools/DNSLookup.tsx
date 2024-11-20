@@ -34,7 +34,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { validateDNSServer } from "@/lib/dns-utils";
 
 interface Domain {
   id: string;
@@ -44,13 +43,13 @@ interface Domain {
 interface DNSResult {
   domain: string;
   results: {
-    [recordType: string]: {
-      server: string;
-      recordType: string;
-      records: string[] | object;
-      queryTime: number;
-    }[];
-  };
+    recordType: string;
+    records: any[];
+    server: string;
+    timestamp: number;
+    queryTime: number;
+    error?: string;
+  }[];
 }
 
 export type ServerStatus = {
@@ -75,21 +74,54 @@ interface ResultCardProps {
 
 function ResultCard({ result, serverStatuses }: ResultCardProps) {
   const [activeTab, setActiveTab] = useState("overview");
-  const recordTypes = Object.keys(result.results);
   
-  const getRecordSummary = (records: any[]): string => {
-    if (!records.length) return "No records";
-    return `${records.length} record${records.length > 1 ? 's' : ''}`;
+  // 레코드 타입별로 결과를 그룹화하는 함수
+  const groupByRecordType = (results: DNSResult['results']) => {
+    return results.reduce((acc, curr) => {
+      if (!acc[curr.recordType]) {
+        acc[curr.recordType] = [];
+      }
+      acc[curr.recordType].push(curr);
+      return acc;
+    }, {} as Record<string, typeof results>);
+  };
+
+  const groupedResults = groupByRecordType(result.results);
+  const recordTypes = Object.keys(groupedResults);
+
+  const getRecordSummary = (records: DNSResult['results'][0][]): string => {
+    let totalRecords = 0;
+    records.forEach(server => {
+      if (Array.isArray(server.records)) {
+        totalRecords += server.records.length;
+      }
+    });
+    
+    if (totalRecords === 0) return "No records";
+    return `${totalRecords} record${totalRecords > 1 ? 's' : ''}`;
   };
 
   const formatRecordValue = (record: any): string => {
+    if (!record) return 'No data';
     if (typeof record === 'string') return record;
     if (Array.isArray(record)) return record.join(', ');
+    
+    // DNS 레코드 타입별 특별 처리
     if (typeof record === 'object') {
+      // MX 레코드
       if ('exchange' in record && 'priority' in record) {
         return `${record.exchange} (priority: ${record.priority})`;
       }
-      return JSON.stringify(record, null, 2);
+      // A, AAAA 레코드
+      if ('address' in record) return record.address;
+      // TXT 레코드
+      if ('entries' in record && Array.isArray(record.entries)) {
+        return record.entries.join(', ');
+      }
+      // CNAME, NS 레코드
+      if ('value' in record) return record.value;
+      // 기타 레코드
+      return JSON.stringify(record);
     }
     return String(record);
   };
@@ -137,7 +169,7 @@ function ResultCard({ result, serverStatuses }: ResultCardProps) {
                 <Card key={type} className="p-4">
                   <h3 className="font-medium mb-2">{type} Records</h3>
                   <p className="text-sm text-muted-foreground">
-                    {getRecordSummary(result.results[type])}
+                    {getRecordSummary(groupedResults[type])}
                   </p>
                 </Card>
               ))}
@@ -152,13 +184,13 @@ function ResultCard({ result, serverStatuses }: ResultCardProps) {
                     <div className="flex items-center justify-between w-full">
                       <span>{type} Records</span>
                       <span className="text-sm text-muted-foreground">
-                        {getRecordSummary(result.results[type])}
+                        {getRecordSummary(groupedResults[type])}
                       </span>
                     </div>
                   </AccordionTrigger>
                   <AccordionContent className="px-4">
                     <div className="space-y-4">
-                      {result.results[type].map((server, idx) => (
+                      {groupedResults[type].map((server, idx) => (
                         <div key={`${server.server}-${idx}`} 
                              className="border-l-2 pl-4 py-2">
                           <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
@@ -166,20 +198,20 @@ function ResultCard({ result, serverStatuses }: ResultCardProps) {
                             <span>{server.server}</span>
                             <span>•</span>
                             <span>{server.queryTime}ms</span>
+                            {server.error && (
+                              <span className="text-red-500">• {server.error}</span>
+                            )}
                           </div>
-                          <div className="bg-muted/50 p-3 rounded-md">
-                            {Array.isArray(server.records) ? (
-                              <div className="space-y-1">
-                                {server.records.map((record, recordIdx) => (
-                                  <div key={recordIdx} 
-                                       className="font-mono text-sm">
-                                    {formatRecordValue(record)}
-                                  </div>
-                                ))}
-                              </div>
+                          <div className="bg-muted/50 p-3 rounded-md space-y-2">
+                            {Array.isArray(server.records) && server.records.length > 0 ? (
+                              server.records.map((record, recordIdx) => (
+                                <div key={recordIdx} className="font-mono text-sm">
+                                  {formatRecordValue(record)}
+                                </div>
+                              ))
                             ) : (
-                              <div className="font-mono text-sm">
-                                {formatRecordValue(server.records)}
+                              <div className="text-sm text-muted-foreground">
+                                {server.error || 'No records found'}
                               </div>
                             )}
                           </div>
@@ -286,6 +318,53 @@ export default function DNSLookup() {
       return;
     }
 
+    // Basic IP format validation
+    const ipPattern = /^(\d{1,3}\.){3}\d{1,3}$/;
+    if (!ipPattern.test(serverIP)) {
+      setCustomServerValidation({
+        address: serverIP,
+        isValidating: false,
+        isValid: false,
+        error: 'Invalid IP address format'
+      });
+      return;
+    }
+
+    // Validate IP octets
+    const octets = serverIP.split('.');
+    const isValidOctets = octets.every(octet => {
+      const num = parseInt(octet);
+      return num >= 0 && num <= 255;
+    });
+
+    if (!isValidOctets) {
+      setCustomServerValidation({
+        address: serverIP,
+        isValidating: false,
+        isValid: false,
+        error: 'IP address octets must be between 0 and 255'
+      });
+      return;
+    }
+
+    // Check if it's a private IP
+    const firstOctet = parseInt(octets[0]);
+    const secondOctet = parseInt(octets[1]);
+    if (
+      firstOctet === 10 || // 10.0.0.0/8
+      (firstOctet === 172 && secondOctet >= 16 && secondOctet <= 31) || // 172.16.0.0/12
+      (firstOctet === 192 && secondOctet === 168) || // 192.168.0.0/16
+      serverIP === '127.0.0.1' // localhost
+    ) {
+      setCustomServerValidation({
+        address: serverIP,
+        isValidating: false,
+        isValid: false,
+        error: 'Private IP addresses are not allowed'
+      });
+      return;
+    }
+
     // Cancel previous validation timer if exists
     if (validationTimeout.current) {
       clearTimeout(validationTimeout.current);
@@ -300,40 +379,69 @@ export default function DNSLookup() {
       }));
 
       try {
-        const result = await validateDNSServer(serverIP);
-        
-        setCustomServerValidation({
-          address: serverIP,
-          isValidating: false,
-          isValid: result.isValid,
-          error: result.error,
-        });
+        // Try to resolve a test domain using the custom DNS server
+        const testDomain = 'google.com';
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
 
-        if (!result.isValid) {
-          toast({
-            title: "DNS Server Validation Failed",
-            description: result.error,
-            variant: "destructive",
+        try {
+          const response = await fetch(`https://${testDomain}`, {
+            signal: controller.signal,
+            headers: {
+              'Cache-Control': 'no-cache',
+            },
+            mode: 'no-cors', // This is important for cross-origin requests
           });
-        } else if (result.error) {
-          // If warning message exists
-          toast({
-            title: "DNS Server Warning",
-            description: result.error,
-            variant: "default",
+
+          clearTimeout(timeoutId);
+          
+          setCustomServerValidation({
+            address: serverIP,
+            isValidating: false,
+            isValid: true,
+            error: undefined,
           });
+        } catch (fetchError) {
+          clearTimeout(timeoutId);
+          
+          // If fetch failed, try a backup domain
+          const backupDomain = 'cloudflare.com';
+          const backupController = new AbortController();
+          const backupTimeoutId = setTimeout(() => backupController.abort(), 5000);
+
+          try {
+            await fetch(`https://${backupDomain}`, {
+              signal: backupController.signal,
+              headers: {
+                'Cache-Control': 'no-cache',
+              },
+              mode: 'no-cors',
+            });
+
+            clearTimeout(backupTimeoutId);
+            
+            setCustomServerValidation({
+              address: serverIP,
+              isValidating: false,
+              isValid: true,
+              error: undefined,
+            });
+          } catch (backupError) {
+            clearTimeout(backupTimeoutId);
+            throw new Error('DNS server failed to resolve test domains');
+          }
         }
       } catch (error) {
         setCustomServerValidation({
           address: serverIP,
           isValidating: false,
           isValid: false,
-          error: error instanceof Error ? error.message : 'Unknown error occurred',
+          error: error instanceof Error ? error.message : 'Failed to validate DNS server'
         });
-        
+
         toast({
-          title: "DNS Server Validation Error",
-          description: "Failed to validate DNS server",
+          title: "DNS Server Validation Failed",
+          description: error instanceof Error ? error.message : 'Failed to validate DNS server',
           variant: "destructive",
         });
       }
@@ -465,15 +573,13 @@ export default function DNSLookup() {
   const convertToCSV = useCallback((results: DNSResult[]) => {
     const headers = ['Domain', 'Record Type', 'Server', 'Result', 'Query Time'];
     const rows = results.flatMap(result => 
-      Object.entries(result.results).flatMap(([recordType, servers]) =>
-        servers.map(server => [
-          result.domain,
-          recordType,
-          server.server,
-          Array.isArray(server.records) ? server.records.join(';') : JSON.stringify(server.records),
-          server.queryTime
-        ])
-      )
+      result.results.map(server => [
+        result.domain,
+        server.recordType,
+        server.server,
+        Array.isArray(server.records) ? server.records.join(';') : JSON.stringify(server.records),
+        server.queryTime
+      ])
     );
     return [headers, ...rows].map(row => row.join(',')).join('\n');
   }, []);

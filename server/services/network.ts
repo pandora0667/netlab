@@ -349,23 +349,53 @@ export const networkServices = {
 
   async validateDNSServer(serverIP: string): Promise<{ success: boolean; error?: string }> {
     try {
+      // First validate IP format
+      if (!net.isIP(serverIP)) {
+        return {
+          success: false,
+          error: 'Invalid IP address format'
+        };
+      }
+
+      // Check if it's a private IP
+      if (isPrivateIP(serverIP)) {
+        return {
+          success: false,
+          error: 'Private IP addresses are not allowed'
+        };
+      }
+
       const resolver = new dns.Resolver();
       resolver.setServers([serverIP]);
       
-      // Test with multiple domains for better reliability
-      await Promise.all([
-        resolver.resolve4('google.com'),
-        resolver.resolve4('cloudflare.com')
-      ]);
+      // Test with common domains, but only require one to succeed
+      const testDomains = ['google.com', 'cloudflare.com', 'example.com'];
       
-      return { success: true };
+      try {
+        // Try resolving each domain until one succeeds
+        for (const domain of testDomains) {
+          try {
+            await resolver.resolve4(domain);
+            return { success: true };
+          } catch {
+            continue;
+          }
+        }
+        
+        // If all domains failed
+        return { 
+          success: false, 
+          error: 'DNS server failed to resolve any test domains' 
+        };
+      } finally {
+        // Restore default DNS server
+        dns.setServers(['8.8.8.8']);
+      }
     } catch (error) {
       return { 
         success: false, 
         error: error instanceof Error ? error.message : 'DNS server validation failed' 
       };
-    } finally {
-      dns.setServers(['8.8.8.8']); // Restore default DNS server
     }
   }
 };

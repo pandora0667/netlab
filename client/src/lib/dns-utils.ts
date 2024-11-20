@@ -36,50 +36,59 @@ export const validateDNSServer = async (serverIP: string): Promise<{
   error?: string;
 }> => {
   try {
-    // Basic IP format validation
-    if (!isValidIPv4(serverIP) && !isValidIPv6(serverIP)) {
+    // 빈 문자열이면 유효한 것으로 처리 (선택적 필드이므로)
+    if (!serverIP.trim()) {
       return {
-        isValid: false,
-        error: 'Invalid IP address format'
+        isValid: true
       };
     }
 
-    // Call the server API to validate the DNS server
+    // IP 형식 검증
+    if (!isValidIPv4(serverIP) && !isValidIPv6(serverIP)) {
+      return {
+        isValid: false,
+        error: '유효하지 않은 IP 주소 형식입니다.'
+      };
+    }
+
+    // 서버 API를 통한 DNS 서버 검증
     const response = await fetch('/api/dns/validate-server', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        serverIP,
-      }),
+      body: JSON.stringify({ server: serverIP }),
     });
 
     if (!response.ok) {
       const error = await response.json();
       return {
         isValid: false,
-        error: error.message || 'Failed to validate DNS server',
+        error: error.message || 'DNS 서버 검증에 실패했습니다.'
       };
     }
 
-    const result = await response.json();
+    const data = await response.json();
     return {
-      isValid: result.isValid,
-      error: result.error,
+      isValid: data.isValid,
+      error: data.error
     };
   } catch (error) {
     return {
       isValid: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred',
+      error: error instanceof Error ? error.message : 'DNS 서버 검증 중 오류가 발생했습니다.'
     };
   }
 };
 
-// Update Zod schema
+// Zod 스키마 업데이트
 export const dnsServerSchema = z.string().refine(
-  (value) => value === '' || isValidIPv4(value) || isValidIPv6(value),
+  async (value) => {
+    if (!value.trim()) return true;
+    const result = await validateDNSServer(value);
+    return result.isValid;
+  },
   {
-    message: 'Invalid IP address format',
+    message: '유효하지 않은 DNS 서버입니다.'
   }
 );

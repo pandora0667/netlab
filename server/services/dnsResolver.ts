@@ -1,6 +1,6 @@
 import dns from 'dns/promises';
 import { EventEmitter } from 'events';
-import { isValidIPv4, isValidIPv6 } from '../src/lib/dns-utils';
+import { isValidIPv4, isValidIPv6, validateIPAddress } from '../src/lib/dns-utils';
 
 interface DNSQueryOptions {
   timeout?: number;
@@ -14,6 +14,7 @@ interface DNSResult {
   server: string;
   timestamp: number;
   queryTime: number;
+  error?: string;
 }
 
 export class DNSError extends Error {
@@ -44,9 +45,11 @@ export class DNSResolver extends EventEmitter {
   }
 
   async validateDNSServerConnection(serverIP: string): Promise<void> {
-    if (!isValidIPv4(serverIP) && !isValidIPv6(serverIP)) {
+    const validationResult = validateIPAddress(serverIP);
+    
+    if (!validationResult.isValid) {
       throw new DNSError(
-        'Invalid DNS server IP address format',
+        validationResult.error || 'Invalid DNS server IP address format',
         'INVALID_IP_FORMAT'
       );
     }
@@ -55,22 +58,36 @@ export class DNSResolver extends EventEmitter {
       const resolver = new dns.Resolver();
       resolver.setServers([serverIP]);
       
-      const startTime = Date.now();
-      await resolver.resolve('google.com', 'A');
-      const responseTime = Date.now() - startTime;
-
-      if (responseTime > this.timeout) {
-        throw new DNSError(
-          'DNS server response time exceeded timeout',
+      // Create a timeout promise
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new DNSError(
+          `DNS server ${serverIP} did not respond within ${this.timeout}ms`,
           'TIMEOUT',
           408
-        );
-      }
+        )), this.timeout);
+      });
+
+      // Race between the actual query and timeout
+      await Promise.race([
+        resolver.resolve('google.com', 'A'),
+        timeoutPromise
+      ]);
+
+      // If we get here, the server responded successfully
+      this.emit('serverValidated', { 
+        server: serverIP, 
+        type: validationResult.type,
+        responseTime: Date.now()
+      });
     } catch (error) {
       if (error instanceof DNSError) throw error;
       
+      const errorMessage = error instanceof Error 
+        ? `DNS server ${serverIP} validation failed: ${error.message}`
+        : `Failed to validate DNS server ${serverIP}`;
+      
       throw new DNSError(
-        'Failed to validate DNS server',
+        errorMessage,
         'VALIDATION_FAILED',
         503
       );
@@ -140,24 +157,42 @@ export class DNSResolver extends EventEmitter {
     const recordTypes = ['A', 'AAAA', 'MX', 'NS', 'TXT', 'CNAME'];
     const results: DNSResult[] = [];
     
-    for (const server of servers) {
-      await this.validateDNSServerConnection(server);
-    }
+    // Validate servers in parallel
+    await Promise.all(servers.map(async (server) => {
+      try {
+        await this.validateDNSServerConnection(server);
+      } catch (error) {
+        this.emit('serverValidationError', { server, error });
+        throw error;
+      }
+    }));
 
     for (const server of servers) {
       this.resolver.setServers([server]);
       
-      await Promise.all(
-        recordTypes.map(async (recordType) => {
-          try {
-            const result = await this.queryWithRetry(domain, recordType, server);
-            results.push(result);
-            this.emit('recordComplete', result);
-          } catch (error) {
-            this.emit('recordError', { domain, recordType, server, error });
-          }
-        })
-      );
+      try {
+        const serverResults = await Promise.all(
+          recordTypes.map(async (recordType) => {
+            try {
+              return await this.queryWithRetry(domain, recordType, server);
+            } catch (error) {
+              this.emit('queryError', { domain, recordType, server, error });
+              return {
+                recordType,
+                records: [],
+                server,
+                timestamp: Date.now(),
+                queryTime: 0,
+                error: error instanceof Error ? error.message : 'Unknown error'
+              };
+            }
+          })
+        );
+        
+        results.push(...serverResults);
+      } catch (error) {
+        this.emit('serverError', { server, error });
+      }
     }
     
     return results;
