@@ -26,6 +26,7 @@ const networkTools: Tool[] = [
 
 const utilities: Tool[] = [
   { href: "/ssl-checker", label: "SSL Checker" },
+  { href: "/dns-propagation", label: "DNS Propagation Checker" },
   { href: "/traceroute", label: "Traceroute (Coming Soon)" },
   { href: "/port-scan", label: "Port Scanner" },
 ];
