@@ -13,11 +13,13 @@ Netlab is a modern full-stack web application built with Express.js and React, l
 - **State Management**: React Hooks
 - **Form Handling**: React Hook Form with Zod validation
 - **Development Tools**: Vite
+- **Network Visualization**: React Simple Maps
 
 ### Backend
-- **Runtime**: Node.js
+- **Runtime**: Node.js (>= 23.0.0)
 - **Framework**: Express.js with TypeScript
 - **Session Management**: Express Session
+- **WebSocket**: ws for real-time updates
 - **Development Tools**: tsx for TypeScript execution
 
 ## Project Structure
@@ -60,55 +62,78 @@ Netlab is a modern full-stack web application built with Express.js and React, l
 - Multi-threaded port scanning using Node.js Worker Threads
 - Support for both TCP and UDP protocols
 - Configurable scan parameters (port range, timeout)
-- Real-time scan results with status updates
+- Real-time scan results with WebSocket updates
 - Efficient resource utilization through worker pooling
 - Error handling and timeout management
 - Inline worker implementation for improved deployment reliability
 
+#### DNS Propagation Checker
+- Real-time DNS propagation monitoring
+- WebSocket-based updates
+- Support for multiple record types
+- Global server checking
+
 ## Getting Started
 
 ### Prerequisites
-- Node.js >= 18
-- npm or yarn
+- Node.js >= 22.0.0
+- npm >= 10.0.0
 
 ### Installation
-```bash
-# Install dependencies
-npm install
 
+1. Clone the repository:
+```bash
+git clone [repository-url]
+cd netlab
+```
+
+2. Install dependencies with legacy peer deps (due to React version compatibility):
+```bash
+npm install --legacy-peer-deps
+```
+
+3. Development Mode:
+```bash
 # Start development server
 npm run dev
+```
 
-# Build for production
+4. Production Build:
+```bash
+# Build the application
 npm run build
 
 # Start production server
 npm start
 ```
 
-### Development
-The application runs on port 8080 and serves both the API and client application. In development mode, it utilizes Vite's development server for hot module replacement and fast refresh capabilities.
+### Development Notes
+- The application runs on port 8080 by default
+- Uses Vite's development server for hot module replacement
+- WebSocket server is automatically started for real-time updates
+- API and client application are served from the same server
 
 ## Project Configuration
 - **TypeScript**: Strict mode enabled for maximum type safety
-- **Tailwind CSS**: Custom theme configuration
-- **Vite**: Optimized build setup for both development and production
-- **Express**: Configured with TypeScript support and session management
+- **Tailwind CSS**: Custom theme configuration with shadcn/ui integration
+- **Vite**: Optimized build setup with ESM support
+- **Express**: Configured with TypeScript and WebSocket support
 
-## Best Practices
-- Component-based architecture
-- Type-safe development with TypeScript
-- Accessible UI components with Radix UI
-- Responsive design with Tailwind CSS
-- Separation of concerns between client and server
-- Environment-specific configurations
+## Troubleshooting
+
+### Common Issues
+
+1. Dependency Conflicts:
+   - If you encounter peer dependency issues, use `--legacy-peer-deps` flag
+   - Some packages may require specific React versions
+
+2. Build Issues:
+   - Clear the dist directory: `rm -rf dist`
+   - Rebuild with: `npm run build`
+
+3. WebSocket Connection Issues:
+   - Check if port 8080 is available
+   - Ensure firewall settings allow WebSocket connections
 
 ## Contributing
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-## License
-This project is licensed under the MIT License.
+Contributions are welcome! Please read our contributing guidelines for details on our code of conduct and the process for submitting pull requests.
