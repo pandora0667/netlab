@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { pingSchema } from "@/lib/validation";
@@ -33,6 +33,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { useWebSocket } from "@/lib/websocket/useWebSocket";
+import { WebSocketDomain, WebSocketMessage } from "@/lib/websocket/types";
 
 interface PingResult {
   host: string;
@@ -60,6 +62,8 @@ export default function PingTool() {
   const [results, setResults] = useState<PingResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [currentPingCount, setCurrentPingCount] = useState(0);
 
   const form = useForm<PingFormData>({
     resolver: zodResolver(pingSchema),
@@ -68,67 +72,115 @@ export default function PingTool() {
       type: "icmp",
       port: 80,
       count: 4,
-      timeout: 5000
-    }
+      timeout: 5000,
+    },
   });
 
   const pingType = form.watch("type");
 
-  const handleExport = (format: 'json' | 'csv') => {
+  const handleMessage = useCallback((message: WebSocketMessage) => {
+    if (message.type === "pingResult") {
+      const { data } = message;
+      setResults((prev) => {
+        if (!prev) {
+          return {
+            host: data.host,
+            type: data.type,
+            results: [data],
+            statistics: data.statistics || {
+              sent: 0,
+              received: 0,
+              lost: 0,
+              successRate: 0,
+              minLatency: Infinity,
+              maxLatency: 0,
+              avgLatency: 0,
+            },
+          };
+        }
+
+        const newResults = {
+          ...prev,
+          results: [...prev.results, data],
+          statistics: data.statistics || prev.statistics,
+        };
+
+        // Update progress
+        const count = form.getValues("count");
+        const progress = Math.min(
+          100,
+          (newResults.results.length / count) * 100
+        );
+        setProgress(progress);
+        setCurrentPingCount(newResults.results.length);
+
+        // If we've received all results, stop loading
+        if (newResults.results.length >= count) {
+          setIsLoading(false);
+        }
+
+        return newResults;
+      });
+    } else if (message.type === "error") {
+      setError(message.data.message);
+      setIsLoading(false);
+      toast.error("Ping test failed");
+    }
+  }, [form]);
+
+  const handleError = useCallback(() => {
+    toast.error("WebSocket connection error");
+    setIsLoading(false);
+  }, []);
+
+  const { sendMessage } = useWebSocket({
+    domain: WebSocketDomain.PING,
+    onMessage: handleMessage,
+    onError: handleError,
+  });
+
+  async function onSubmit(data: PingFormData) {
+    setIsLoading(true);
+    setError(null);
+    setResults(null);
+    setProgress(0);
+    setCurrentPingCount(0);
+
+    try {
+      sendMessage({
+        type: "startPing",
+        data: {
+          ...data,
+          port: data.type === "tcp" ? data.port : undefined,
+        },
+      });
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "An unknown error occurred";
+      setError(errorMessage);
+      toast.error("Ping test failed");
+      setIsLoading(false);
+    }
+  }
+
+  const handleExport = useCallback((format: "json" | "csv") => {
     if (!results) return;
 
-    const data = format === 'json' 
+    const data = format === "json"
       ? JSON.stringify(results, null, 2)
       : convertToCSV(results);
 
-    const blob = new Blob([data], { 
-      type: format === 'json' ? 'application/json' : 'text/csv' 
+    const blob = new Blob([data], {
+      type: format === "json" ? "application/json" : "text/csv",
     });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = url;
     a.download = `ping_results.${format}`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  };
-
-  async function onSubmit(data: PingFormData) {
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      const response = await fetch('/api/ping', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...data,
-          port: data.type === 'tcp' ? data.port : undefined
-        })
-      });
-
-      const contentType = response.headers.get('content-type');
-      if (!response.ok || !contentType?.includes('application/json')) {
-        const errorText = await response.text();
-        console.error('Server response:', errorText);
-        throw new Error('Failed to connect to server. Please try again later.');
-      }
-
-      const result = await response.json();
-      if (!result || !result.results) {
-        throw new Error('Invalid response format.');
-      }
-
-      setResults(result);
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
-      setError(errorMessage);
-      toast.error('Ping test failed');
-    } finally {
-      setIsLoading(false);
-    }
-  }
+  }, [results]);
 
   return (
     <div className="space-y-4">
@@ -149,10 +201,10 @@ export default function PingTool() {
                     <FormItem>
                       <FormLabel className="text-sm font-medium">Host</FormLabel>
                       <FormControl>
-                        <Input 
-                          placeholder="example.com or IP address" 
+                        <Input
+                          placeholder="example.com or IP address"
                           className="transition-all focus:ring-2"
-                          {...field} 
+                          {...field}
                         />
                       </FormControl>
                       <FormMessage className="text-xs mt-1" />
@@ -174,15 +226,19 @@ export default function PingTool() {
                             </TooltipTrigger>
                             <TooltipContent side="right">
                               <div className="space-y-2">
-                                <p><strong>ICMP:</strong> Standard ping test</p>
-                                <p><strong>TCP:</strong> Test specific port connection</p>
+                                <p>
+                                  <strong>ICMP:</strong> Standard ping test
+                                </p>
+                                <p>
+                                  <strong>TCP:</strong> Test specific port connection
+                                </p>
                               </div>
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
                       </div>
-                      <Select 
-                        onValueChange={field.onChange} 
+                      <Select
+                        onValueChange={field.onChange}
                         defaultValue={field.value}
                       >
                         <FormControl>
@@ -253,8 +309,8 @@ export default function PingTool() {
             </div>
 
             <div className="flex gap-2">
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 disabled={isLoading}
                 className="w-full md:w-auto"
               >
@@ -271,7 +327,7 @@ export default function PingTool() {
                 <>
                   <Button
                     variant="outline"
-                    onClick={() => handleExport('json')}
+                    onClick={() => handleExport("json")}
                     className="transition-all duration-200 hover:scale-105 focus:ring-2"
                   >
                     <Download className="mr-2 h-4 w-4" />
@@ -279,7 +335,7 @@ export default function PingTool() {
                   </Button>
                   <Button
                     variant="outline"
-                    onClick={() => handleExport('csv')}
+                    onClick={() => handleExport("csv")}
                     className="transition-all duration-200 hover:scale-105 focus:ring-2"
                   >
                     <Download className="mr-2 h-4 w-4" />
@@ -292,14 +348,24 @@ export default function PingTool() {
         </Form>
       </Card>
 
+      {isLoading && (
+        <Card className="p-4">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-sm">
+              <span>Progress</span>
+              <span>
+                {currentPingCount} / {form.getValues("count")} pings completed
+              </span>
+            </div>
+            <Progress value={progress} className="h-2" />
+          </div>
+        </Card>
+      )}
+
       {error && (
         <Alert variant="destructive">
-          <AlertTitle>Ping Failed</AlertTitle>
-          <AlertDescription>
-            {error}
-            <br />
-            Please check the host name and try again.
-          </AlertDescription>
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
@@ -312,12 +378,12 @@ export default function PingTool() {
           <ScrollArea className="h-[300px] rounded-lg border">
             <div className="space-y-2 p-4">
               {results.results.map((result, index) => (
-                <div 
+                <div
                   key={index}
                   className={`p-4 rounded-lg transition-colors ${
-                    result.success 
-                      ? 'bg-green-100 dark:bg-green-900/20 border border-green-200 dark:border-green-800' 
-                      : 'bg-red-100 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
+                    result.success
+                      ? "bg-green-100 dark:bg-green-900/20 border border-green-200 dark:border-green-800"
+                      : "bg-red-100 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
                   }`}
                 >
                   <div className="flex justify-between items-center">
@@ -341,9 +407,11 @@ export default function PingTool() {
             <h4 className="font-medium text-lg">Statistics</h4>
             <div className="grid md:grid-cols-2 gap-6">
               <div className="space-y-3">
-                <p className="font-medium">Success Rate: {results.statistics.successRate.toFixed(1)}%</p>
-                <Progress 
-                  value={results.statistics.successRate} 
+                <p className="font-medium">
+                  Success Rate: {results.statistics.successRate.toFixed(1)}%
+                </p>
+                <Progress
+                  value={results.statistics.successRate}
                   className="h-2.5 rounded-full"
                 />
               </div>
@@ -365,16 +433,16 @@ export default function PingTool() {
 
 // Utility function
 function convertToCSV(results: PingResult): string {
-  const headers = ['Attempt', 'Success', 'Latency', 'Error'];
-  const rows = results.results.map(r => [
+  const headers = ["Attempt", "Success", "Latency", "Error"];
+  const rows = results.results.map((r) => [
     r.attempt,
     r.success,
-    r.latency || '',
-    r.error || ''
+    r.latency || "",
+    r.error || "",
   ]);
-  
+
   return [
-    headers.join(','),
-    ...rows.map(row => row.join(','))
-  ].join('\n');
+    headers.join(","),
+    ...rows.map((row) => row.join(",")),
+  ].join("\n");
 }

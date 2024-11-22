@@ -9,6 +9,7 @@ export enum WebSocketDomain {
   DNS_PROPAGATION = '/ws/dns-propagation',
   NETWORK_SPEED = '/ws/network-speed',
   LATENCY_CHECK = '/ws/latency-check',
+  PING = '/ws/ping',
 }
 
 // WebSocket 설정 타입

@@ -3,7 +3,10 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic } from "./vite";
 import { createServer } from "http";
 import cors from 'cors';
-import dnsPropagationRouter, { setupWebSocket } from './routes/dns-propagation.route.js';
+import { WebSocketServer } from 'ws';
+import { parse as parseUrl } from 'url';
+import dnsPropagationRouter, { handleDNSWebSocket } from './routes/dns-propagation.route.js';
+import pingRouter, { handlePingWebSocket } from './routes/ping.route.js';
 
 const app = express();
 const server = createServer(app);
@@ -13,10 +16,33 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// Create a single WebSocket server
+const wss = new WebSocketServer({ noServer: true });
+
+// Handle upgrade requests
+server.on('upgrade', (request, socket, head) => {
+  const { pathname } = parseUrl(request.url || '');
+  
+  if (pathname === '/ws/dns-propagation') {
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      console.log('DNS WebSocket connection upgraded');
+      handleDNSWebSocket(ws, request);
+    });
+  } else if (pathname === '/ws/ping') {
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      console.log('Ping WebSocket connection upgraded');
+      handlePingWebSocket(ws, request);
+    });
+  } else {
+    socket.destroy();
+  }
+});
+
 (async () => {
   // Register API routes
   registerRoutes(app);
   app.use('/api/dns-propagation', dnsPropagationRouter);
+  app.use('/api/ping', pingRouter);
 
   // Error handling middleware
   app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
@@ -26,9 +52,6 @@ app.use(express.urlencoded({ extended: false }));
     res.status(status).json({ message });
     throw err;
   });
-
-  // Set up WebSocket server
-  setupWebSocket(server);
 
   // Setup Vite or serve static files
   if (app.get("env") === "development") {
@@ -46,6 +69,6 @@ app.use(express.urlencoded({ extended: false }));
       minute: "2-digit",
       second: "2-digit",
     });
-    console.log(`[${formattedTime}] Server running at http://localhost:${PORT}`);
+    console.log(`[${formattedTime}] Server is running on port ${PORT}`);
   });
 })();

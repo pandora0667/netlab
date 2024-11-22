@@ -40,11 +40,12 @@ export interface PingOptions {
   retries?: number;
 }
 
-interface PingResult {
+export interface PingResult {
   success: boolean;
-  latency?: number;
+  latency?: number | null;
   error?: string;
-  attempt: number;
+  sequence: number;
+  timestamp: number;
 }
 
 interface PingSummary {
@@ -59,7 +60,9 @@ interface PingSummary {
     minLatency: number;
     maxLatency: number;
     avgLatency: number;
+    timestamp: number;
   }
+  timestamp: number;
 }
 
 class PingService {
@@ -91,56 +94,95 @@ class PingService {
     });
   }
 
-  private async icmpPing(host: string, timeout: number): Promise<number> {
+  private async icmpPing(host: string, timeout: number, count: number = 1): Promise<number[]> {
     const isWindows = process.platform === 'win32';
+    // For macOS/Linux, we don't need the -W parameter as it works differently
     const command = isWindows
-      ? `ping -n 1 -w ${timeout} ${host}`
-      : `ping -c 1 -W ${Math.ceil(timeout / 1000)} ${host}`;
+      ? `ping -n ${count} -w ${timeout} ${host}`
+      : `ping -c ${count} ${host}`;
     
-    const { stdout } = await execAsync(command);
-    return this.parseICMPPingOutput(stdout, isWindows);
-  }
-
-  async ping(options: PingOptions): Promise<PingSummary> {
     try {
-      const results = await this.executePing(options);
-      const statistics = this.calculateStatistics(results);
-      
-      return {
-        host: options.host,
-        type: options.type,
-        results,
-        statistics
-      };
-    } catch (err) {
-      throw new Error(err instanceof Error ? err.message : 'Unknown error');
+      const { stdout } = await execAsync(command);
+      console.log('Ping output:', stdout); // Debug log
+      const latencies = this.parseICMPPingOutput(stdout, isWindows);
+      if (!latencies || latencies.length === 0) {
+        throw new Error('Failed to parse ping response');
+      }
+      return latencies;
+    } catch (error) {
+      console.error('ICMP Ping error:', error);
+      throw new Error(error instanceof Error ? error.message : 'Ping failed');
     }
   }
 
-  private async executePing(options: PingOptions): Promise<PingResult[]> {
+  private parseICMPPingOutput(output: string, isWindows: boolean): number[] {
+    try {
+      if (isWindows) {
+        const match = output.match(/Average = (\d+)ms/);
+        return match ? [parseInt(match[1])] : [];
+      } else {
+        // macOS/Linux format: "64 bytes from xxx: icmp_seq=0 ttl=237 time=4.021 ms"
+        const timeRegex = /icmp_seq=\d+\s+ttl=\d+\s+time=([0-9.]+)\s+ms/g;
+        const matches = [...output.matchAll(timeRegex)];
+        
+        if (matches.length > 0) {
+          return matches.map(match => parseFloat(match[1]));
+        }
+        
+        // If we got responses but couldn't parse times, check for successful responses
+        const responseRegex = /(\d+) bytes from/g;
+        const responses = [...output.matchAll(responseRegex)];
+        if (responses.length > 0) {
+          return Array(responses.length).fill(0);
+        }
+        
+        return [];
+      }
+    } catch (error) {
+      console.error('Error parsing ping output:', error);
+      console.debug('Raw ping output:', output);
+      return [];
+    }
+  }
+
+  public async executePing(options: PingOptions): Promise<PingResult[]> {
     const { type, host, port = 80, count = 4, timeout = 5000 } = options;
     const results: PingResult[] = [];
 
-    for (let attempt = 1; attempt <= count; attempt++) {
-      try {
-        const latency = type === 'tcp' 
-          ? await this.tcpPing(host, port, timeout)
-          : await this.icmpPing(host, timeout);
-        
-        results.push({ success: true, latency, attempt });
-      } catch (err) {
+    try {
+      if (type === 'tcp') {
+        const latency = await this.tcpPing(host, port, timeout);
         results.push({
-          success: false,
-          error: err instanceof Error ? err.message : 'Failed to ping',
-          attempt
+          success: true,
+          latency,
+          sequence: 0,
+          timestamp: Date.now()
+        });
+      } else {
+        const latencies = await this.icmpPing(host, timeout, 1); // Always send one ping at a time
+        latencies.forEach((latency, index) => {
+          results.push({
+            success: true,
+            latency,
+            sequence: index,
+            timestamp: Date.now()
+          });
         });
       }
+    } catch (err) {
+      results.push({
+        success: false,
+        error: err instanceof Error ? err.message : 'Failed to ping',
+        latency: null,
+        sequence: 0,
+        timestamp: Date.now()
+      });
     }
-
+    
     return results;
   }
 
-  private calculateStatistics(results: PingResult[]): PingSummary['statistics'] {
+  calculateStatistics(results: PingResult[]): PingSummary['statistics'] {
     const successful = results.filter(r => r.success);
     const latencies = successful.map(r => r.latency!);
 
@@ -152,36 +194,30 @@ class PingService {
       minLatency: latencies.length ? Math.min(...latencies) : 0,
       maxLatency: latencies.length ? Math.max(...latencies) : 0,
       avgLatency: latencies.length ? 
-        latencies.reduce((a, b) => a + b, 0) / latencies.length : 0
+        latencies.reduce((a, b) => a + b, 0) / latencies.length : 0,
+      timestamp: Date.now()
     };
   }
 
-  private parseICMPPingOutput(output: string, isWindows: boolean = false): number {
+  async ping(options: PingOptions): Promise<PingSummary> {
     try {
-      // macOS/Linux format: round-trip min/avg/max/stddev = 33.620/33.620/33.620/nan ms
-      const macMatch = output.match(/round-trip.*?=.*?\/(.+?)\/.+?\/.*?ms/);
-      if (macMatch) {
-        return parseFloat(macMatch[1]);
-      }
-
-      // Windows format
-      const winMatch = output.match(/[time][=<](\d+)ms/i);
-      if (winMatch) {
-        return parseFloat(winMatch[1]);
-      }
-
-      // Linux format (alternative)
-      const linuxMatch = output.match(/time=(\d+\.?\d*) ms/);
-      if (linuxMatch) {
-        return parseFloat(linuxMatch[1]);
-      }
-
-      throw new Error('Failed to parse ping output');
+      const results = await this.executePing(options);
+      const statistics = this.calculateStatistics(results);
+      
+      return {
+        host: options.host,
+        type: options.type,
+        results,
+        statistics,
+        timestamp: Date.now()
+      };
     } catch (err) {
-      throw new Error('Failed to parse ping output');
+      throw new Error(err instanceof Error ? err.message : 'Unknown error');
     }
   }
 }
+
+const pingService = new PingService();
 
 export const networkServices = {
   async getIPInfo(ip: string): Promise<any> {
@@ -338,14 +374,9 @@ export const networkServices = {
     return calculateSubnetInfo(networkAddress, maskBits);
   },
 
-  async ping(options: PingOptions): Promise<PingSummary> {
-    const pingService = new PingService();
-    try {
-      return await pingService.ping(options);
-    } catch (err) {
-      throw new Error(`Ping failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
-    }
-  },
+  ping: (options: PingOptions) => pingService.ping(options),
+  executePing: (options: PingOptions) => pingService.executePing(options),
+  calculateStatistics: (results: PingResult[]) => pingService.calculateStatistics(results),
 
   async validateDNSServer(serverIP: string): Promise<{ success: boolean; error?: string }> {
     try {
