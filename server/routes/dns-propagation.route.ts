@@ -11,10 +11,10 @@ const dnsService = new DNSPropagationService();
 export function setupWebSocket(server: Server) {
   const wss = new WebSocketServer({ 
     server,
-    path: '/ws',
+    path: '/ws/dns-propagation',
     verifyClient: (info, cb) => {
       const { pathname } = parseUrl(info.req.url || '');
-      if (pathname === '/ws') {
+      if (pathname === '/ws/dns-propagation') {
         cb(true);
       } else {
         cb(false, 404, 'Not Found');
@@ -23,7 +23,7 @@ export function setupWebSocket(server: Server) {
   });
 
   wss.on('connection', (ws, req) => {
-    console.log('New WebSocket connection from:', req.socket.remoteAddress);
+    console.log('New DNS Propagation WebSocket connection from:', req.socket.remoteAddress);
 
     const cleanup = dnsService.onQueryResult((result) => {
       if (ws.readyState === ws.OPEN) {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card } from '../ui/card';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
@@ -36,6 +36,9 @@ import {
   Marker,
   ZoomableGroup
 } from 'react-simple-maps';
+
+import { useWebSocket } from '../../lib/websocket/useWebSocket';
+import { WebSocketDomain, WebSocketMessage } from '../../lib/websocket/types';
 
 interface DNSServer {
   country_code: string;
@@ -141,12 +144,8 @@ const geoUrl = "/world-countries.json";
 export default function DNSPropagationChecker() {
   const [domain, setDomain] = useState('');
   const [selectedRegion, setSelectedRegion] = useState('All Regions');
-  const [isLoading, setIsLoading] = useState(false);
   const [results, setResults] = useState<DNSQueryResult[]>([]);
-  const [filter, setFilter] = useState({
-    status: 'all',
-    dnssec: 'all',
-  });
+  const [isLoading, setIsLoading] = useState(false);
   const [view, setView] = useState<'table' | 'map' | 'chart'>('table');
   const [stats, setStats] = useState<QueryStats>({
     totalQueries: 0,
@@ -157,53 +156,48 @@ export default function DNSPropagationChecker() {
   });
   const [progress, setProgress] = useState(0);
 
-  useEffect(() => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host || 'localhost:8080';
-    const ws = new WebSocket(`${protocol}//${host}/ws`);
-    let isConnected = false;
-    
-    ws.onopen = () => {
-      console.log('WebSocket connected');
-      isConnected = true;
-    };
-    
-    ws.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data);
-        if (message.type === 'queryResult') {
-          setResults(prev => {
-            const newResults = [...prev];
-            const index = newResults.findIndex(r => 
-              r.server.ip_address === message.data.server.ip_address
-            );
-            if (index >= 0) {
-              newResults[index] = message.data;
-            } else {
-              newResults.push(message.data);
-            }
-            calculateStats(newResults);
-            setProgress(Math.round((newResults.length / (prev.length || 1)) * 100));
-            return newResults;
-          });
+  // Add filter type definition
+  interface FilterState {
+    status: 'all' | 'success' | 'error';
+    dnssec: 'all' | 'enabled' | 'disabled';
+  }
+
+  // Initialize filter state
+  const [filter, setFilter] = useState<FilterState>({
+    status: 'all',
+    dnssec: 'all'
+  });
+
+  const handleMessage = useCallback((message: WebSocketMessage) => {
+    if (message.type === 'queryResult') {
+      setResults(prev => {
+        const newResults = [...prev];
+        const index = newResults.findIndex(r => 
+          r.server.ip_address === message.data.server.ip_address
+        );
+        if (index >= 0) {
+          newResults[index] = message.data;
+        } else {
+          newResults.push(message.data);
         }
-      } catch (error) {
-        console.error('Failed to parse WebSocket message:', error);
-      }
-    };
+        calculateStats(newResults);
+        setProgress(Math.round((newResults.length / (prev.length || 1)) * 100));
+        return newResults;
+      });
+    }
+  }, []);
 
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
-      if (isConnected) {
-        toast.error('WebSocket connection error');
-      }
-    };
+  const handleError = useCallback(() => {
+    toast.error('WebSocket connection error');
+  }, []);
 
-    ws.onclose = () => {
-      console.log('WebSocket disconnected');
-      isConnected = false;
-    };
+  const { webSocket } = useWebSocket({
+    domain: WebSocketDomain.DNS_PROPAGATION,
+    onMessage: handleMessage,
+    onError: handleError
+  });
 
+  useEffect(() => {
     const handleResize = () => {
       // Force map re-render on window resize
       setView(prev => prev === 'map' ? 'chart' : 'map');
@@ -212,9 +206,6 @@ export default function DNSPropagationChecker() {
 
     window.addEventListener('resize', handleResize);
     return () => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.close();
-      }
       window.removeEventListener('resize', handleResize);
     };
   }, []);
@@ -278,7 +269,8 @@ export default function DNSPropagationChecker() {
 
   const filteredResults = results.filter((result) => {
     if (filter.status !== 'all' && result.status !== filter.status) return false;
-    if (filter.dnssec !== 'all' && result.server.dnssec !== (filter.dnssec === 'enabled')) return false;
+    if (filter.dnssec === 'enabled' && !result.server.dnssec) return false;
+    if (filter.dnssec === 'disabled' && result.server.dnssec) return false;
     return true;
   });
 
@@ -594,7 +586,9 @@ export default function DNSPropagationChecker() {
             <div className="flex space-x-4">
               <Select
                 value={filter.status}
-                onValueChange={(value) => setFilter({ ...filter, status: value })}
+                onValueChange={(value: FilterState['status']) => 
+                  setFilter({ ...filter, status: value })
+                }
               >
                 <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="Filter by status" />
@@ -608,15 +602,17 @@ export default function DNSPropagationChecker() {
 
               <Select
                 value={filter.dnssec}
-                onValueChange={(value) => setFilter({ ...filter, dnssec: value })}
+                onValueChange={(value: FilterState['dnssec']) => 
+                  setFilter({ ...filter, dnssec: value })
+                }
               >
                 <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="Filter by DNSSEC" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All DNSSEC</SelectItem>
                   <SelectItem value="enabled">DNSSEC Enabled</SelectItem>
                   <SelectItem value="disabled">DNSSEC Disabled</SelectItem>
+                  <SelectItem value="all">All DNSSEC</SelectItem>
                 </SelectContent>
               </Select>
             </div>
