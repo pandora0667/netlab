@@ -37,8 +37,10 @@ import {
   ZoomableGroup
 } from 'react-simple-maps';
 
-import { useWebSocket } from '../../lib/websocket/useWebSocket';
-import { WebSocketDomain, WebSocketMessage } from '../../lib/websocket/types';
+import {
+  WebSocketDomain, 
+  WebSocketMessage
+} from '../../lib/websocket/types';
 
 interface DNSServer {
   country_code: string;
@@ -155,6 +157,7 @@ export default function DNSPropagationChecker() {
     dnssecEnabled: 0,
   });
   const [progress, setProgress] = useState(0);
+  const [ws, setWs] = useState<WebSocket | null>(null);
 
   // Add filter type definition
   interface FilterState {
@@ -168,47 +171,107 @@ export default function DNSPropagationChecker() {
     dnssec: 'all'
   });
 
-  const handleMessage = useCallback((message: WebSocketMessage) => {
-    if (message.type === 'queryResult') {
-      setResults(prev => {
-        const newResults = [...prev];
-        const index = newResults.findIndex(r => 
-          r.server.ip_address === message.data.server.ip_address
-        );
-        if (index >= 0) {
-          newResults[index] = message.data;
-        } else {
-          newResults.push(message.data);
-        }
-        calculateStats(newResults);
-        setProgress(Math.round((newResults.length / (prev.length || 1)) * 100));
-        return newResults;
-      });
-    }
-  }, []);
-
-  const handleError = useCallback(() => {
-    toast.error('WebSocket connection error');
-  }, []);
-
-  const { webSocket } = useWebSocket({
-    domain: WebSocketDomain.DNS_PROPAGATION,
-    onMessage: handleMessage,
-    onError: handleError
-  });
-
   useEffect(() => {
-    const handleResize = () => {
-      // Force map re-render on window resize
-      setView(prev => prev === 'map' ? 'chart' : 'map');
-      setTimeout(() => setView('map'), 0);
+    const socket = new WebSocket('ws://localhost:8080/ws/dns-propagation');
+    
+    socket.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      if (message.type === 'queryResult') {
+        const result = message.data;
+        console.log('Received DNS result:', result);
+        
+        const validResult = validateDNSResult(result);
+        setResults(prev => {
+          const newResults = [...prev, validResult];
+          calculateStats(newResults);  // 새로운 결과 배열로 통계 계산
+          return newResults;
+        });
+      }
     };
 
-    window.addEventListener('resize', handleResize);
+    socket.onerror = (error) => {
+      console.error('WebSocket error:', error);
+      toast.error('Connection error occurred');
+    };
+
+    setWs(socket);
+
     return () => {
-      window.removeEventListener('resize', handleResize);
+      socket.close();
     };
   }, []);
+
+  const handleCheck = async () => {
+    if (!domain) {
+      toast.error('Please enter a domain name');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setResults([]);
+      
+      const response = await fetch('/api/dns-propagation/propagation', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ domain, region: selectedRegion }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to start DNS propagation check');
+      }
+
+      // 서버에서는 체크 시작 메시지만 반환하고, 실제 결과는 WebSocket으로 받습니다
+      const data = await response.json();
+      console.log('Check started:', data);
+    } catch (error) {
+      toast.error('Failed to check DNS propagation');
+      console.error('Error:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const validateDNSResult = (result: any): DNSQueryResult => {
+    if (!result || typeof result !== 'object') {
+      console.error('Invalid result format:', result);
+      return {
+        server: {
+          country_code: 'UN',
+          name: 'Unknown Server',
+          ip_address: '0.0.0.0',
+          reliability: 0,
+          dnssec: false,
+          is_working: false
+        },
+        response: 'Invalid Response',
+        latency: 0,
+        status: 'error',
+        error: 'Invalid result format',
+        timestamp: Date.now()
+      };
+    }
+
+    const server: DNSServer = {
+      country_code: result.server?.country_code || 'UN',
+      name: result.server?.name || 'Unknown Server',
+      ip_address: result.server?.ip_address || '0.0.0.0',
+      reliability: result.server?.reliability || 0,
+      dnssec: result.server?.dnssec || false,
+      is_working: result.server?.is_working || false
+    };
+
+    return {
+      server,
+      response: result.response || '',
+      latency: result.latency || 0,
+      status: result.status || 'error',
+      error: result.error,
+      timestamp: Date.now()
+    };
+  };
 
   const calculateStats = (results: DNSQueryResult[]) => {
     const successful = results.filter(r => r.status === 'success').length;
@@ -223,48 +286,6 @@ export default function DNSPropagationChecker() {
       averageLatency: Math.round(avgLatency),
       dnssecEnabled,
     });
-  };
-
-  const handleCheck = async () => {
-    if (!domain) {
-      toast.error('Please enter a domain name');
-      return;
-    }
-
-    setIsLoading(true);
-    setResults([]);
-    setProgress(0);
-    
-    try {
-      const response = await fetch('/api/dns-propagation/propagation', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          domain,
-          region: selectedRegion,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to check DNS propagation');
-      }
-
-      const data = await response.json();
-      const resultsWithTimestamp = data.map((result: DNSQueryResult) => ({
-        ...result,
-        timestamp: Date.now(),
-      }));
-      
-      setResults(resultsWithTimestamp);
-      calculateStats(resultsWithTimestamp);
-    } catch (error) {
-      toast.error('Failed to check DNS propagation');
-      console.error('Error:', error);
-    } finally {
-      setIsLoading(false);
-    }
   };
 
   const filteredResults = results.filter((result) => {
