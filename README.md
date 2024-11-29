@@ -49,35 +49,73 @@ Netlab is a modern full-stack web application built with Express.js and React, l
 ```
 
 ## Features
-- Modern React components with TypeScript
-- Server-side rendering support
-- Responsive and accessible UI using Radix UI
-- Efficient styling with Tailwind CSS
-- Type-safe backend with Express and TypeScript
-- Development and production environment configurations
-- Hot module replacement in development
+### Network Analysis Tools
+#### IP Checker
+- Public and private IP address detection
+- Geolocation information
+- Network interface details
+- IPv4 and IPv6 support
 
-### Network Tools
-#### Port Scanner
-- Multi-threaded port scanning using Node.js Worker Threads
-- Support for both TCP and UDP protocols
-- Configurable scan parameters (port range, timeout)
-- Real-time scan results with WebSocket updates
-- Efficient resource utilization through worker pooling
-- Error handling and timeout management
-- Inline worker implementation for improved deployment reliability
+#### DNS Tools
+##### DNS Lookup
+- Multiple record type support (A, AAAA, MX, TXT, NS, etc.)
+- Custom DNS server selection
+- Detailed record information
+- Response time analysis
 
-#### DNS Propagation Checker
+##### DNS Propagation Checker
 - Real-time DNS propagation monitoring
-- WebSocket-based updates
-- Support for multiple record types
-- Global server checking
+- Support for multiple DNS servers worldwide
+- WebSocket-based live updates
+- Multiple record type checking
+- Detailed propagation status visualization
+
+#### Network Connectivity Tools
+##### Ping Tool
+- Real-time latency monitoring
+- Configurable ping parameters (count, interval)
+- WebSocket-based live updates
+- Packet loss statistics
+- Response time graphs
+
+##### Port Scanner
+- Multi-threaded port scanning using Node.js Worker Threads
+- TCP and UDP protocol support
+- Customizable port ranges and timeout settings
+- Real-time scan progress updates via WebSocket
+- Common service detection
+- Export results in JSON/CSV formats
+
+#### Network Calculator Tools
+##### Subnet Calculator
+- IPv4 subnet calculations
+- CIDR notation support
+- Network/Broadcast address calculation
+- Available IP range determination
+- Subnet mask conversion
+
+#### Domain Tools
+##### Whois Lookup
+- Domain registration information
+- Registrar details
+- Name server information
+- Domain status checking
+- Creation and expiration dates
+
+### Technical Features
+- TypeScript for enhanced type safety
+- Real-time updates using WebSocket
+- Responsive and accessible UI components
+- Error handling and validation
+- Cross-platform compatibility
+- Mobile-friendly interface
 
 ## Getting Started
 
 ### Prerequisites
 - Node.js >= 22.0.0
 - npm >= 10.0.0
+- Modern web browser with WebSocket support
 
 ### Installation
 
@@ -87,53 +125,51 @@ git clone [repository-url]
 cd netlab
 ```
 
-2. Install dependencies with legacy peer deps (due to React version compatibility):
+2. Install dependencies:
 ```bash
 npm install --legacy-peer-deps
 ```
 
-3. Development Mode:
+3. Configure environment variables:
 ```bash
-# Start development server
+cp .env.example .env
+# Edit .env with your configuration
+```
+
+### Development Mode
+
+1. Start the development server:
+```bash
 npm run dev
 ```
 
-4. Production Build:
+2. Start the backend server:
 ```bash
-# Build the application
-npm run build
+npm run server:dev
+```
 
-# Start production server
+The application will be available at `http://localhost:5173`
+
+### Production Build
+
+1. Build the application:
+```bash
+npm run build
+```
+
+2. Start the production server:
+```bash
 npm start
 ```
 
-### Development Notes
-- The application runs on port 8080 by default
-- Uses Vite's development server for hot module replacement
-- WebSocket server is automatically started for real-time updates
-- API and client application are served from the same server
-
-## Project Configuration
-- **TypeScript**: Strict mode enabled for maximum type safety
-- **Tailwind CSS**: Custom theme configuration with shadcn/ui integration
-- **Vite**: Optimized build setup with ESM support
-- **Express**: Configured with TypeScript and WebSocket support
-
-## Troubleshooting
-
-### Common Issues
-
-1. Dependency Conflicts:
-   - If you encounter peer dependency issues, use `--legacy-peer-deps` flag
-   - Some packages may require specific React versions
-
-2. Build Issues:
-   - Clear the dist directory: `rm -rf dist`
-   - Rebuild with: `npm run build`
-
-3. WebSocket Connection Issues:
-   - Check if port 8080 is available
-   - Ensure firewall settings allow WebSocket connections
-
 ## Contributing
-Contributions are welcome! Please read our contributing guidelines for details on our code of conduct and the process for submitting pull requests.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
