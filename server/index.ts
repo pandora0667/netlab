@@ -7,6 +7,9 @@ import { WebSocketServer } from 'ws';
 import { parse as parseUrl } from 'url';
 import dnsPropagationRouter, { handleDNSWebSocket } from './routes/dns-propagation.route.js';
 import pingRouter, { handlePingWebSocket } from './routes/ping.route.js';
+import { apiLimiter } from './middleware/rateLimit';
+import { requestLogger } from './middleware/logging';
+import logger from './lib/logger';
 
 const app = express();
 const server = createServer(app);
@@ -15,6 +18,8 @@ const server = createServer(app);
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+app.use(requestLogger);  
+app.use('/api', apiLimiter);  
 
 // Create a single WebSocket server
 const wss = new WebSocketServer({ noServer: true });

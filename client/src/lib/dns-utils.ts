@@ -36,22 +36,22 @@ export const validateDNSServer = async (serverIP: string): Promise<{
   error?: string;
 }> => {
   try {
-    // 빈 문자열이면 유효한 것으로 처리 (선택적 필드이므로)
+    // If empty string, treat as valid (optional field)
     if (!serverIP.trim()) {
       return {
         isValid: true
       };
     }
 
-    // IP 형식 검증
+    // IP format validation
     if (!isValidIPv4(serverIP) && !isValidIPv6(serverIP)) {
       return {
         isValid: false,
-        error: '유효하지 않은 IP 주소 형식입니다.'
+        error: 'Invalid IP address format.'
       };
     }
 
-    // 서버 API를 통한 DNS 서버 검증
+    // DNS server validation through server API
     const response = await fetch('/api/dns/validate-server', {
       method: 'POST',
       headers: {
@@ -64,7 +64,7 @@ export const validateDNSServer = async (serverIP: string): Promise<{
       const error = await response.json();
       return {
         isValid: false,
-        error: error.message || 'DNS 서버 검증에 실패했습니다.'
+        error: error.message || 'DNS server validation failed.'
       };
     }
 
@@ -76,12 +76,12 @@ export const validateDNSServer = async (serverIP: string): Promise<{
   } catch (error) {
     return {
       isValid: false,
-      error: error instanceof Error ? error.message : 'DNS 서버 검증 중 오류가 발생했습니다.'
+      error: error instanceof Error ? error.message : 'An error occurred during DNS server validation.'
     };
   }
 };
 
-// Zod 스키마 업데이트
+// Update Zod schema
 export const dnsServerSchema = z.string().refine(
   async (value) => {
     if (!value.trim()) return true;
@@ -89,6 +89,6 @@ export const dnsServerSchema = z.string().refine(
     return result.isValid;
   },
   {
-    message: '유효하지 않은 DNS 서버입니다.'
+    message: 'Invalid DNS server.'
   }
 );

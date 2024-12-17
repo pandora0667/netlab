@@ -183,7 +183,7 @@ export default function DNSPropagationChecker() {
         const validResult = validateDNSResult(result);
         setResults(prev => {
           const newResults = [...prev, validResult];
-          calculateStats(newResults);  // 새로운 결과 배열로 통계 계산
+          calculateStats(newResults);  // Calculate stats with new results array
           return newResults;
         });
       }
@@ -223,7 +223,7 @@ export default function DNSPropagationChecker() {
         throw new Error('Failed to start DNS propagation check');
       }
 
-      // 서버에서는 체크 시작 메시지만 반환하고, 실제 결과는 WebSocket으로 받습니다
+      // Server returns only check start message, actual results come through WebSocket
       const data = await response.json();
       console.log('Check started:', data);
     } catch (error) {

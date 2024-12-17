@@ -25,9 +25,7 @@ const networkTools: Tool[] = [
 ];
 
 const utilities: Tool[] = [
-  { href: "/ssl-checker", label: "SSL Checker" },
   { href: "/dns-propagation", label: "DNS Propagation Checker" },
-  { href: "/traceroute", label: "Traceroute (Coming Soon)" },
   { href: "/port-scan", label: "Port Scanner" },
 ];
 
@@ -134,10 +132,8 @@ export default function Navigation() {
                             block px-4 py-2 rounded-md text-sm font-medium transition-all duration-200
                             hover:bg-accent hover:text-accent-foreground
                             ${isActive(tool.href) ? 'bg-accent/50 text-accent-foreground' : ''}
-                            ${tool.href === '/traceroute' ? 'opacity-50 cursor-not-allowed' : ''}
                           `}
                           aria-current={isActive(tool.href) ? "page" : undefined}
-                          aria-disabled={tool.href === '/traceroute'}
                         >
                           {tool.label}
                         </Link>
@@ -239,10 +235,8 @@ export default function Navigation() {
                             block px-4 py-2 rounded-md text-sm font-medium transition-all duration-200
                             hover:bg-accent hover:text-accent-foreground
                             ${isActive(tool.href) ? 'bg-accent/50 text-accent-foreground' : ''}
-                            ${tool.href === '/traceroute' ? 'opacity-50 cursor-not-allowed' : ''}
                           `}
                           aria-current={isActive(tool.href) ? "page" : undefined}
-                          aria-disabled={tool.href === '/traceroute'}
                         >
                           {tool.label}
                         </Link>

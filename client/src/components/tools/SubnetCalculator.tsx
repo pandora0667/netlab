@@ -45,6 +45,7 @@ import {
   netmaskToCidr,
   cidrToNetmask,
 } from "@/lib/utils/subnet";
+import { SEO } from "../SEO";
 
 const columns = [
   { id: "networkAddress", label: "Network Address", tooltip: "The base address of the subnet" },
@@ -221,284 +222,287 @@ export default function SubnetCalculator() {
   }
 
   return (
-    <div className="space-y-6">
-      <motion.div
-        className="text-center space-y-2"
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-      >
-        <h2 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-          Subnet Calculator
-        </h2>
-        <p className="text-muted-foreground text-lg">
-          Calculate network details and manage subnets
-        </p>
-      </motion.div>
+    <>
+      <SEO page="subnetCalculator" />
+      <div className="space-y-6">
+        <motion.div
+          className="text-center space-y-2"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <h2 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+            Subnet Calculator
+          </h2>
+          <p className="text-muted-foreground text-lg">
+            Calculate network details and manage subnets
+          </p>
+        </motion.div>
 
-      <Card className="p-6">
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <FormField
-                control={form.control}
-                name="networkAddress"
-                render={({ field, fieldState }) => (
-                  <FormItem>
-                    <FormLabel>Network Address</FormLabel>
-                    <FormControl>
-                      <div className="relative">
-                        <Input 
-                          placeholder="192.168.1.0" 
-                          {...field}
-                          className={fieldState.error ? "border-destructive" : ""} 
-                        />
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              {fieldState.error ? (
-                                <AlertCircle className="h-4 w-4 absolute right-3 top-3 text-destructive" />
-                              ) : (
-                                <HelpCircle className="h-4 w-4 absolute right-3 top-3 text-muted-foreground" />
-                              )}
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>
-                                {fieldState.error
-                                  ? fieldState.error.message
-                                  : "Enter a valid IPv4 address (e.g., 192.168.1.0)"}
-                              </p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </div>
-                    </FormControl>
-                    <FormDescription className="text-xs">
-                      Example: 192.168.1.0, 10.0.0.0, 172.16.0.0
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="mask"
-                render={({ field, fieldState }) => (
-                  <FormItem>
-                    <FormLabel>Subnet Mask</FormLabel>
-                    <FormControl>
-                      <div className="relative">
-                        <Input 
-                          placeholder="/24 or 255.255.255.0" 
-                          {...field}
-                          className={fieldState.error ? "border-destructive" : ""} 
-                        />
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              {fieldState.error ? (
-                                <AlertCircle className="h-4 w-4 absolute right-3 top-3 text-destructive" />
-                              ) : (
-                                <HelpCircle className="h-4 w-4 absolute right-3 top-3 text-muted-foreground" />
-                              )}
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>
-                                {fieldState.error
-                                  ? fieldState.error.message
-                                  : "Enter CIDR notation (e.g., /24) or netmask (e.g., 255.255.255.0)"}
-                              </p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </div>
-                    </FormControl>
-                    <FormDescription className="text-xs">
-                      CIDR: /8 to /32 or Netmask: 255.0.0.0 to 255.255.255.255
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <div className="flex space-x-2">
-              <Button type="submit" disabled={isLoading}>
-                {isLoading ? (
-                  <>
-                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                    Calculating...
-                  </>
-                ) : (
-                  'Calculate'
-                )}
-              </Button>
-              <Button type="button" variant="outline" onClick={handleReset}>
-                Reset
-              </Button>
-            </div>
-          </form>
-        </Form>
-
-        {subnets.length > 0 && (
-          <motion.div
-            className="mt-6 space-y-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-          >
-            <div className="flex justify-between items-center">
-              <div className="flex items-center space-x-2">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm">
-                      Columns
-                      <ChevronDown className="ml-2 h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start">
-                    {columns.map(column => (
-                      <DropdownMenuItem
-                        key={column.id}
-                        className="flex items-center space-x-2"
-                        onSelect={(e) => {
-                          e.preventDefault();
-                          handleColumnToggle(column.id);
-                        }}
-                      >
-                        <Checkbox
-                          checked={visibleColumns.includes(column.id)}
-                          onCheckedChange={() => handleColumnToggle(column.id)}
-                        />
-                        <span>{column.label}</span>
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleExport}
-                  className="flex items-center"
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  Export CSV
-                </Button>
-              </div>
-
-              {selectedSubnets.length === 2 && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleJoin}
-                          disabled={!canMergeSubnets}
-                          className={`flex items-center ${!canMergeSubnets ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        >
-                          <GitMerge className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>{getMergeTooltip()}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
-            </div>
-
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    {columns.filter(col => visibleColumns.includes(col.id)).map(column => (
-                      <TableHead
-                        key={column.id}
-                        className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => handleSort(column.id)}
-                      >
-                        <div className="flex items-center space-x-2">
-                          <span>{column.label}</span>
+        <Card className="p-6">
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="networkAddress"
+                  render={({ field, fieldState }) => (
+                    <FormItem>
+                      <FormLabel>Network Address</FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <Input 
+                            placeholder="192.168.1.0" 
+                            {...field}
+                            className={fieldState.error ? "border-destructive" : ""} 
+                          />
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                                {fieldState.error ? (
+                                  <AlertCircle className="h-4 w-4 absolute right-3 top-3 text-destructive" />
+                                ) : (
+                                  <HelpCircle className="h-4 w-4 absolute right-3 top-3 text-muted-foreground" />
+                                )}
                               </TooltipTrigger>
                               <TooltipContent>
-                                <p>{column.tooltip}</p>
+                                <p>
+                                  {fieldState.error
+                                    ? fieldState.error.message
+                                    : "Enter a valid IPv4 address (e.g., 192.168.1.0)"}
+                                </p>
                               </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
                         </div>
-                      </TableHead>
-                    ))}
-                    <TableHead className="w-[100px]">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  <AnimatePresence>
-                    {sortedSubnets.map((subnet, index) => (
-                      <motion.tr
-                        key={subnet.networkAddress}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -20 }}
-                        transition={{ duration: 0.2 }}
-                        className="group"
-                      >
-                        {columns
-                          .filter(col => visibleColumns.includes(col.id))
-                          .map(column => (
-                            <TableCell key={column.id}>
-                              {column.id === 'subnetMask'
-                                ? `${subnet.netmask} (/${subnet.subnetMask})`
-                                : subnet[column.id as keyof typeof subnet]}
-                            </TableCell>
-                          ))}
-                        <TableCell>
+                      </FormControl>
+                      <FormDescription className="text-xs">
+                        Example: 192.168.1.0, 10.0.0.0, 172.16.0.0
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="mask"
+                  render={({ field, fieldState }) => (
+                    <FormItem>
+                      <FormLabel>Subnet Mask</FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <Input 
+                            placeholder="/24 or 255.255.255.0" 
+                            {...field}
+                            className={fieldState.error ? "border-destructive" : ""} 
+                          />
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                {fieldState.error ? (
+                                  <AlertCircle className="h-4 w-4 absolute right-3 top-3 text-destructive" />
+                                ) : (
+                                  <HelpCircle className="h-4 w-4 absolute right-3 top-3 text-muted-foreground" />
+                                )}
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>
+                                  {fieldState.error
+                                    ? fieldState.error.message
+                                    : "Enter CIDR notation (e.g., /24) or netmask (e.g., 255.255.255.0)"}
+                                </p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </div>
+                      </FormControl>
+                      <FormDescription className="text-xs">
+                        CIDR: /8 to /32 or Netmask: 255.0.0.0 to 255.255.255.255
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="flex space-x-2">
+                <Button type="submit" disabled={isLoading}>
+                  {isLoading ? (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                      Calculating...
+                    </>
+                  ) : (
+                    'Calculate'
+                  )}
+                </Button>
+                <Button type="button" variant="outline" onClick={handleReset}>
+                  Reset
+                </Button>
+              </div>
+            </form>
+          </Form>
+
+          {subnets.length > 0 && (
+            <motion.div
+              className="mt-6 space-y-4"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+            >
+              <div className="flex justify-between items-center">
+                <div className="flex items-center space-x-2">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        Columns
+                        <ChevronDown className="ml-2 h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                      {columns.map(column => (
+                        <DropdownMenuItem
+                          key={column.id}
+                          className="flex items-center space-x-2"
+                          onSelect={(e) => {
+                            e.preventDefault();
+                            handleColumnToggle(column.id);
+                          }}
+                        >
+                          <Checkbox
+                            checked={visibleColumns.includes(column.id)}
+                            onCheckedChange={() => handleColumnToggle(column.id)}
+                          />
+                          <span>{column.label}</span>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleExport}
+                    className="flex items-center"
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Export CSV
+                  </Button>
+                </div>
+
+                {selectedSubnets.length === 2 && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleJoin}
+                            disabled={!canMergeSubnets}
+                            className={`flex items-center ${!canMergeSubnets ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          >
+                            <GitMerge className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>{getMergeTooltip()}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+              </div>
+
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      {columns.filter(col => visibleColumns.includes(col.id)).map(column => (
+                        <TableHead
+                          key={column.id}
+                          className="cursor-pointer hover:bg-muted/50"
+                          onClick={() => handleSort(column.id)}
+                        >
                           <div className="flex items-center space-x-2">
+                            <span>{column.label}</span>
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handleDivide(index)}
-                                  >
-                                    <Network className="h-4 w-4" />
-                                  </Button>
+                                  <HelpCircle className="h-4 w-4 text-muted-foreground" />
                                 </TooltipTrigger>
                                 <TooltipContent>
-                                  <p>Divide this subnet into smaller subnets</p>
+                                  <p>{column.tooltip}</p>
                                 </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
-                            <Checkbox
-                              checked={selectedSubnets.includes(index)}
-                              onCheckedChange={(checked) => {
-                                setSelectedSubnets(current => {
-                                  if (checked) {
-                                    if (current.length >= 2) return current;
-                                    return [...current, index];
-                                  }
-                                  return current.filter(i => i !== index);
-                                });
-                              }}
-                            />
                           </div>
-                        </TableCell>
-                      </motion.tr>
-                    ))}
-                  </AnimatePresence>
-                </TableBody>
-              </Table>
-            </div>
-          </motion.div>
-        )}
-      </Card>
-    </div>
+                        </TableHead>
+                      ))}
+                      <TableHead className="w-[100px]">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <AnimatePresence>
+                      {sortedSubnets.map((subnet, index) => (
+                        <motion.tr
+                          key={subnet.networkAddress}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -20 }}
+                          transition={{ duration: 0.2 }}
+                          className="group"
+                        >
+                          {columns
+                            .filter(col => visibleColumns.includes(col.id))
+                            .map(column => (
+                              <TableCell key={column.id}>
+                                {column.id === 'subnetMask'
+                                  ? `${subnet.netmask} (/${subnet.subnetMask})`
+                                  : subnet[column.id as keyof typeof subnet]}
+                              </TableCell>
+                            ))}
+                          <TableCell>
+                            <div className="flex items-center space-x-2">
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleDivide(index)}
+                                    >
+                                      <Network className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Divide this subnet into smaller subnets</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                              <Checkbox
+                                checked={selectedSubnets.includes(index)}
+                                onCheckedChange={(checked) => {
+                                  setSelectedSubnets(current => {
+                                    if (checked) {
+                                      if (current.length >= 2) return current;
+                                      return [...current, index];
+                                    }
+                                    return current.filter(i => i !== index);
+                                  });
+                                }}
+                              />
+                            </div>
+                          </TableCell>
+                        </motion.tr>
+                      ))}
+                    </AnimatePresence>
+                  </TableBody>
+                </Table>
+              </div>
+            </motion.div>
+          )}
+        </Card>
+      </div>
+    </>
   );
 }

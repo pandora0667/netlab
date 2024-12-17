@@ -1,10 +1,10 @@
-// WebSocket 메시지 타입 정의
+// WebSocket Message Type Definition
 export type WebSocketMessage<T = any> = {
   type: string;
   data: T;
 };
 
-// WebSocket 서비스 도메인 정의
+// WebSocket Service Domain Definition
 export enum WebSocketDomain {
   DNS_PROPAGATION = '/ws/dns-propagation',
   NETWORK_SPEED = '/ws/network-speed',
@@ -12,7 +12,7 @@ export enum WebSocketDomain {
   PING = '/ws/ping',
 }
 
-// WebSocket 설정 타입
+// WebSocket Configuration Type
 export interface WebSocketConfig {
   domain: WebSocketDomain;
   onMessage?: (message: WebSocketMessage) => void;
