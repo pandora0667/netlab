@@ -14,6 +14,9 @@ import logger from './lib/logger';
 const app = express();
 const server = createServer(app);
 
+// Trust proxy configuration
+app.set('trust proxy', 1);
+
 // Middleware
 app.use(cors());
 app.use(express.json());

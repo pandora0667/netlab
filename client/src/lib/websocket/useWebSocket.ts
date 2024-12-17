@@ -30,9 +30,7 @@ export const useWebSocket = (config: WebSocketConfig) => {
       }
 
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const host = process.env.NODE_ENV === 'production'
-        ? window.location.host
-        : 'localhost:8080';
+      const host = window.location.host;
 
       try {
         // Clean up existing connection
