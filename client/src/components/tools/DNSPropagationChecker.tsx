@@ -41,6 +41,7 @@ import {
   WebSocketDomain, 
   WebSocketMessage
 } from '../../lib/websocket/types';
+import { useWebSocket } from '@/lib/websocket/useWebSocket';
 
 interface DNSServer {
   country_code: string;
@@ -157,7 +158,6 @@ export default function DNSPropagationChecker() {
     dnssecEnabled: 0,
   });
   const [progress, setProgress] = useState(0);
-  const [ws, setWs] = useState<WebSocket | null>(null);
 
   // Add filter type definition
   interface FilterState {
@@ -171,35 +171,28 @@ export default function DNSPropagationChecker() {
     dnssec: 'all'
   });
 
-  useEffect(() => {
-    const socket = new WebSocket('ws://localhost:8080/ws/dns-propagation');
-    
-    socket.onmessage = (event) => {
-      const message = JSON.parse(event.data);
-      if (message.type === 'queryResult') {
-        const result = message.data;
-        console.log('Received DNS result:', result);
-        
-        const validResult = validateDNSResult(result);
-        setResults(prev => {
-          const newResults = [...prev, validResult];
-          calculateStats(newResults);  // Calculate stats with new results array
-          return newResults;
-        });
-      }
-    };
+  const handleMessage = useCallback((message: WebSocketMessage) => {
+    if (message.type === 'queryResult') {
+      const result = message.data;
+      console.log('Received DNS result:', result);
+      
+      const validResult = validateDNSResult(result);
+      setResults(prev => {
+        const newResults = [...prev, validResult];
+        calculateStats(newResults);  // Calculate stats with new results array
+        return newResults;
+      });
+    }
+  }, []);
 
-    socket.onerror = (error) => {
+  const { sendMessage } = useWebSocket({
+    domain: WebSocketDomain.DNS_PROPAGATION,
+    onMessage: handleMessage,
+    onError: (error) => {
       console.error('WebSocket error:', error);
       toast.error('Connection error occurred');
-    };
-
-    setWs(socket);
-
-    return () => {
-      socket.close();
-    };
-  }, []);
+    }
+  });
 
   const handleCheck = async () => {
     if (!domain) {
