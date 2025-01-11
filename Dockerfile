@@ -27,5 +27,13 @@ RUN npm run build
 # Expose port 8080
 EXPOSE 8080
 
+# New Relic Configuration
+ENV NEW_RELIC_NO_CONFIG_FILE=true \
+    NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true \
+    NEW_RELIC_LOG=stdout \
+    NEW_RELIC_AI_MONITORING_ENABLED=true \
+    NEW_RELIC_CUSTOM_INSIGHTS_EVENTS_MAX_SAMPLES_STORED=100k \
+    NEW_RELIC_SPAN_EVENTS_MAX_SAMPLES_STORED=10k
+
 # Start the application
 CMD ["npm", "start"]

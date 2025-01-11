@@ -378,4 +378,7 @@ $RECYCLE.BIN/
 # Windows shortcuts
 *.lnk
 
+
+docker-compose.yml
+
 # End of https://www.toptal.com/developers/gitignore/api/windows,macos,linux,node,visualstudiocode,jetbrains+all,webstorm+all

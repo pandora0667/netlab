@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx watch --clear-screen=false --exclude \"vite.config.ts.*\" --exclude \"dist/**/*\" server/index.ts",
     "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist --external:vite --main-fields=module,main",
-    "start": "NODE_ENV=production node dist/index.js"
+    "start": "NODE_ENV=production NEW_RELIC_AI_MONITORING_ENABLED=true NEW_RELIC_CUSTOM_INSIGHTS_EVENTS_MAX_SAMPLES_STORED=100k NEW_RELIC_SPAN_EVENTS_MAX_SAMPLES_STORED=10k NEW_RELIC_APP_NAME=netlab NEW_RELIC_LICENSE_KEY=f8987418557c40b22c7d2e6f349d577cFFFFNRAL node --experimental-loader=newrelic/esm-loader.mjs dist/index.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
@@ -51,13 +51,10 @@
     "embla-carousel-react": "^8.4.0",
     "express": "^4.21.1",
     "express-rate-limit": "^7.5.0",
-    "express-session": "^1.18.1",
     "framer-motion": "^11.11.17",
     "input-otp": "^1.2.4",
     "lucide-react": "^0.453.0",
-    "memorystore": "^1.6.7",
-    "passport": "^0.7.0",
-    "passport-local": "^1.0.0",
+    "newrelic": "^12.10.0",
     "react": "^18.3.1",
     "react-day-picker": "^8.10.1",
     "react-dom": "^18.3.1",
@@ -80,11 +77,8 @@
   },
   "devDependencies": {
     "@types/express": "4.17.21",
-    "@types/express-session": "^1.18.0",
     "@types/jest": "^29.5.14",
     "@types/node": "20.16.11",
-    "@types/passport": "^1.0.16",
-    "@types/passport-local": "^1.0.38",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.2",
