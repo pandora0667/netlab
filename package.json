@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx watch --clear-screen=false --exclude \"vite.config.ts.*\" --exclude \"dist/**/*\" server/index.ts",
     "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist --external:vite --main-fields=module,main",
-    "start": "NODE_ENV=production NEW_RELIC_AI_MONITORING_ENABLED=true NEW_RELIC_CUSTOM_INSIGHTS_EVENTS_MAX_SAMPLES_STORED=100k NEW_RELIC_SPAN_EVENTS_MAX_SAMPLES_STORED=10k NEW_RELIC_APP_NAME=netlab NEW_RELIC_LICENSE_KEY=f8987418557c40b22c7d2e6f349d577cFFFFNRAL node --experimental-loader=newrelic/esm-loader.mjs dist/index.js"
+    "start": "NODE_ENV=production node dist/index.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
