@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   calculateSubnetInfo,
   divideSubnet,
+  exportToCSV,
   parseMaskInput,
 } from "../../../../shared/network/subnet";
 
@@ -42,5 +43,17 @@ describe("shared subnet utilities", () => {
       subnets.map((subnet) => subnet.networkAddress),
       ["10.0.0.0", "10.0.0.64", "10.0.0.128", "10.0.0.192"],
     );
+  });
+
+  it("exports CSV rows using the requested column order", () => {
+    const subnet = calculateSubnetInfo("10.0.0.0", 24);
+
+    const csv = exportToCSV([subnet], [
+      "numHosts",
+      "networkAddress",
+      "subnetMask",
+    ]);
+
+    assert.equal(csv, "254,10.0.0.0,255.255.255.0 (/24)");
   });
 });

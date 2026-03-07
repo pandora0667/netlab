@@ -165,10 +165,10 @@ export default function SubnetCalculator() {
   };
 
   const handleExport = () => {
-    const csvHeaders = columns
-      .filter(col => visibleColumns.includes(col.id))
-      .map(col => col.label)
-      .join(',');
+    const csvHeaders = visibleColumns
+      .map((columnId) => columns.find((column) => column.id === columnId)?.label)
+      .filter((label): label is string => Boolean(label))
+      .join(",");
     const csvData = exportToCSV(sortedSubnets, visibleColumns);
     const csv = `${csvHeaders}\n${csvData}`;
   
