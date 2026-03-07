@@ -9,6 +9,7 @@ export const requestLogger = (req: Request, res: Response, next: NextFunction) =
   res.on('finish', () => {
     const duration = Date.now() - start;
     const log = {
+      requestId: res.locals.requestId,
       method: req.method,
       path: req.path,
       status: res.statusCode,
@@ -25,7 +26,7 @@ export const requestLogger = (req: Request, res: Response, next: NextFunction) =
     else if (
       duration > 1000 || 
       req.path.startsWith('/api/dns-propagation') ||
-      req.path.startsWith('/api/port-scan')
+      req.path.startsWith('/api/port-scanner')
     ) {
       logger.info('API Request', log);
     }

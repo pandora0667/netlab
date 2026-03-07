@@ -1,175 +1,218 @@
-# Netlab - Modern Web Application
+# Netlab
 
-## Overview
-Netlab is a modern full-stack web application built with Express.js and React, leveraging TypeScript for type safety and reliability. This project demonstrates best practices in modern web development with a focus on user experience and developer productivity.
+Netlab is a TypeScript full-stack network utility app built on a single Express server.  
+In development, the server runs Vite in middleware mode and serves the React client from the same process.  
+In production, the server serves the built client from `dist/public`.
 
-## Tech Stack
-### Frontend
-- **Framework**: React with TypeScript
-- **Styling**: Tailwind CSS
-- **UI Components**: 
-  - Radix UI (Accessible primitives)
-  - Shadcn UI (Pre-built components)
-- **State Management**: React Hooks
-- **Form Handling**: React Hook Form with Zod validation
-- **Development Tools**: Vite
-- **Network Visualization**: React Simple Maps
+## Current Stack
 
-### Backend
-- **Runtime**: Node.js (>= 23.0.0)
-- **Framework**: Express.js with TypeScript
-- **Session Management**: Express Session
-- **WebSocket**: ws for real-time updates
-- **Development Tools**: tsx for TypeScript execution
+- Frontend: React 18, Wouter, SWR, React Hook Form, Zod, Tailwind CSS, shadcn/ui
+- Backend: Express, `ws`, SSE, Node DNS/socket APIs
+- Tooling: Vite, TypeScript, tsx, esbuild, pnpm
 
-## Project Structure
-```
+## Implemented Tools
+
+- IP checker
+- DNS lookup with selectable public resolvers and custom resolver validation
+- DNS propagation checker with request-scoped WebSocket updates
+- Subnet calculator
+- Ping tool with WebSocket progress
+- WHOIS lookup
+- Port scanner with SSE progress and JSON/CSV export
+
+## Repository Layout
+
+```text
 .
-├── client/                    # Frontend application
-│   ├── src/
-│   │   ├── components/       # Reusable React components
-│   │   ├── hooks/           # Custom React hooks
-│   │   ├── lib/             # Utility functions and configurations
-│   │   ├── pages/           # Page components
-│   │   └── main.tsx         # Application entry point
-│   └── index.html           # HTML template
-│
-├── server/                   # Backend application
-│   ├── routes/              # API route definitions
-│   ├── services/            # Business logic and services
-│   ├── index.ts             # Server entry point
-│   └── vite.ts              # Vite server configuration
-│
-├── dist/                    # Production build output
-├── node_modules/           # Project dependencies
-├── package.json            # Project configuration and scripts
-├── tsconfig.json          # TypeScript configuration
-├── tailwind.config.ts     # Tailwind CSS configuration
-└── vite.config.ts         # Vite build configuration
+├── client/
+│   ├── public/
+│   └── src/
+│       ├── components/
+│       ├── domains/
+│       └── lib/
+├── server/
+│   ├── common/
+│   ├── config/
+│   ├── data/
+│   ├── lib/
+│   ├── middleware/
+│   ├── modules/
+│   └── src/lib/
+├── dist/
+├── package.json
+├── pnpm-lock.yaml
+├── .nvmrc
+├── tsconfig.json
+└── vite.config.ts
 ```
 
-## Features
-### Network Analysis Tools
-#### IP Checker
-- Public and private IP address detection
-- Geolocation information
-- Network interface details
-- IPv4 and IPv6 support
+## Prerequisites
 
-#### DNS Tools
-##### DNS Lookup
-- Multiple record type support (A, AAAA, MX, TXT, NS, etc.)
-- Custom DNS server selection
-- Detailed record information
-- Response time analysis
+- Node.js 24.x LTS
+- pnpm 10.x
 
-##### DNS Propagation Checker
-- Real-time DNS propagation monitoring
-- Support for multiple DNS servers worldwide
-- WebSocket-based live updates
-- Multiple record type checking
-- Detailed propagation status visualization
+Examples below use `pnpm`.
 
-#### Network Connectivity Tools
-##### Ping Tool
-- Real-time latency monitoring
-- Configurable ping parameters (count, interval)
-- WebSocket-based live updates
-- Packet loss statistics
-- Response time graphs
+You can pin the local Node runtime with `.nvmrc`.
 
-##### Port Scanner
-- Multi-threaded port scanning using Node.js Worker Threads
-- TCP and UDP protocol support
-- Customizable port ranges and timeout settings
-- Real-time scan progress updates via WebSocket
-- Common service detection
-- Export results in JSON/CSV formats
+## Install
 
-#### Network Calculator Tools
-##### Subnet Calculator
-- IPv4 subnet calculations
-- CIDR notation support
-- Network/Broadcast address calculation
-- Available IP range determination
-- Subnet mask conversion
-
-#### Domain Tools
-##### Whois Lookup
-- Domain registration information
-- Registrar details
-- Name server information
-- Domain status checking
-- Creation and expiration dates
-
-### Technical Features
-- TypeScript for enhanced type safety
-- Real-time updates using WebSocket
-- Responsive and accessible UI components
-- Error handling and validation
-- Cross-platform compatibility
-- Mobile-friendly interface
-
-## Getting Started
-
-### Prerequisites
-- Node.js >= 22.0.0
-- npm >= 10.0.0
-- Modern web browser with WebSocket support
-
-### Installation
-
-1. Clone the repository:
 ```bash
-git clone [repository-url]
-cd netlab
+pnpm install
 ```
 
-2. Install dependencies:
+For local development, a `.env` file is optional. For production, copy `.env.example` to `.env` and adjust the runtime limits for your deployment.
+
+## Development
+
 ```bash
-npm install --legacy-peer-deps
+pnpm run dev
 ```
 
-3. Configure environment variables:
+The Express server starts on `http://localhost:8080`.
+
+## Test
+
 ```bash
-cp .env.example .env
-# Edit .env with your configuration
+pnpm run test
+pnpm run typecheck
 ```
 
-### Development Mode
+The current automated tests cover validation utilities plus HTTP route regressions for both legacy `/api/*` endpoints and the new `/api/v1/*` envelope-based endpoints. Browser flows are not yet covered.
 
-1. Start the development server:
+## Build
+
 ```bash
-npm run dev
+pnpm run build
+pnpm run start
 ```
 
-2. Start the backend server:
+## Docker
+
+The production container now follows the same runtime standard as local development:
+
+- `node:24-bookworm-slim`
+- `pnpm` via Corepack
+- multi-stage build
+- production-only dependencies in the final image
+
+Build and run:
+
 ```bash
-npm run server:dev
+docker build -t netlab:latest .
+docker run --rm -p 8080:8080 --env-file .env netlab:latest
 ```
 
-The application will be available at `http://localhost:5173`
+## API Versioning
 
-### Production Build
+- Legacy endpoints remain available under `/api/*` for compatibility.
+- New backend work should target `/api/v1/*`.
+- Frontend HTTP calls now route through `client/src/domains/*` and target `/api/v1/*` by default.
+- `/api/v1/*` responses use a unified envelope:
 
-1. Build the application:
-```bash
-npm run build
+```json
+{
+  "success": true,
+  "data": {},
+  "error": null,
+  "requestId": "req_..."
+}
 ```
 
-2. Start the production server:
-```bash
-npm start
+```json
+{
+  "success": false,
+  "data": null,
+  "error": {
+    "code": "SOME_ERROR_CODE",
+    "message": "Human-readable message"
+  },
+  "requestId": "req_..."
+}
 ```
 
-## Contributing
+Current v1 modules:
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+- `/api/v1/network`
+- `/api/v1/dns`
+- `/api/v1/dns-propagation`
+- `/api/v1/port-scans`
 
-## License
+Transport exceptions:
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+- WebSocket endpoints remain `/ws/ping` and `/ws/dns-propagation`
+- Port scan progress streams use `/api/v1/port-scans/stream`
+
+## Runtime Notes
+
+- DNS propagation uses WebSockets for streaming result, progress, and completion events.
+- Ping uses WebSockets and validates input on the server before execution.
+- Port scanning currently uses server-sent events, not worker threads.
+- The app writes structured logs under `logs/`.
+- Every HTTP response includes an `X-Request-Id` header. The same request ID is written into application logs for traceability.
+- Abuse-oriented events such as rate-limit hits and blocked non-public targets are written to `logs/abuse.log`.
+- DNS propagation server metadata is loaded from `server/data/dns-servers.csv` in both local and container runtime paths.
+
+## Production Notes
+
+### Reverse Proxy
+
+`trust proxy` is configurable through `TRUST_PROXY`.
+
+- `TRUST_PROXY=1`
+  Use this when Express is behind a single trusted reverse proxy such as Nginx or a platform ingress.
+- `TRUST_PROXY=true`
+  Trust all proxies. This is convenient but should only be used when upstream headers are tightly controlled.
+- `TRUST_PROXY=loopback,linklocal,uniquelocal`
+  Use an Express-compatible proxy trust list when you need finer control.
+
+If this setting is wrong, `req.ip`, rate limits, and abuse logs may use the wrong client IP.
+
+### Request Tracing
+
+- `X-Request-Id` is accepted if it matches a safe format, otherwise the server generates a new ID.
+- The generated request ID is returned in the response header and included in structured logs.
+- `healthz` and `readyz` also return the active request ID for quick diagnostics.
+
+### Outbound Safety Policy
+
+- `ping`, custom DNS server validation, and port scanning only allow public targets.
+- Private, loopback, link-local, multicast, and reserved address ranges are blocked.
+- Hostnames are resolved first and are rejected if any resolved address is non-public.
+
+### Runtime Limits
+
+The defaults are intentionally usable for a public tool, but they are still bounded.
+
+- Global API limit: `300` requests per `15` minutes per IP
+- Ping: `90` requests per `15` minutes, `20` concurrent globally, `2` concurrent per IP
+- DNS lookup and validation: `60` requests per `15` minutes per IP
+- DNS propagation: `30` requests per `15` minutes, `8` concurrent globally, `2` concurrent per IP
+- Port scanning: `20` requests per `15` minutes, maximum `256` ports per request, maximum timeout `2000ms`, `4` concurrent globally, `1` concurrent per IP
+
+All of these values are configurable through environment variables in `.env.example`.
+
+### Dependency Hygiene
+
+- `pnpm run audit:deps`
+  Audit installed packages for known vulnerabilities
+- `pnpm run deps:outdated`
+  Review dependency drift before upgrade work
+
+### Operational Logs
+
+- `logs/info.log`
+  Normal production activity
+- `logs/error.log`
+  Application errors
+- `logs/debug.log`
+  Development-only verbose logs
+- `logs/abuse.log`
+  Rate-limit hits, blocked public-target violations, and other abuse-relevant events
+
+## Known Maintenance Priorities
+
+- Split the large frontend bundle into route-level chunks
+- Continue removing legacy duplicate files and dead code
+- Expand server-side and integration test coverage
+- Add deployment-specific docs for your actual reverse proxy and hosting setup

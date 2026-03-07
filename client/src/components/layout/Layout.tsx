@@ -14,6 +14,23 @@ interface Breadcrumb {
   label: string;
 }
 
+const quickStartLinks = [
+  { href: "/", label: "Home" },
+  { href: "/ip-checker", label: "IP Checker" },
+  { href: "/dns-lookup", label: "DNS Lookup" },
+];
+
+const diagnosticsLinks = [
+  { href: "/ping", label: "Ping Tool" },
+  { href: "/port-scan", label: "Port Scanner" },
+  { href: "/dns-propagation", label: "DNS Propagation" },
+];
+
+const utilityLinks = [
+  { href: "/subnet-calc", label: "Subnet Calculator" },
+  { href: "/whois", label: "WHOIS Lookup" },
+];
+
 function LoadingSpinner() {
   return (
     <div className="flex items-center justify-center min-h-[60vh]">
@@ -86,56 +103,42 @@ export default function Layout({ children }: LayoutProps) {
               </p>
             </div>
 
-            <nav className="space-y-4" aria-label="Documentation">
-              <h3 className="font-semibold text-lg">Documentation</h3>
+            <nav className="space-y-4" aria-label="Quick start">
+              <h3 className="font-semibold text-lg">Quick Start</h3>
               <ul className="space-y-2 text-sm">
-                <li>
-                  <Link href="/docs/getting-started" className="text-muted-foreground hover:text-primary transition-all duration-200">
-                    Getting Started
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/docs/api" className="text-muted-foreground hover:text-primary transition-all duration-200">
-                    API Reference
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/docs/examples" className="text-muted-foreground hover:text-primary transition-all duration-200">
-                    Examples
-                  </Link>
-                </li>
+                {quickStartLinks.map((link) => (
+                  <li key={link.href}>
+                    <Link href={link.href} className="text-muted-foreground hover:text-primary transition-all duration-200">
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
               </ul>
             </nav>
 
-            <nav className="space-y-4" aria-label="Resources">
-              <h3 className="font-semibold text-lg">Resources</h3>
+            <nav className="space-y-4" aria-label="Diagnostics">
+              <h3 className="font-semibold text-lg">Diagnostics</h3>
               <ul className="space-y-2 text-sm">
-                <li>
-                  <Link href="/tutorials" className="text-muted-foreground hover:text-primary transition-all duration-200">
-                    Tutorials
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/blog" className="text-muted-foreground hover:text-primary transition-all duration-200">
-                    Blog
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/faqs" className="text-muted-foreground hover:text-primary transition-all duration-200">
-                    FAQs
-                  </Link>
-                </li>
+                {diagnosticsLinks.map((link) => (
+                  <li key={link.href}>
+                    <Link href={link.href} className="text-muted-foreground hover:text-primary transition-all duration-200">
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
               </ul>
             </nav>
 
-            <nav className="space-y-4" aria-label="Connect">
-              <h3 className="font-semibold text-lg">Connect</h3>
+            <nav className="space-y-4" aria-label="Utilities">
+              <h3 className="font-semibold text-lg">Utilities</h3>
               <ul className="space-y-2 text-sm">
-                <li>
-                  <Link href="/contact" className="text-muted-foreground hover:text-primary transition-all duration-200">
-                    Contact Us
-                  </Link>
-                </li>
+                {utilityLinks.map((link) => (
+                  <li key={link.href}>
+                    <Link href={link.href} className="text-muted-foreground hover:text-primary transition-all duration-200">
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
                 <li>
                   <a 
                     href="https://github.com"

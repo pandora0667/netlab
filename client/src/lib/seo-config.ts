@@ -6,11 +6,20 @@ export interface SEOData {
   canonical?: string;
 }
 
+const envSiteUrl =
+  typeof import.meta !== "undefined" ? import.meta.env.VITE_SITE_URL : undefined;
+
+export const siteUrl = (envSiteUrl || "https://netlab.tools").replace(/\/+$/, "");
+
+export const resolveSeoUrl = (path = "/") =>
+  new URL(path, `${siteUrl}/`).toString();
+
 export const defaultSEO: SEOData = {
   title: "Netlab - Professional Network Tools Suite",
   description: "Free online network tools for system administrators and developers. Comprehensive suite including IP checker, DNS lookup, subnet calculator, and more.",
   keywords: ["network tools", "network diagnostics", "network monitoring", "online network tools"],
-  ogImage: "/og-image.jpg"
+  ogImage: "/og-image.jpg",
+  canonical: "/",
 };
 
 export const pageSEOData: Record<string, SEOData> = {

@@ -1,45 +1,17 @@
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import useSWR from "swr";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Globe, MapPin, Wifi, Clock, RefreshCw } from "lucide-react";
 import { motion } from "framer-motion";
 import { SEO } from "../SEO";
-
-interface IPInfo {
-  ip: string;
-  city: string;
-  country: string;
-  region: string;
-  isp: string;
-  timezone: string;
-  message?: string;
-}
+import { usePublicIpInfo } from "@/domains/network/use-public-ip-info";
 
 export default function IPChecker() {
-  const { data, error, isLoading, mutate } = useSWR<IPInfo>("/api/ip", {
-    revalidateOnFocus: false,
-    refreshInterval: 0,
-    dedupingInterval: 10000,
-    errorRetryInterval: 5000,
-    onErrorRetry: (error, key, config, revalidate, { retryCount }) => {
-      if (retryCount >= 3) return;
-      setTimeout(() => revalidate({ retryCount }), 5000);
-    },
-    fallbackData: {
-      ip: "Loading...",
-      city: "",
-      country: "",
-      region: "",
-      isp: "",
-      timezone: ""
-    }
-  });
+  const { data, error, isLoading, mutate } = usePublicIpInfo();
 
   const handleRetry = () => {
-    mutate();
+    void mutate();
   };
 
   if (error) {

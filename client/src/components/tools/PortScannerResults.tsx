@@ -16,7 +16,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { ScanResult, ScanSummary } from '@/lib/port-scanner-types';
+import { ScanResult, ScanSummary } from '@/domains/port-scan/model';
 import { XCircle, CheckCircle, AlertCircle } from 'lucide-react';
 
 interface PortScannerResultsProps {
@@ -28,7 +28,7 @@ interface PortScannerResultsProps {
 export function PortScannerResults({ summary, onClear, onExport }: PortScannerResultsProps) {
   const [showAllPorts, setShowAllPorts] = useState(false);
   const [portFilter, setPortFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'Open' | 'Closed' | 'Filtered' | 'All'>('All');
+  const [statusFilter, setStatusFilter] = useState<'Open' | 'Closed' | 'Filtered' | 'Open|Filtered' | 'All'>('All');
 
   // Apply filters to results
   const filteredResults = summary.results
@@ -60,6 +60,8 @@ export function PortScannerResults({ summary, onClear, onExport }: PortScannerRe
         return <XCircle className="h-4 w-4 text-gray-500" />;
       case 'Filtered':
         return <AlertCircle className="h-4 w-4 text-red-500" />;
+      case 'Open|Filtered':
+        return <AlertCircle className="h-4 w-4 text-amber-500" />;
       default:
         return null;
     }
@@ -73,6 +75,8 @@ export function PortScannerResults({ summary, onClear, onExport }: PortScannerRe
         return 'bg-gray-100 text-gray-800';
       case 'Filtered':
         return 'bg-red-100 text-red-800';
+      case 'Open|Filtered':
+        return 'bg-amber-100 text-amber-800';
       default:
         return '';
     }
@@ -96,7 +100,7 @@ export function PortScannerResults({ summary, onClear, onExport }: PortScannerRe
           </div>
         </CardTitle>
         <div className="text-sm text-gray-500">
-          Summary: {summary.openPorts} open ports found out of {summary.totalScanned} scanned
+          Summary: {summary.openPorts} open, {summary.uncertainPorts} uncertain, out of {summary.totalScanned} scanned
         </div>
       </CardHeader>
       <CardContent>
@@ -125,6 +129,7 @@ export function PortScannerResults({ summary, onClear, onExport }: PortScannerRe
               <option value="Open">Open</option>
               <option value="Closed">Closed</option>
               <option value="Filtered">Filtered</option>
+              <option value="Open|Filtered">Open|Filtered</option>
             </select>
           </div>
 

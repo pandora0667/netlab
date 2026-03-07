@@ -1,12 +1,29 @@
 {
-  "name": "rest-express",
+  "name": "netlab",
   "version": "1.0.0",
   "type": "module",
   "license": "MIT",
+  "engines": {
+    "node": "24.x",
+    "pnpm": "10.x"
+  },
   "scripts": {
     "dev": "tsx watch --clear-screen=false --exclude \"vite.config.ts.*\" --exclude \"dist/**/*\" server/index.ts",
     "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist --external:vite --main-fields=module,main",
-    "start": "NODE_ENV=production node dist/index.js"
+    "start": "NODE_ENV=production node dist/index.js",
+    "test": "tsx --test server/src/lib/__tests__/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "audit:deps": "pnpm audit",
+    "deps:outdated": "pnpm outdated"
+  },
+  "pnpm": {
+    "overrides": {
+      "esbuild": "^0.27.3",
+      "lodash": "^4.17.23",
+      "qs": "^6.14.2",
+      "rollup": "^4.59.0",
+      "underscore": "^1.13.8"
+    }
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
@@ -89,11 +106,12 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.2",
     "autoprefixer": "^10.4.20",
-    "esbuild": "^0.24.0",
+    "esbuild": "^0.27.3",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.15",
     "tsx": "^4.19.1",
     "typescript": "^5.6.3",
     "vite": "^5.4.9"
-  }
+  },
+  "packageManager": "pnpm@10.24.0+sha512.01ff8ae71b4419903b65c60fb2dc9d34cf8bb6e06d03bde112ef38f7a34d6904c424ba66bea5cdcf12890230bf39f9580473140ed9c946fef328b6e5238a345a"
 }

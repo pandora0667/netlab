@@ -7,8 +7,6 @@ export type WebSocketMessage<T = any> = {
 // WebSocket Service Domain Definition
 export enum WebSocketDomain {
   DNS_PROPAGATION = '/ws/dns-propagation',
-  NETWORK_SPEED = '/ws/network-speed',
-  LATENCY_CHECK = '/ws/latency-check',
   PING = '/ws/ping',
 }
 
