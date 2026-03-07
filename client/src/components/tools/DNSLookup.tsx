@@ -1,8 +1,8 @@
 import { cn } from "@/lib/utils";
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { dnsLookupSchema } from "@/lib/validation";
+import { dnsLookupSchema } from "@/domains/dns/schema";
 import {
   Form, FormControl, FormField, FormItem, FormLabel,
   FormMessage, FormDescription
@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/table";
 import {
   Loader2, AlertCircle, CheckCircle2, XCircle,
-  Download, Plus, Trash2, RefreshCw, Server
+  Download, Plus, Trash2, Server
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
@@ -27,31 +27,10 @@ import {
   Accordion, AccordionItem, AccordionTrigger, 
   AccordionContent 
 } from "@/components/ui/accordion";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { SEO } from "../SEO";
-
-interface Domain {
-  id: string;
-  value: string;
-}
-
-interface DNSResult {
-  domain: string;
-  results: {
-    recordType: string;
-    records: any[];
-    server: string;
-    timestamp: number;
-    queryTime: number;
-    error?: string;
-  }[];
-}
+import { lookupDnsRecords, validateDnsServer } from "@/domains/dns/api";
+import { DNS_RESOLVER_OPTIONS } from "@/domains/dns/constants";
+import type { DNSLookupResult } from "@/domains/dns/types";
 
 export type ServerStatus = {
   id: string;
@@ -62,14 +41,8 @@ export type ServerStatus = {
   error?: string;
 };
 
-const DNS_SERVERS = [
-  { id: "google", name: "Google DNS", address: "8.8.8.8" },
-  { id: "cloudflare", name: "Cloudflare", address: "1.1.1.1" },
-  { id: "opendns", name: "OpenDNS", address: "208.67.222.222" },
-];
-
 interface ResultCardProps {
-  result: DNSResult;
+  result: DNSLookupResult;
   serverStatuses: ServerStatus[];
 }
 
@@ -77,7 +50,7 @@ function ResultCard({ result, serverStatuses }: ResultCardProps) {
   const [activeTab, setActiveTab] = useState("overview");
   
   // Function to group results by record type
-  const groupByRecordType = (results: DNSResult['results']) => {
+  const groupByRecordType = (results: DNSLookupResult["results"]) => {
     return results.reduce((acc, curr) => {
       if (!acc[curr.recordType]) {
         acc[curr.recordType] = [];
@@ -90,7 +63,7 @@ function ResultCard({ result, serverStatuses }: ResultCardProps) {
   const groupedResults = groupByRecordType(result.results);
   const recordTypes = Object.keys(groupedResults);
 
-  const getRecordSummary = (records: DNSResult['results'][0][]): string => {
+  const getRecordSummary = (records: DNSLookupResult["results"][0][]): string => {
     let totalRecords = 0;
     records.forEach(server => {
       if (Array.isArray(server.records)) {
@@ -247,7 +220,7 @@ interface DNSServerValidationStatus {
 
 export default function DNSLookup() {
   const [serverStatuses, setServerStatuses] = useState<ServerStatus[]>([]);
-  const [results, setResults] = useState<DNSResult[]>([]);
+  const [results, setResults] = useState<DNSLookupResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [customServerValidation, setCustomServerValidation] = useState<DNSServerValidationStatus>({
     address: '',
@@ -255,7 +228,6 @@ export default function DNSLookup() {
     isValid: true,
   });
   const abortController = useRef<AbortController>();
-  const validationTimeout = useRef<NodeJS.Timeout>();
   const { toast } = useToast();
 
   const form = useForm<z.infer<typeof dnsLookupSchema>>({
@@ -272,6 +244,7 @@ export default function DNSLookup() {
     control: form.control,
     name: "domains"
   });
+  const customServer = form.watch("customServer");
 
   const addDomain = useCallback(() => {
     appendDomain({ id: Date.now().toString(), value: '' });
@@ -308,159 +281,59 @@ export default function DNSLookup() {
     }
   }, [toast]);
 
-  // DNS server validation function
-  const validateCustomServer = useCallback(async (serverIP: string) => {
-    if (!serverIP) {
-      setCustomServerValidation({
-        address: '',
-        isValidating: false,
-        isValid: true,
-      });
-      return;
-    }
-
-    // Basic IP format validation
-    const ipPattern = /^(\d{1,3}\.){3}\d{1,3}$/;
-    if (!ipPattern.test(serverIP)) {
-      setCustomServerValidation({
-        address: serverIP,
-        isValidating: false,
-        isValid: false,
-        error: 'Invalid IP address format'
-      });
-      return;
-    }
-
-    // Validate IP octets
-    const octets = serverIP.split('.');
-    const isValidOctets = octets.every(octet => {
-      const num = parseInt(octet);
-      return num >= 0 && num <= 255;
+  const applyCustomServerValidation = useCallback((
+    serverIP: string,
+    validation: { isValid: boolean; error?: string },
+    isValidating = false,
+  ) => {
+    setCustomServerValidation({
+      address: serverIP,
+      isValidating,
+      isValid: validation.isValid,
+      error: validation.error,
     });
+  }, []);
 
-    if (!isValidOctets) {
-      setCustomServerValidation({
-        address: serverIP,
-        isValidating: false,
-        isValid: false,
-        error: 'IP address octets must be between 0 and 255'
-      });
+  const runCustomServerValidation = useCallback(async (serverIP: string) => {
+    const trimmedServerIP = serverIP.trim();
+
+    if (!trimmedServerIP) {
+      applyCustomServerValidation("", { isValid: true });
+      return { isValid: true };
+    }
+
+    const validation = await validateDnsServer(trimmedServerIP);
+    applyCustomServerValidation(trimmedServerIP, validation);
+    return validation;
+  }, [applyCustomServerValidation]);
+
+  useEffect(() => {
+    const trimmedCustomServer = customServer?.trim() ?? "";
+
+    if (!trimmedCustomServer) {
+      applyCustomServerValidation("", { isValid: true });
       return;
     }
 
-    // Check if it's a private IP
-    const firstOctet = parseInt(octets[0]);
-    const secondOctet = parseInt(octets[1]);
-    if (
-      firstOctet === 10 || // 10.0.0.0/8
-      (firstOctet === 172 && secondOctet >= 16 && secondOctet <= 31) || // 172.16.0.0/12
-      (firstOctet === 192 && secondOctet === 168) || // 192.168.0.0/16
-      serverIP === '127.0.0.1' // localhost
-    ) {
-      setCustomServerValidation({
-        address: serverIP,
-        isValidating: false,
-        isValid: false,
-        error: 'Private IP addresses are not allowed'
-      });
-      return;
-    }
-
-    // Cancel previous validation timer if exists
-    if (validationTimeout.current) {
-      clearTimeout(validationTimeout.current);
-    }
-
-    // Start validation after 500ms of input
-    validationTimeout.current = setTimeout(async () => {
-      setCustomServerValidation(prev => ({
-        ...prev,
-        address: serverIP,
-        isValidating: true,
-      }));
-
-      try {
-        // Try to resolve a test domain using the custom DNS server
-        const testDomain = 'google.com';
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
-
-        try {
-          const response = await fetch(`https://${testDomain}`, {
-            signal: controller.signal,
-            headers: {
-              'Cache-Control': 'no-cache',
-            },
-            mode: 'no-cors', // This is important for cross-origin requests
-          });
-
-          clearTimeout(timeoutId);
-          
-          setCustomServerValidation({
-            address: serverIP,
-            isValidating: false,
-            isValid: true,
-            error: undefined,
-          });
-        } catch (fetchError) {
-          clearTimeout(timeoutId);
-          
-          // If fetch failed, try a backup domain
-          const backupDomain = 'cloudflare.com';
-          const backupController = new AbortController();
-          const backupTimeoutId = setTimeout(() => backupController.abort(), 5000);
-
-          try {
-            await fetch(`https://${backupDomain}`, {
-              signal: backupController.signal,
-              headers: {
-                'Cache-Control': 'no-cache',
-              },
-              mode: 'no-cors',
-            });
-
-            clearTimeout(backupTimeoutId);
-            
-            setCustomServerValidation({
-              address: serverIP,
-              isValidating: false,
-              isValid: true,
-              error: undefined,
-            });
-          } catch (backupError) {
-            clearTimeout(backupTimeoutId);
-            throw new Error('DNS server failed to resolve test domains');
-          }
-        }
-      } catch (error) {
-        setCustomServerValidation({
-          address: serverIP,
-          isValidating: false,
-          isValid: false,
-          error: error instanceof Error ? error.message : 'Failed to validate DNS server'
-        });
-
-        toast({
-          title: "DNS Server Validation Failed",
-          description: error instanceof Error ? error.message : 'Failed to validate DNS server',
-          variant: "destructive",
-        });
-      }
+    const timeoutId = window.setTimeout(async () => {
+      applyCustomServerValidation(trimmedCustomServer, { isValid: true }, true);
+      const validation = await validateDnsServer(trimmedCustomServer);
+      applyCustomServerValidation(trimmedCustomServer, validation);
     }, 500);
-  }, [toast]);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [applyCustomServerValidation, customServer]);
+
+  useEffect(() => {
+    return () => {
+      abortController.current?.abort();
+    };
+  }, []);
 
   // Validate before form submission
   const onSubmit = useCallback(async (data: z.infer<typeof dnsLookupSchema>) => {
-    // If custom server exists and validation fails
-    if (data.customServer && !customServerValidation.isValid) {
-      toast({
-        title: "Invalid Custom DNS Server",
-        description: customServerValidation.error || "Please enter a valid DNS server address",
-        variant: "destructive",
-      });
-      return;
-    }
-
     setIsLoading(true);
     setResults([]);
     abortController.current = new AbortController();
@@ -476,13 +349,24 @@ export default function DNSLookup() {
       }
 
       const selectedServers = data.servers.map(serverId => {
-        const server = DNS_SERVERS.find(s => s.id === serverId);
+        const server = DNS_RESOLVER_OPTIONS.find(s => s.id === serverId);
         return server?.address;
       }).filter(Boolean) as string[];
 
       const servers = [...selectedServers];
-      if (data.customServer?.trim()) {
-        const customServer = data.customServer.trim();
+      const customServer = data.customServer?.trim() ?? "";
+
+      if (customServer) {
+        const validation = await runCustomServerValidation(customServer);
+        if (!validation.isValid) {
+          toast({
+            title: "Invalid Custom DNS Server",
+            description: validation.error || "Please enter a valid DNS server address",
+            variant: "destructive",
+          });
+          return;
+        }
+
         if (!servers.includes(customServer)) {
           servers.push(customServer);
         }
@@ -494,7 +378,7 @@ export default function DNSLookup() {
 
       const serverStatuses = servers.map(server => ({
         id: server,
-        name: DNS_SERVERS.find(s => s.address === server)?.name || 'Custom Server',
+        name: DNS_RESOLVER_OPTIONS.find(s => s.address === server)?.name || 'Custom Server',
         address: server,
         status: 'querying' as const,
         attempt: 0
@@ -503,28 +387,29 @@ export default function DNSLookup() {
 
       const queries = cleanDomains.map(async domain => {
         try {
-          const response = await fetch('/api/dns', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              domain,
-              servers,
-              includeAllRecords: true
-            }),
-            signal: abortController.current?.signal
+          const result = await lookupDnsRecords({
+            domain,
+            servers,
+            includeAllRecords: data.includeAllRecords,
+            signal: abortController.current?.signal,
           });
 
-          if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || `DNS lookup failed for ${domain}`);
-          }
+          const serverErrors = new Map<string, string | undefined>();
+          result.results.forEach((record) => {
+            if (record.error && !serverErrors.has(record.server)) {
+              serverErrors.set(record.server, record.error);
+            }
 
-          const result = await response.json();
-          
-          setServerStatuses(prev => 
-            prev.map(status => ({
+            if (!record.error) {
+              serverErrors.set(record.server, undefined);
+            }
+          });
+
+          setServerStatuses(prev =>
+            prev.map((status) => ({
               ...status,
-              status: 'success' as const
+              status: serverErrors.get(status.address) ? 'error' : 'success',
+              error: serverErrors.get(status.address),
             }))
           );
 
@@ -545,7 +430,7 @@ export default function DNSLookup() {
       });
 
       const results = await Promise.all(queries);
-      setResults(results.filter(Boolean));
+      setResults(results.filter((result): result is DNSLookupResult => result !== null));
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -556,22 +441,9 @@ export default function DNSLookup() {
       setIsLoading(false);
       abortController.current = undefined;
     }
-  }, [customServerValidation, toast]);
+  }, [runCustomServerValidation, toast]);
 
-  const updateServerStatus = useCallback((serverId: string, status: ServerStatus['status'], error?: string) => {
-    setServerStatuses(prev => prev.map(server => 
-      server.id === serverId 
-        ? { 
-            ...server, 
-            status,
-            error,
-            attempt: status === 'retrying' ? server.attempt + 1 : server.attempt 
-          }
-        : server
-    ));
-  }, []);
-
-  const convertToCSV = useCallback((results: DNSResult[]) => {
+  const convertToCSV = useCallback((results: DNSLookupResult[]) => {
     const headers = ['Domain', 'Record Type', 'Server', 'Result', 'Query Time'];
     const rows = results.flatMap(result => 
       result.results.map(server => [
@@ -653,7 +525,7 @@ export default function DNSLookup() {
                 <div className="space-y-2">
                   <FormLabel>DNS Servers</FormLabel>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {DNS_SERVERS.map((server) => (
+                    {DNS_RESOLVER_OPTIONS.map((server) => (
                       <FormField
                         key={server.id}
                         control={form.control}
@@ -704,7 +576,10 @@ export default function DNSLookup() {
                             placeholder="8.8.4.4"
                             onChange={(e) => {
                               field.onChange(e);
-                              validateCustomServer(e.target.value);
+                            }}
+                            onBlur={(e) => {
+                              field.onBlur();
+                              void runCustomServerValidation(e.target.value);
                             }}
                             className={cn(
                               customServerValidation.isValidating && "pr-10",

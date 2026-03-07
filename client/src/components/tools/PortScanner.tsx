@@ -26,13 +26,19 @@ import { useToast } from '@/hooks/use-toast';
 import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
 import { 
+  PORT_SCAN_MAX_PORTS,
+  PORT_SCAN_MAX_TIMEOUT_MS,
+  PORT_GROUPS,
   PortScannerFormValues, 
-  PORT_GROUPS, 
   ScanProgress, 
-  ScanResult, 
   ScanSummary,
-  PortInfo
-} from '@/lib/port-scanner-types';
+} from '@/domains/port-scan/model';
+import {
+  buildPortScanStreamUrl,
+  buildScanSummary,
+  collectSelectedPorts,
+  exportPortScanResults,
+} from '@/domains/port-scan/api';
 import { PortScannerResults } from './PortScannerResults';
 
 const portScannerSchema = z.object({
@@ -42,7 +48,7 @@ const portScannerSchema = z.object({
   endPort: z.number().int().min(1).max(65535),
   selectedGroups: z.array(z.string()),
   protocol: z.enum(['TCP', 'UDP', 'BOTH']),
-  timeout: z.number().int().min(100).max(10000).default(1000),
+  timeout: z.number().int().min(100).max(PORT_SCAN_MAX_TIMEOUT_MS).default(1000),
   showAllPorts: z.boolean().default(false),
 }).superRefine((data, ctx) => {
   if (data.scanMode === 'range') {
@@ -53,11 +59,27 @@ const portScannerSchema = z.object({
         path: ["startPort"],
       });
     }
+
+    if (data.endPort - data.startPort + 1 > PORT_SCAN_MAX_PORTS) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Port scans are limited to ${PORT_SCAN_MAX_PORTS} ports per request`,
+        path: ["endPort"],
+      });
+    }
   } else {
     if (data.selectedGroups.length === 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "Please select at least one port group",
+        path: ["selectedGroups"],
+      });
+    }
+
+    if (collectSelectedPorts(data.selectedGroups).length > PORT_SCAN_MAX_PORTS) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Selected groups exceed the ${PORT_SCAN_MAX_PORTS}-port scan limit`,
         path: ["selectedGroups"],
       });
     }
@@ -95,15 +117,12 @@ export default function PortScanner() {
   // Calculate total ports to be scanned
   useEffect(() => {
     if (scanMode === 'well-known' && selectedGroups.length > 0) {
-      const uniquePorts = new Set<number>();
-      selectedGroups.forEach(groupName => {
-        const group = PORT_GROUPS.find(g => g.name === groupName);
-        if (group) {
-          group.ports.forEach(p => uniquePorts.add(p.port));
-        }
-      });
-      form.setValue('startPort', Math.min(...Array.from(uniquePorts)));
-      form.setValue('endPort', Math.max(...Array.from(uniquePorts)));
+      const selectedPorts = collectSelectedPorts(selectedGroups);
+
+      if (selectedPorts.length > 0) {
+        form.setValue('startPort', selectedPorts[0]);
+        form.setValue('endPort', selectedPorts[selectedPorts.length - 1]);
+      }
     }
   }, [scanMode, selectedGroups, form]);
 
@@ -111,34 +130,7 @@ export default function PortScanner() {
     if (!scanSummary) return;
 
     try {
-      // Convert scan summary results to the expected format
-      const exportResults = {
-        TCP: {} as { [key: number]: string },
-        UDP: {} as { [key: number]: string }
-      };
-
-      scanSummary.results.forEach(result => {
-        const protocol = result.protocol as 'TCP' | 'UDP';
-        exportResults[protocol][result.port] = result.status;
-      });
-
-      const response = await fetch('/api/port-scanner/export', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          results: exportResults,
-          format
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Export failed');
-      }
-
-      const blob = await response.blob();
+      const blob = await exportPortScanResults(scanSummary, format);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -184,34 +176,7 @@ export default function PortScanner() {
         eventSourceRef.close();
       }
 
-      let portList: number[] | undefined;
-      if (data.scanMode === 'well-known') {
-        const uniquePorts = new Set<number>();
-        data.selectedGroups.forEach(groupName => {
-          const group = PORT_GROUPS.find(g => g.name === groupName);
-          if (group) {
-            group.ports.forEach(p => uniquePorts.add(p.port));
-          }
-        });
-        portList = Array.from(uniquePorts);
-      }
-
-      const queryParams = new URLSearchParams({
-        targetIp: data.targetIp,
-        protocol: data.protocol,
-        timeout: data.timeout.toString(),
-        ...(data.scanMode === 'range' 
-          ? {
-              startPort: data.startPort.toString(),
-              endPort: data.endPort.toString()
-            }
-          : {
-              portList: portList?.join(',') || ''
-            }
-        )
-      });
-
-      const eventSource = new EventSource(`/api/port-scanner/stream?${queryParams}`);
+      const eventSource = new EventSource(buildPortScanStreamUrl(data));
       setEventSourceRef(eventSource);
 
       eventSource.onmessage = (event) => {
@@ -240,38 +205,8 @@ export default function PortScanner() {
           if (status === 'completed') {
             setIsScanning(false);
             eventSource.close();
-            
-            // Process results
-            const results = data.results;
-            const processedResults: ScanResult[] = [];
-            
-            for (const protocol of Object.keys(results)) {
-              for (const [port, status] of Object.entries(results[protocol])) {
-                const portNumber = parseInt(port);
-                const portInfo = findPortInfo(portNumber);
-                
-                processedResults.push({
-                  port: portNumber,
-                  status: status as 'Open' | 'Closed' | 'Filtered',
-                  protocol: protocol as 'TCP' | 'UDP',
-                  ...(portInfo && {
-                    service: portInfo.service,
-                    description: portInfo.description
-                  })
-                });
-              }
-            }
 
-            // Sort results by port number
-            processedResults.sort((a, b) => a.port - b.port);
-
-            setScanSummary({
-              totalScanned: processedResults.length,
-              openPorts: processedResults.filter(r => r.status === 'Open').length,
-              filteredPorts: processedResults.filter(r => r.status === 'Filtered').length,
-              closedPorts: processedResults.filter(r => r.status === 'Closed').length,
-              results: processedResults
-            });
+            setScanSummary(buildScanSummary(data.results));
           }
         }
       };
@@ -295,15 +230,6 @@ export default function PortScanner() {
       });
       setIsScanning(false);
     }
-  };
-
-  // Helper function to find port info
-  const findPortInfo = (port: number): PortInfo | undefined => {
-    for (const group of PORT_GROUPS) {
-      const portInfo = group.ports.find(p => p.port === port);
-      if (portInfo) return portInfo;
-    }
-    return undefined;
   };
 
   const clearResults = () => {

@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { pingSchema } from "@/lib/validation";
+import { pingSchema, type PingFormData } from "@/domains/ping/schema";
 import {
   Form,
   FormControl,
@@ -25,7 +25,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Download, Loader2, HelpCircle } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "react-hot-toast";
-import { z } from "zod";
 import {
   Tooltip,
   TooltipContent,
@@ -33,33 +32,16 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { useWebSocket } from "@/lib/websocket/useWebSocket";
-import { WebSocketDomain, WebSocketMessage } from "@/lib/websocket/types";
-
-interface PingResult {
-  host: string;
-  type: string;
-  results: Array<{
-    success: boolean;
-    latency?: number;
-    error?: string;
-    attempt: number;
-  }>;
-  statistics: {
-    sent: number;
-    received: number;
-    lost: number;
-    successRate: number;
-    minLatency: number;
-    maxLatency: number;
-    avgLatency: number;
-  };
-}
-
-type PingFormData = z.infer<typeof pingSchema>;
+import { convertPingSummaryToCsv } from "@/domains/ping/export";
+import {
+  type PingSocketCompleteEvent,
+  type PingSocketResultEvent,
+  type PingSummary,
+} from "@/domains/ping/model";
+import { usePingSocket } from "@/domains/ping/socket";
 
 export default function PingTool() {
-  const [results, setResults] = useState<PingResult | null>(null);
+  const [results, setResults] = useState<PingSummary | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
@@ -78,68 +60,78 @@ export default function PingTool() {
 
   const pingType = form.watch("type");
 
-  const handleMessage = useCallback((message: WebSocketMessage) => {
-    if (message.type === "pingResult") {
-      const { data } = message;
-      setResults((prev) => {
-        if (!prev) {
-          return {
-            host: data.host,
-            type: data.type,
-            results: [data],
-            statistics: data.statistics || {
-              sent: 0,
-              received: 0,
-              lost: 0,
-              successRate: 0,
-              minLatency: Infinity,
-              maxLatency: 0,
-              avgLatency: 0,
-            },
+  const handlePingResult = useCallback((event: PingSocketResultEvent) => {
+    setResults((prev) => {
+      const nextResults: PingSummary = prev
+        ? {
+            ...prev,
+            results: [...prev.results, event.result],
+            statistics: event.statistics,
+          }
+        : {
+            host: event.host,
+            type: event.type,
+            results: [event.result],
+            statistics: event.statistics,
           };
-        }
 
-        const newResults = {
-          ...prev,
-          results: [...prev.results, data],
-          statistics: data.statistics || prev.statistics,
+      setProgress(
+        Math.min(100, (nextResults.results.length / event.totalSequences) * 100),
+      );
+      setCurrentPingCount(nextResults.results.length);
+
+      if (nextResults.results.length >= event.totalSequences) {
+        setIsLoading(false);
+      }
+
+      return nextResults;
+    });
+  }, []);
+
+  const handlePingComplete = useCallback((event: PingSocketCompleteEvent) => {
+    setIsLoading(false);
+    setResults((prev) => {
+      if (!prev) {
+        return {
+          host: event.host,
+          type: event.type,
+          results: [],
+          statistics: event.statistics,
         };
+      }
 
-        // Update progress
-        const count = form.getValues("count");
-        const progress = Math.min(
-          100,
-          (newResults.results.length / count) * 100
-        );
-        setProgress(progress);
-        setCurrentPingCount(newResults.results.length);
+      return {
+        ...prev,
+        statistics: event.statistics,
+      };
+    });
+  }, []);
 
-        // If we've received all results, stop loading
-        if (newResults.results.length >= count) {
-          setIsLoading(false);
-        }
+  const handleRequestError = useCallback((message: string) => {
+    setError(message);
+    setIsLoading(false);
+    toast.error("Ping test failed");
+  }, []);
 
-        return newResults;
-      });
-    } else if (message.type === "error") {
-      setError(message.data.message);
-      setIsLoading(false);
-      toast.error("Ping test failed");
-    }
-  }, [form]);
-
-  const handleError = useCallback(() => {
+  const handleConnectionError = useCallback(() => {
     toast.error("WebSocket connection error");
     setIsLoading(false);
   }, []);
 
-  const { sendMessage } = useWebSocket({
-    domain: WebSocketDomain.PING,
-    onMessage: handleMessage,
-    onError: handleError,
+  const { startPing, isConnected } = usePingSocket({
+    onResult: handlePingResult,
+    onComplete: handlePingComplete,
+    onRequestError: handleRequestError,
+    onConnectionError: handleConnectionError,
   });
 
   async function onSubmit(data: PingFormData) {
+    if (!isConnected) {
+      setError("Ping WebSocket is still connecting. Try again in a moment.");
+      toast.error("Ping connection is not ready");
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
     setResults(null);
@@ -147,13 +139,10 @@ export default function PingTool() {
     setCurrentPingCount(0);
 
     try {
-      sendMessage({
-        type: "startPing",
-        data: {
-          ...data,
-          port: data.type === "tcp" ? data.port : undefined,
-        },
-      });
+      const messageSent = startPing(data);
+      if (!messageSent) {
+        throw new Error("Failed to send ping request over WebSocket");
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "An unknown error occurred";
       setError(errorMessage);
@@ -167,7 +156,7 @@ export default function PingTool() {
 
     const data = format === "json"
       ? JSON.stringify(results, null, 2)
-      : convertToCSV(results);
+      : convertPingSummaryToCsv(results);
 
     const blob = new Blob([data], {
       type: format === "json" ? "application/json" : "text/csv",
@@ -311,7 +300,7 @@ export default function PingTool() {
             <div className="flex gap-2">
               <Button
                 type="submit"
-                disabled={isLoading}
+                disabled={isLoading || !isConnected}
                 className="w-full md:w-auto"
               >
                 {isLoading ? (
@@ -319,6 +308,8 @@ export default function PingTool() {
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Running Test...
                   </>
+                ) : !isConnected ? (
+                  "Connecting..."
                 ) : (
                   "Start Ping Test"
                 )}
@@ -429,20 +420,4 @@ export default function PingTool() {
       )}
     </div>
   );
-}
-
-// Utility function
-function convertToCSV(results: PingResult): string {
-  const headers = ["Attempt", "Success", "Latency", "Error"];
-  const rows = results.results.map((r) => [
-    r.attempt,
-    r.success,
-    r.latency || "",
-    r.error || "",
-  ]);
-
-  return [
-    headers.join(","),
-    ...rows.map((row) => row.join(",")),
-  ].join("\n");
 }

@@ -382,3 +382,6 @@ $RECYCLE.BIN/
 docker-compose.yml
 
 # End of https://www.toptal.com/developers/gitignore/api/windows,macos,linux,node,visualstudiocode,jetbrains+all,webstorm+all
+# Package manager lockfiles kept out unless explicitly needed
+package-lock.json
+server/package-lock.json

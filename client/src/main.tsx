@@ -1,4 +1,4 @@
-import { StrictMode } from "react";
+import { StrictMode, lazy } from "react";
 import { createRoot } from "react-dom/client";
 import { Switch, Route } from "wouter";
 import "./index.css";
@@ -6,15 +6,18 @@ import { SWRConfig } from "swr";
 import { HelmetProvider } from 'react-helmet-async';
 import { fetcher } from "./lib/fetcher";
 import { Toaster } from "./components/ui/toaster";
-import Home from "./pages/Home";
 import Layout from "./components/layout/Layout";
-import IPChecker from "./components/tools/IPChecker";
-import DNSLookup from "./components/tools/DNSLookup";
-import SubnetCalculator from "./components/tools/SubnetCalculator";
-import PingTool from "./components/tools/PingTool";
-import WhoisLookup from "./components/tools/WhoisLookup";
-import PortScanner from "./components/tools/PortScanner";
-import DNSPropagationChecker from "./components/tools/DNSPropagationChecker";
+
+const Home = lazy(() => import("./pages/Home"));
+const IPChecker = lazy(() => import("./components/tools/IPChecker"));
+const DNSLookup = lazy(() => import("./components/tools/DNSLookup"));
+const SubnetCalculator = lazy(() => import("./components/tools/SubnetCalculator"));
+const PingTool = lazy(() => import("./components/tools/PingTool"));
+const WhoisLookup = lazy(() => import("./components/tools/WhoisLookup"));
+const PortScanner = lazy(() => import("./components/tools/PortScanner"));
+const DNSPropagationChecker = lazy(
+  () => import("./components/tools/DNSPropagationChecker"),
+);
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

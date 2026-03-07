@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { WebSocketConfig, WebSocketMessage } from './types';
 
 export const useWebSocket = (config: WebSocketConfig) => {
@@ -6,6 +6,7 @@ export const useWebSocket = (config: WebSocketConfig) => {
   const configRef = useRef(config);
   const reconnectAttemptsRef = useRef(0);
   const maxReconnectAttempts = 5;
+  const [isConnected, setIsConnected] = useState(false);
 
   // Update configRef when config changes
   useEffect(() => {
@@ -45,6 +46,7 @@ export const useWebSocket = (config: WebSocketConfig) => {
         ws.onopen = () => {
           console.log(`WebSocket connected to ${configRef.current.domain}`);
           reconnectAttemptsRef.current = 0;
+          setIsConnected(true);
           configRef.current.onOpen?.();
         };
 
@@ -61,6 +63,7 @@ export const useWebSocket = (config: WebSocketConfig) => {
         ws.onerror = (error) => {
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
           console.error(`WebSocket error on ${configRef.current.domain}:`, errorMessage);
+          setIsConnected(false);
           configRef.current.onError?.(error);
         };
 
@@ -72,6 +75,7 @@ export const useWebSocket = (config: WebSocketConfig) => {
           });
           
           wsRef.current = null;
+          setIsConnected(false);
           configRef.current.onClose?.();
           
           // Try to reconnect after a delay, unless it was a normal closure
@@ -88,6 +92,7 @@ export const useWebSocket = (config: WebSocketConfig) => {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         console.error(`Failed to establish WebSocket connection to ${configRef.current.domain}:`, errorMessage);
         wsRef.current = null;
+        setIsConnected(false);
         configRef.current.onError?.(new Event(errorMessage));
         
         // Try to reconnect after a delay
@@ -108,6 +113,7 @@ export const useWebSocket = (config: WebSocketConfig) => {
         wsRef.current.close(1000, 'Component unmounting');
         wsRef.current = null;
       }
+      setIsConnected(false);
       reconnectAttemptsRef.current = 0;
     };
   }, []);  // Empty dependency array since we use configRef
@@ -130,7 +136,7 @@ export const useWebSocket = (config: WebSocketConfig) => {
   return {
     sendMessage,
     webSocket: wsRef.current,
-    isConnected: wsRef.current?.readyState === WebSocket.OPEN,
+    isConnected,
     reconnectAttempts: reconnectAttemptsRef.current,
   };
 };

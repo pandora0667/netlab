@@ -1,6 +1,6 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { subnetCalculatorSchema } from "@/lib/validation";
+import { subnetCalculatorSchema } from "@/domains/network/schema";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -44,7 +44,7 @@ import {
   exportToCSV,
   netmaskToCidr,
   cidrToNetmask,
-} from "@/lib/utils/subnet";
+} from "@/domains/network/subnet";
 import { SEO } from "../SEO";
 
 const columns = [
@@ -165,22 +165,12 @@ export default function SubnetCalculator() {
   };
 
   const handleExport = () => {
-    // Only include column headers and data
-    const csvHeaders = columns
-      .filter(col => visibleColumns.includes(col.id))
-      .map(col => col.label)
-      .join(',');
-
-    const subnetData = sortedSubnets.map(subnet => [
-      subnet.networkAddress,
-      subnet.broadcastAddress,
-      subnet.firstUsableIP,
-      subnet.lastUsableIP,
-      subnet.numHosts,
-      `${subnet.netmask} (/${subnet.subnetMask})`
-    ].join(','));
-
-    const csv = csvHeaders + '\n' + subnetData.join('\n');
+    const csvHeaders = visibleColumns
+      .map((columnId) => columns.find((column) => column.id === columnId)?.label)
+      .filter((label): label is string => Boolean(label))
+      .join(",");
+    const csvData = exportToCSV(sortedSubnets, visibleColumns);
+    const csv = `${csvHeaders}\n${csvData}`;
   
     // Create and trigger download
     const blob = new Blob([csv], { type: 'text/csv' });

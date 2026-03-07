@@ -1,5 +1,11 @@
 import { Helmet } from 'react-helmet-async';
-import { defaultSEO, pageSEOData, type SEOData } from '../lib/seo-config';
+import {
+  defaultSEO,
+  pageSEOData,
+  resolveSeoUrl,
+  siteUrl,
+  type SEOData,
+} from '../lib/seo-config';
 
 interface SEOProps {
   page?: keyof typeof pageSEOData;
@@ -7,7 +13,10 @@ interface SEOProps {
 
 export function SEO({ page }: SEOProps) {
   const seo: SEOData = page ? pageSEOData[page] : defaultSEO;
-  const baseUrl = 'https://netlab.wisoft.io'; // Update with actual production domain
+  const canonicalPath = seo.canonical ?? defaultSEO.canonical ?? "/";
+  const ogImagePath = seo.ogImage ?? defaultSEO.ogImage ?? "/og-image.jpg";
+  const canonicalUrl = resolveSeoUrl(canonicalPath);
+  const ogImageUrl = resolveSeoUrl(ogImagePath);
 
   return (
     <Helmet>
@@ -20,22 +29,28 @@ export function SEO({ page }: SEOProps) {
       <meta property="og:title" content={seo.title} />
       <meta property="og:description" content={seo.description} />
       <meta property="og:type" content="website" />
-      <meta property="og:image" content={`${baseUrl}${seo.ogImage}`} />
-      <meta property="og:url" content={`${baseUrl}${seo.canonical}`} />
+      <meta property="og:image" content={ogImageUrl} />
+      <meta property="og:url" content={canonicalUrl} />
+      <meta property="og:site_name" content="Netlab" />
       
       {/* Twitter Card */}
       <meta name="twitter:card" content="summary_large_image" />
       <meta name="twitter:title" content={seo.title} />
       <meta name="twitter:description" content={seo.description} />
-      <meta name="twitter:image" content={`${baseUrl}${seo.ogImage}`} />
+      <meta name="twitter:image" content={ogImageUrl} />
       
       {/* Canonical URL */}
-      {seo.canonical && <link rel="canonical" href={`${baseUrl}${seo.canonical}`} />}
+      {canonicalPath && <link rel="canonical" href={canonicalUrl} />}
       
       {/* Additional Meta Tags */}
       <meta name="robots" content="index, follow" />
       <meta name="googlebot" content="index, follow" />
       <meta name="language" content="English" />
+      <meta property="og:locale" content="en_US" />
+      <meta name="application-name" content="Netlab" />
+      <meta name="apple-mobile-web-app-title" content="Netlab" />
+      <meta name="theme-color" content="#0f172a" />
+      <meta name="twitter:domain" content={new URL(siteUrl).hostname} />
     </Helmet>
   );
 }

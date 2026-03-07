@@ -1,4 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import {
+  lazy,
+  Suspense,
+  useState,
+  useEffect,
+} from 'react';
 import { Card } from '../ui/card';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
@@ -20,129 +25,33 @@ import {
 import { Badge } from '../ui/badge';
 import { Loader2, Download, Map, PieChart } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { startDnsPropagationRequest } from "@/domains/dns-propagation/api";
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from 'recharts';
-import { 
-  ComposableMap, 
-  Geographies, 
-  Geography, 
-  Marker,
-  ZoomableGroup
-} from 'react-simple-maps';
-
+  createDnsPropagationRequestId,
+  useDnsPropagationSocket,
+} from "@/domains/dns-propagation/socket";
 import {
-  WebSocketDomain, 
-  WebSocketMessage
-} from '../../lib/websocket/types';
-import { useWebSocket } from '@/lib/websocket/useWebSocket';
+  dnsPropagationFormSchema,
+  dnsPropagationRequestSchema,
+} from "@/domains/dns-propagation/schema";
+import { serializeDnsPropagationReport } from "@/domains/dns-propagation/report";
+import {
+  calculateDnsPropagationStats,
+  createEmptyQueryStats,
+} from "@/domains/dns-propagation/stats";
+import {
+  type DNSQueryResult,
+  type FilterState,
+  type QueryStats,
+  REGIONS,
+} from './dns-propagation/shared';
 
-interface DNSServer {
-  country_code: string;
-  name: string;
-  ip_address: string;
-  reliability: number;
-  dnssec: boolean;
-  is_working: boolean;
-}
-
-interface DNSQueryResult {
-  server: DNSServer;
-  response: string;
-  latency: number;
-  status: 'success' | 'error';
-  error?: string;
-  timestamp?: number;
-}
-
-interface QueryStats {
-  totalQueries: number;
-  successfulQueries: number;
-  failedQueries: number;
-  averageLatency: number;
-  dnssecEnabled: number;
-}
-
-const REGIONS = {
-  'All Regions': ['*'],
-  'Asia': ['JP', 'KR', 'CN', 'SG', 'IN', 'HK'],
-  'Europe': ['GB', 'DE', 'FR', 'IT', 'ES', 'NL'],
-  'North America': ['US', 'CA', 'MX'],
-  'South America': ['BR', 'AR', 'CL', 'CO'],
-  'Africa': ['ZA', 'EG', 'NG', 'KE'],
-  'Oceania': ['AU', 'NZ'],
-};
-
-const serverCoordinates: { [key: string]: [number, number] } = {
-  // Asia
-  'JP': [139.6917, 35.6895],  // Tokyo
-  'KR': [126.9780, 37.5665],  // Seoul
-  'CN': [116.4074, 39.9042],  // Beijing
-  'SG': [103.8198, 1.3521],   // Singapore
-  'IN': [77.2090, 28.6139],   // New Delhi
-  'HK': [114.1694, 22.3193],  // Hong Kong
-
-  // Europe
-  'GB': [-0.1276, 51.5074],   // London
-  'DE': [13.4050, 52.5200],   // Berlin
-  'FR': [2.3522, 48.8566],    // Paris
-  'IT': [12.4964, 41.9028],   // Rome
-  'ES': [-3.7038, 40.4168],   // Madrid
-  'NL': [4.9041, 52.3676],    // Amsterdam
-
-  // North America
-  'US': [-95.7129, 37.0902],  // United States (center)
-  'CA': [-106.3468, 56.1304], // Canada (center)
-  'MX': [-102.5528, 23.6345], // Mexico (center)
-
-  // South America
-  'BR': [-47.9292, -15.7801], // Brasilia
-  'AR': [-58.3816, -34.6037], // Buenos Aires
-  'CL': [-70.6483, -33.4489], // Santiago
-  'CO': [-74.0721, 4.7110],   // Bogota
-
-  // Africa
-  'ZA': [28.0473, -26.2041],  // Johannesburg
-  'EG': [31.2357, 30.0444],   // Cairo
-  'NG': [3.3792, 6.5244],     // Lagos
-  'KE': [36.8219, -1.2921],   // Nairobi
-
-  // Oceania
-  'AU': [149.1300, -35.2809], // Canberra
-  'NZ': [174.7787, -41.2924], // Wellington
-};
-
-const getRegionColor = (countryCode: string) => {
-  for (const [region, countries] of Object.entries(REGIONS)) {
-    if (countries.includes('*') || countries.includes(countryCode)) {
-      switch (region) {
-        case 'Asia':
-          return '#FFE0B2';
-        case 'Europe':
-          return '#C8E6C9';
-        case 'North America':
-          return '#B3E5FC';
-        case 'South America':
-          return '#F8BBD0';
-        case 'Africa':
-          return '#FFE0B2';
-        case 'Oceania':
-          return '#E1BEE7';
-        default:
-          return '#EAEAEC';
-      }
-    }
-  }
-  return '#EAEAEC';
-};
-
-const geoUrl = "/world-countries.json";
+const DNSPropagationMap = lazy(
+  () => import('./dns-propagation/DNSPropagationMap'),
+);
+const DNSPropagationChart = lazy(
+  () => import('./dns-propagation/DNSPropagationChart'),
+);
 
 export default function DNSPropagationChecker() {
   const [domain, setDomain] = useState('');
@@ -150,136 +59,109 @@ export default function DNSPropagationChecker() {
   const [results, setResults] = useState<DNSQueryResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [view, setView] = useState<'table' | 'map' | 'chart'>('table');
-  const [stats, setStats] = useState<QueryStats>({
-    totalQueries: 0,
-    successfulQueries: 0,
-    failedQueries: 0,
-    averageLatency: 0,
-    dnssecEnabled: 0,
-  });
+  const [stats, setStats] = useState<QueryStats>(createEmptyQueryStats);
   const [progress, setProgress] = useState(0);
 
-  // Add filter type definition
-  interface FilterState {
-    status: 'all' | 'success' | 'error';
-    dnssec: 'all' | 'enabled' | 'disabled';
-  }
-
-  // Initialize filter state
   const [filter, setFilter] = useState<FilterState>({
     status: 'all',
     dnssec: 'all'
   });
+  const [activeRequestId, setActiveRequestId] = useState<string | null>(null);
 
-  const handleMessage = useCallback((message: WebSocketMessage) => {
-    if (message.type === 'queryResult') {
-      const result = message.data;
-      console.log('Received DNS result:', result);
-      
-      const validResult = validateDNSResult(result);
-      setResults(prev => {
-        const newResults = [...prev, validResult];
-        calculateStats(newResults);  // Calculate stats with new results array
-        return newResults;
+  const {
+    isConnected,
+    subscribeToRequest,
+    unsubscribeFromRequest,
+  } = useDnsPropagationSocket({
+    activeRequestId,
+    onResult: (result) => {
+      setResults((previousResults) => {
+        const nextResults = [...previousResults, result];
+        setStats(calculateDnsPropagationStats(nextResults));
+        return nextResults;
       });
-    }
-  }, []);
-
-  const { sendMessage } = useWebSocket({
-    domain: WebSocketDomain.DNS_PROPAGATION,
-    onMessage: handleMessage,
-    onError: (error) => {
-      console.error('WebSocket error:', error);
+    },
+    onProgress: (event) => {
+      setProgress(event.progress);
+    },
+    onComplete: () => {
+      setProgress(100);
+      setIsLoading(false);
+      setActiveRequestId(null);
+    },
+    onRequestError: (message) => {
+      toast.error(message);
+      setIsLoading(false);
+      setActiveRequestId(null);
+    },
+    onConnectionError: () => {
       toast.error('Connection error occurred');
-    }
+      setIsLoading(false);
+      setActiveRequestId(null);
+    },
   });
 
   const handleCheck = async () => {
-    if (!domain) {
-      toast.error('Please enter a domain name');
+    const parsedForm = dnsPropagationFormSchema.safeParse({
+      domain,
+      region: selectedRegion,
+    });
+
+    if (!parsedForm.success) {
+      toast.error(parsedForm.error.issues[0]?.message || 'Please enter a valid domain name');
       return;
     }
 
-    try {
-      setIsLoading(true);
-      setResults([]);
-      
-      const response = await fetch('/api/dns-propagation/propagation', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ domain, region: selectedRegion }),
-      });
+    if (!isConnected) {
+      toast.error('Live update connection is still initializing');
+      return;
+    }
 
-      if (!response.ok) {
-        throw new Error('Failed to start DNS propagation check');
+    let nextRequestId: string | null = null;
+
+    try {
+      nextRequestId = createDnsPropagationRequestId();
+
+      if (activeRequestId) {
+        unsubscribeFromRequest(activeRequestId);
       }
 
-      // Server returns only check start message, actual results come through WebSocket
-      const data = await response.json();
-      console.log('Check started:', data);
+      const subscribed = subscribeToRequest(nextRequestId);
+
+      if (!subscribed) {
+        throw new Error('Failed to subscribe to live DNS updates');
+      }
+
+      const request = dnsPropagationRequestSchema.parse({
+        ...parsedForm.data,
+        requestId: nextRequestId,
+      });
+
+      setActiveRequestId(nextRequestId);
+      setIsLoading(true);
+      setResults([]);
+      setStats(createEmptyQueryStats());
+      setProgress(0);
+      
+      await startDnsPropagationRequest(request);
     } catch (error) {
-      toast.error('Failed to check DNS propagation');
-      console.error('Error:', error);
-    } finally {
+      if (nextRequestId) {
+        unsubscribeFromRequest(nextRequestId);
+      }
+      setActiveRequestId(null);
       setIsLoading(false);
+      toast.error(error instanceof Error ? error.message : 'Failed to check DNS propagation');
+      console.error('Error:', error);
     }
   };
 
-  const validateDNSResult = (result: any): DNSQueryResult => {
-    if (!result || typeof result !== 'object') {
-      console.error('Invalid result format:', result);
-      return {
-        server: {
-          country_code: 'UN',
-          name: 'Unknown Server',
-          ip_address: '0.0.0.0',
-          reliability: 0,
-          dnssec: false,
-          is_working: false
-        },
-        response: 'Invalid Response',
-        latency: 0,
-        status: 'error',
-        error: 'Invalid result format',
-        timestamp: Date.now()
-      };
-    }
-
-    const server: DNSServer = {
-      country_code: result.server?.country_code || 'UN',
-      name: result.server?.name || 'Unknown Server',
-      ip_address: result.server?.ip_address || '0.0.0.0',
-      reliability: result.server?.reliability || 0,
-      dnssec: result.server?.dnssec || false,
-      is_working: result.server?.is_working || false
+  useEffect(() => {
+    return () => {
+      if (activeRequestId) {
+        unsubscribeFromRequest(activeRequestId);
+      }
     };
-
-    return {
-      server,
-      response: result.response || '',
-      latency: result.latency || 0,
-      status: result.status || 'error',
-      error: result.error,
-      timestamp: Date.now()
-    };
-  };
-
-  const calculateStats = (results: DNSQueryResult[]) => {
-    const successful = results.filter(r => r.status === 'success').length;
-    const total = results.length;
-    const avgLatency = results.reduce((acc, cur) => acc + cur.latency, 0) / total;
-    const dnssecEnabled = results.filter(r => r.server.dnssec).length;
-
-    setStats({
-      totalQueries: total,
-      successfulQueries: successful,
-      failedQueries: total - successful,
-      averageLatency: Math.round(avgLatency),
-      dnssecEnabled,
-    });
-  };
+  }, [activeRequestId, unsubscribeFromRequest]);
 
   const filteredResults = results.filter((result) => {
     if (filter.status !== 'all' && result.status !== filter.status) return false;
@@ -289,14 +171,14 @@ export default function DNSPropagationChecker() {
   });
 
   const generateReport = () => {
-    const report = {
+    const serializedReport = serializeDnsPropagationReport({
       domain,
       timestamp: new Date().toISOString(),
       stats,
       results: filteredResults,
-    };
+    });
 
-    const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+    const blob = new Blob([serializedReport], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -311,131 +193,16 @@ export default function DNSPropagationChecker() {
     switch (view) {
       case 'map':
         return (
-          <div className="relative w-full max-w-full overflow-hidden bg-white rounded-lg shadow-sm">
-            <div className="w-full aspect-[16/9] min-h-[400px] max-h-[600px]">
-              <ComposableMap
-                projectionConfig={{
-                  scale: 140,
-                  center: [0, 20],
-                  rotate: [-10, 0, 0]
-                }}
-                className="w-full h-full"
-                style={{
-                  maxWidth: '100%',
-                  height: 'auto'
-                }}
-              >
-                <ZoomableGroup>
-                  <Geographies geography={geoUrl}>
-                    {({ geographies }) =>
-                      geographies.map((geo) => {
-                        const countryCode = geo.properties.iso_a2;
-                        return (
-                          <Geography
-                            key={geo.rsmKey}
-                            geography={geo}
-                            fill={getRegionColor(countryCode)}
-                            stroke="#FFFFFF"
-                            strokeWidth={0.5}
-                            style={{
-                              default: {
-                                outline: 'none'
-                              },
-                              hover: {
-                                fill: '#F5F5F5',
-                                outline: 'none',
-                                transition: 'all 250ms'
-                              },
-                              pressed: {
-                                outline: 'none'
-                              }
-                            }}
-                          />
-                        );
-                      })
-                    }
-                  </Geographies>
-                  {filteredResults.map((result, index) => {
-                    const coordinates = serverCoordinates[result.server.country_code];
-                    if (!coordinates) return null;
-                    
-                    return (
-                      <Marker key={index} coordinates={coordinates}>
-                        <g
-                          transform="translate(-12, -24)"
-                          style={{ cursor: 'pointer' }}
-                        >
-                          <circle
-                            r={6}
-                            fill={result.status === 'success' ? '#4CAF50' : '#f44336'}
-                            stroke="#FFFFFF"
-                            strokeWidth={2}
-                          />
-                          <circle
-                            r={15}
-                            fill={result.status === 'success' ? '#4CAF50' : '#f44336'}
-                            fillOpacity={0.2}
-                            stroke="none"
-                          >
-                            <animate
-                              attributeName="r"
-                              from="8"
-                              to="20"
-                              dur="1.5s"
-                              begin="0s"
-                              repeatCount="indefinite"
-                            />
-                            <animate
-                              attributeName="opacity"
-                              from="0.6"
-                              to="0"
-                              dur="1.5s"
-                              begin="0s"
-                              repeatCount="indefinite"
-                            />
-                          </circle>
-                          <title>
-                            {result.server.name} ({result.server.country_code})
-                            {'\n'}Status: {result.status}
-                            {'\n'}Latency: {result.latency}ms
-                          </title>
-                        </g>
-                      </Marker>
-                    );
-                  })}
-                </ZoomableGroup>
-              </ComposableMap>
-              <div className="absolute bottom-2 right-2 bg-white/80 p-2 rounded-lg shadow-md text-sm z-10">
-                <div className="flex items-center gap-2">
-                  <span className="flex items-center gap-1">
-                    <span className="w-3 h-3 rounded-full bg-green-500"></span>
-                    Success
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="w-3 h-3 rounded-full bg-red-500"></span>
-                    Failed
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
+          <Suspense fallback={<VisualizationFallback />}>
+            <DNSPropagationMap results={filteredResults} />
+          </Suspense>
         );
 
       case 'chart':
         return (
-          <div className="h-[400px] w-full">
-            <ResponsiveContainer>
-              <BarChart data={[stats]}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="successfulQueries" fill="#34D399" name="Successful" />
-                <Bar dataKey="failedQueries" fill="#EF4444" name="Failed" />
-                <Bar dataKey="dnssecEnabled" fill="#3B82F6" name="DNSSEC Enabled" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          <Suspense fallback={<VisualizationFallback />}>
+            <DNSPropagationChart stats={stats} />
+          </Suspense>
         );
 
       default:
@@ -538,13 +305,15 @@ export default function DNSPropagationChecker() {
 
           <Button
             onClick={handleCheck}
-            disabled={isLoading}
+            disabled={isLoading || !isConnected}
           >
             {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Checking...
               </>
+            ) : !isConnected ? (
+              'Connecting...'
             ) : (
               'Check Propagation'
             )}
@@ -636,5 +405,13 @@ export default function DNSPropagationChecker() {
         )}
       </div>
     </Card>
+  );
+}
+
+function VisualizationFallback() {
+  return (
+    <div className="flex h-[400px] items-center justify-center rounded-lg border bg-muted/20">
+      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+    </div>
   );
 }

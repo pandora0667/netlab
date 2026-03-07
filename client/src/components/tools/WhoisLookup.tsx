@@ -1,6 +1,6 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { whoisSchema } from "@/lib/validation";
+import { whoisSchema } from "@/domains/network/schema";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -15,13 +15,11 @@ import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-
-interface WhoisResult {
-  data: string;
-}
+import { lookupWhois } from "@/domains/network/api";
+import type { WhoisLookupResult } from "@/domains/network/types";
 
 export default function WhoisLookup() {
-  const [results, setResults] = useState<WhoisResult | null>(null);
+  const [results, setResults] = useState<WhoisLookupResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,17 +34,7 @@ export default function WhoisLookup() {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch("/api/whois", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data)
-      });
-      
-      if (!response.ok) {
-        throw new Error("WHOIS lookup failed");
-      }
-      
-      const result = await response.json();
+      const result = await lookupWhois(data.domain);
       setResults(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");

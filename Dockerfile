@@ -1,33 +1,33 @@
-FROM node:22.11
+FROM node:24-bookworm-slim AS base
 
-# Install required system tools
-RUN apt-get update && \
+ENV PNPM_HOME="/pnpm"
+ENV PATH="${PNPM_HOME}:${PATH}"
+
+RUN corepack enable && \
+    apt-get update && \
     apt-get install -y --no-install-recommends \
-        iputils-ping \
-        dnsutils \
-        curl \
-        traceroute \
-        net-tools && \
+      curl \
+      dnsutils \
+      iputils-ping \
+      net-tools \
+      traceroute && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+FROM base AS deps
 
-# Install dependencies
-RUN npm install --legacy-peer-deps 
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 
-# Copy source code
+FROM deps AS build
+
 COPY . .
+RUN pnpm run build && pnpm prune --prod
 
-# Build the application
-RUN npm run build
+FROM base AS runtime
 
-# Expose port 8080
-EXPOSE 8080
-
-# New Relic Configuration
+ENV NODE_ENV=production
 ENV NEW_RELIC_NO_CONFIG_FILE=true \
     NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true \
     NEW_RELIC_LOG=stdout \
@@ -35,5 +35,14 @@ ENV NEW_RELIC_NO_CONFIG_FILE=true \
     NEW_RELIC_CUSTOM_INSIGHTS_EVENTS_MAX_SAMPLES_STORED=100k \
     NEW_RELIC_SPAN_EVENTS_MAX_SAMPLES_STORED=10k
 
-# Start the application
-CMD ["npm", "start"]
+COPY --from=build /app/package.json ./package.json
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/server/data ./server/data
+COPY --from=build /app/.env.example ./.env.example
+
+RUN mkdir -p logs
+
+EXPOSE 8080
+
+CMD ["node", "dist/index.js"]
