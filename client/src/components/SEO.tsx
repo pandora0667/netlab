@@ -15,6 +15,7 @@ export function SEO({ page }: SEOProps) {
   const seo: SEOData = page ? pageSEOData[page] : defaultSEO;
   const canonicalPath = seo.canonical ?? defaultSEO.canonical ?? "/";
   const ogImagePath = seo.ogImage ?? defaultSEO.ogImage ?? "/og-image.jpg";
+  const imageAlt = seo.imageAlt ?? defaultSEO.imageAlt ?? "Netlab preview";
   const canonicalUrl = resolveSeoUrl(canonicalPath);
   const ogImageUrl = resolveSeoUrl(ogImagePath);
 
@@ -30,6 +31,7 @@ export function SEO({ page }: SEOProps) {
       <meta property="og:description" content={seo.description} />
       <meta property="og:type" content="website" />
       <meta property="og:image" content={ogImageUrl} />
+      <meta property="og:image:alt" content={imageAlt} />
       <meta property="og:url" content={canonicalUrl} />
       <meta property="og:site_name" content="Netlab" />
       
@@ -38,6 +40,7 @@ export function SEO({ page }: SEOProps) {
       <meta name="twitter:title" content={seo.title} />
       <meta name="twitter:description" content={seo.description} />
       <meta name="twitter:image" content={ogImageUrl} />
+      <meta name="twitter:image:alt" content={imageAlt} />
       
       {/* Canonical URL */}
       {canonicalPath && <link rel="canonical" href={canonicalUrl} />}
@@ -50,6 +53,7 @@ export function SEO({ page }: SEOProps) {
       <meta name="application-name" content="Netlab" />
       <meta name="apple-mobile-web-app-title" content="Netlab" />
       <meta name="theme-color" content="#0f172a" />
+      <meta name="format-detection" content="telephone=no" />
       <meta name="twitter:domain" content={new URL(siteUrl).hostname} />
     </Helmet>
   );

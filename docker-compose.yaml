@@ -1,0 +1,21 @@
+services:
+  netlab:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: netlab:latest
+    init: true
+    restart: unless-stopped
+    environment:
+      PORT: "${PORT:-8080}"
+      TRUST_PROXY: "${TRUST_PROXY:-1}"
+    ports:
+      - "${PORT:-8080}:${PORT:-8080}"
+    volumes:
+      - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:${PORT:-8080}/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s

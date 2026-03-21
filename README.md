@@ -103,6 +103,24 @@ docker build -t netlab:latest .
 docker run --rm -p 8080:8080 --env-file .env netlab:latest
 ```
 
+## Docker Compose
+
+You can also run the app with Docker Compose:
+
+```bash
+docker compose up --build -d
+docker compose ps
+docker compose logs -f netlab
+```
+
+Stop it with:
+
+```bash
+docker compose down
+```
+
+Compose uses `compose.yaml`, exposes the app on port `8080` by default, mounts `logs/` into the container, and includes a `/healthz` health check. If you want custom limits or a different port, copy `.env.example` to `.env` and adjust the values before starting the stack.
+
 ## API Versioning
 
 - Legacy endpoints remain available under `/api/*` for compatibility.

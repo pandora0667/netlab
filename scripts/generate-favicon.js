@@ -28,23 +28,6 @@ async function generateFavicons() {
       
       console.log(`Generated ${fileName}`);
     }
-    
-    // Generate ICO (combine 16x16 and 32x32)
-    const ico16 = await sharp(svgBuffer)
-      .resize(16, 16)
-      .png()
-      .toBuffer();
-      
-    const ico32 = await sharp(svgBuffer)
-      .resize(32, 32)
-      .png()
-      .toBuffer();
-      
-    await sharp(ico32)
-      .toFile(path.join(outputDir, 'favicon.ico'));
-    
-    console.log('Generated favicon.ico');
-    
   } catch (error) {
     console.error('Error generating favicons:', error);
   }

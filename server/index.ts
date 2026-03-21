@@ -1,4 +1,3 @@
-import "newrelic";
 import { createServer } from "http";
 import { attachWebSocketHandlers, createApp, registerErrorHandler } from "./app.js";
 import { setupVite, serveStatic } from "./vite";

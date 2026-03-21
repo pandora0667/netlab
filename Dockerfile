@@ -28,12 +28,6 @@ RUN pnpm run build && pnpm prune --prod
 FROM base AS runtime
 
 ENV NODE_ENV=production
-ENV NEW_RELIC_NO_CONFIG_FILE=true \
-    NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true \
-    NEW_RELIC_LOG=stdout \
-    NEW_RELIC_AI_MONITORING_ENABLED=true \
-    NEW_RELIC_CUSTOM_INSIGHTS_EVENTS_MAX_SAMPLES_STORED=100k \
-    NEW_RELIC_SPAN_EVENTS_MAX_SAMPLES_STORED=10k
 
 COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/node_modules ./node_modules

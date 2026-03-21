@@ -1,6 +1,25 @@
 <svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="512" height="512" rx="128" fill="#0f172a"/>
-  <path d="M256 128C185.307 128 128 185.307 128 256C128 326.692 185.307 384 256 384C326.692 384 384 326.692 384 256C384 185.307 326.692 128 256 128ZM256 352C203.065 352 160 308.935 160 256C160 203.065 203.065 160 256 160C308.935 160 352 203.065 352 256C352 308.935 308.935 352 256 352Z" fill="white"/>
-  <path d="M256 192C220.654 192 192 220.654 192 256C192 291.346 220.654 320 256 320C291.346 320 320 291.346 320 256C320 220.654 291.346 192 256 192ZM256 288C238.327 288 224 273.673 224 256C224 238.327 238.327 224 256 224C273.673 224 288 238.327 288 256C288 273.673 273.673 288 256 288Z" fill="#38bdf8"/>
-  <circle cx="256" cy="256" r="16" fill="white"/>
-</svg> 
+  <defs>
+    <linearGradient id="bg" x1="88" y1="80" x2="430" y2="432" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0F172A" />
+      <stop offset="1" stop-color="#132238" />
+    </linearGradient>
+    <linearGradient id="signal" x1="168" y1="176" x2="344" y2="336" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#38BDF8" />
+      <stop offset="1" stop-color="#F97316" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="128" fill="url(#bg)" />
+  <circle cx="172" cy="166" r="46" fill="#F8FAFC" />
+  <circle cx="340" cy="150" r="38" fill="#38BDF8" />
+  <circle cx="150" cy="340" r="36" fill="#F97316" />
+  <circle cx="336" cy="338" r="54" fill="#F8FAFC" />
+  <path d="M172 166L340 150" stroke="url(#signal)" stroke-width="28" stroke-linecap="round" />
+  <path d="M172 166L150 340" stroke="url(#signal)" stroke-width="28" stroke-linecap="round" />
+  <path d="M172 166L336 338" stroke="url(#signal)" stroke-width="28" stroke-linecap="round" />
+  <path d="M340 150L336 338" stroke="url(#signal)" stroke-width="28" stroke-linecap="round" />
+  <path d="M150 340L336 338" stroke="url(#signal)" stroke-width="28" stroke-linecap="round" />
+  <circle cx="256" cy="255" r="42" fill="#0F172A" stroke="#E2E8F0" stroke-width="16" />
+  <path d="M232 257H282" stroke="#E2E8F0" stroke-width="18" stroke-linecap="round" />
+  <path d="M257 232V282" stroke="#E2E8F0" stroke-width="18" stroke-linecap="round" />
+</svg>
