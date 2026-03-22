@@ -1,14 +1,13 @@
 services:
   netlab:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: netlab:latest
+    image: "${NETLAB_IMAGE:-harbor.nangman.cloud/library/netlab:latest}"
+    pull_policy: always
     init: true
     restart: unless-stopped
     environment:
       PORT: "${PORT:-8080}"
       TRUST_PROXY: "${TRUST_PROXY:-1}"
+      VITE_SITE_URL: "${VITE_SITE_URL:-https://netlab.tools}"
     ports:
       - "${PORT:-8080}:${PORT:-8080}"
     volumes:
@@ -19,3 +18,30 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
+      com.centurylinklabs.watchtower.scope: "netlab"
+
+  watchtower:
+    image: containrrr/watchtower:latest
+    pull_policy: always
+    restart: unless-stopped
+    environment:
+      WATCHTOWER_HTTP_API_UPDATE: "${WATCHTOWER_HTTP_API_UPDATE:-true}"
+      WATCHTOWER_HTTP_API_TOKEN: "${WATCHTOWER_HTTP_API_TOKEN}"
+      WATCHTOWER_LABEL_ENABLE: "true"
+      WATCHTOWER_SCOPE: "netlab"
+      WATCHTOWER_CLEANUP: "true"
+    command:
+      - --http-api-update
+      - --label-enable
+      - --scope
+      - netlab
+      - --cleanup
+    ports:
+      - "${WATCHTOWER_PORT:-18081}:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    labels:
+      com.centurylinklabs.watchtower.enable: "false"
+      com.centurylinklabs.watchtower.scope: "netlab"

@@ -245,6 +245,39 @@ All of these values are configurable through environment variables in `.env.exam
 - `logs/abuse.log`
   Rate-limit hits, blocked public-target violations, and other abuse-relevant events
 
+## Jenkins Deployment
+
+This repository now supports a single-image Jenkins deployment flow for `main`:
+
+- build one multi-architecture image for `linux/amd64` and `linux/arm64`
+- push `latest` for Watchtower-driven rollout
+- push `sha-<commit>` for rollback history
+- optionally push an exact Git tag when the checked-out commit is tagged
+- run the application on `8080` and expose the Watchtower HTTP API on `18081`
+
+The root `Jenkinsfile` assumes:
+
+- Harbor registry: `harbor.nangman.cloud/library`
+- image name: `netlab`
+- Watchtower HTTP API: `http://192.168.11.134:18081/v1/update`
+- Watchtower Jenkins credential ID: `nangman-netlab-watchtower-token`
+- Generic Webhook Trigger token: `nangman-netlab-trigger`
+
+Required server-side Watchtower environment:
+
+```env
+WATCHTOWER_HTTP_API_UPDATE=true
+WATCHTOWER_HTTP_API_TOKEN=<same-token-stored-in-Jenkins>
+```
+
+The included `docker-compose.yaml` is now aligned with this deployment model:
+
+- `netlab` runs from `NETLAB_IMAGE` and defaults to `harbor.nangman.cloud/library/netlab:latest`
+- Watchtower only updates containers labeled for the `netlab` scope
+- the Watchtower API listens on `${WATCHTOWER_PORT:-18081}` to avoid clashing with the application on `8080`
+
+The webhook filter only accepts pushes for the repository `pandora0667/netlab` on `refs/heads/main`.
+
 ## Known Maintenance Priorities
 
 - Split the large frontend bundle into route-level chunks
