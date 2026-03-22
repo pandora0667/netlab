@@ -27,6 +27,7 @@ services:
     pull_policy: always
     restart: unless-stopped
     environment:
+      DOCKER_API_VERSION: "${WATCHTOWER_DOCKER_API_VERSION:-1.40}"
       WATCHTOWER_HTTP_API_UPDATE: "${WATCHTOWER_HTTP_API_UPDATE:-true}"
       WATCHTOWER_HTTP_API_TOKEN: "${WATCHTOWER_HTTP_API_TOKEN}"
       WATCHTOWER_LABEL_ENABLE: "true"

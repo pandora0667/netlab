@@ -266,9 +266,12 @@ The root `Jenkinsfile` assumes:
 Required server-side Watchtower environment:
 
 ```env
+WATCHTOWER_DOCKER_API_VERSION=1.40
 WATCHTOWER_HTTP_API_UPDATE=true
 WATCHTOWER_HTTP_API_TOKEN=<same-token-stored-in-Jenkins>
 ```
+
+If the Docker daemon on the target host requires a newer minimum API version, update `WATCHTOWER_DOCKER_API_VERSION` to match that daemon requirement.
 
 The included `docker-compose.yaml` is now aligned with this deployment model:
 
