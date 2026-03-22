@@ -29,7 +29,7 @@ export const commandPaletteGroups: {
   items: CommandPaletteEntry[];
 }[] = [
   {
-    heading: "General",
+    heading: "Overview",
     items: [
       {
         id: "home",
@@ -45,7 +45,7 @@ export const commandPaletteGroups: {
     ],
   },
   {
-    heading: "Network tools",
+    heading: "Tools",
     items: [
       {
         id: "ip-checker",
@@ -124,11 +124,6 @@ export const commandPaletteGroups: {
         commandHint: "inspect whois",
         accent: "Registration Data",
       },
-    ],
-  },
-  {
-    heading: "Utilities",
-    items: [
       {
         id: "dns-propagation",
         label: "DNS Propagation",

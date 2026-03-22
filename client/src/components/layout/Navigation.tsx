@@ -4,15 +4,15 @@ import { Button } from "@/components/ui/button";
 import { useCommandPalette } from "@/components/layout/command-palette";
 import { useModKeyLabel } from "@/hooks/use-mod-key-label";
 import { commandPaletteGroups } from "@/lib/command-palette-items";
-import { ArrowUpRight, Command, Menu, Search, X } from "lucide-react";
+import { Command, Menu, X } from "lucide-react";
 
 const primaryNavItems = [
   { href: "/", label: "Overview" },
   { href: "/ip-checker", label: "IP" },
   { href: "/dns-lookup", label: "DNS" },
   { href: "/ping", label: "Ping" },
+  { href: "/trace", label: "Trace" },
   { href: "/http-inspector", label: "HTTP/TLS" },
-  { href: "/port-scan", label: "Ports" },
 ];
 
 export default function Navigation() {
@@ -21,17 +21,10 @@ export default function Navigation() {
   const { setOpen: openCommandPalette } = useCommandPalette();
   const mod = useModKeyLabel();
 
-  const allTools = commandPaletteGroups.flatMap((g) => g.items);
-  const desktopToolGroups = commandPaletteGroups.filter(
-    (group) => group.heading !== "General",
-  );
   const isActive = (href: string): boolean => location === href;
 
   return (
-    <header
-      className="sticky top-0 z-50 px-4 pt-5 sm:px-6"
-      role="banner"
-    >
+    <header className="sticky top-0 z-50 px-4 pt-5 sm:px-6" role="banner">
       <div className="mx-auto flex max-w-7xl flex-col gap-3">
         <div className="floating-nav flex items-center gap-2 rounded-full px-2 py-2">
           <Link
@@ -56,11 +49,12 @@ export default function Navigation() {
           </Link>
 
           <nav
-            className="hidden flex-1 items-center justify-center gap-1 lg:flex"
+            className="hidden flex-1 items-center justify-center gap-1 xl:flex"
             aria-label="Primary"
           >
             {primaryNavItems.map((item) => {
               const active = isActive(item.href);
+
               return (
                 <Link
                   key={item.href}
@@ -78,48 +72,15 @@ export default function Navigation() {
             })}
           </nav>
 
-          <button
-            type="button"
-            onClick={() => openCommandPalette(true)}
-            className="command-trigger hidden min-h-11 min-w-[15rem] items-center gap-3 rounded-full px-4 py-2 text-left text-sm text-white/64 transition-colors hover:text-white xl:flex"
-            aria-label="Open command palette"
-          >
-            <Search className="h-4 w-4 shrink-0 opacity-80" aria-hidden />
-            <span className="truncate">Jump to a command, route, or tool</span>
-            <span className="ml-auto flex shrink-0 items-center gap-1">
-              <kbd className="rounded-md border border-white/10 bg-white/6 px-1.5 py-0.5 font-mono text-[10px] font-medium text-white/58">
-                {mod}
-              </kbd>
-              <kbd className="rounded-md border border-white/10 bg-white/6 px-1.5 py-0.5 font-mono text-[10px] font-medium text-white/58">
-                K
-              </kbd>
-            </span>
-          </button>
-
           <div className="ml-auto flex items-center gap-1.5">
-            <a
-              href="https://github.com/pandora0667/netlab"
-              target="_blank"
-              rel="noreferrer"
-              className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/6 px-4 py-2 text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-white/72 transition-colors hover:border-white/16 hover:bg-white/10 hover:text-white md:flex"
-            >
-              Source
-              <ArrowUpRight className="h-3.5 w-3.5" />
-            </a>
+            <span className="hidden rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[0.68rem] font-mono uppercase tracking-[0.2em] text-white/54 lg:inline-flex">
+              {mod}+K
+            </span>
             <Button
               variant="ghost"
               size="icon"
-              className="rounded-full border border-white/10 bg-white/6 text-white hover:bg-white/10 md:hidden"
-              onClick={() => openCommandPalette(true)}
-              aria-label="Open command palette"
-            >
-              <Search className="h-5 w-5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="rounded-full border border-white/10 bg-white/6 text-white hover:bg-white/10 lg:hidden"
-              onClick={() => setIsOpen((o) => !o)}
+              className="rounded-full border border-white/10 bg-white/6 text-white hover:bg-white/10"
+              onClick={() => setIsOpen((open) => !open)}
               aria-expanded={isOpen}
               aria-label={isOpen ? "Close menu" : "Open menu"}
             >
@@ -128,93 +89,74 @@ export default function Navigation() {
           </div>
         </div>
 
-        <div className="hidden rounded-[1.6rem] border border-white/8 bg-white/[0.03] px-4 py-3 shadow-[0_24px_60px_rgba(0,0,0,0.25)] backdrop-blur-xl lg:block">
-          <div className="grid gap-4 xl:grid-cols-3">
-            {desktopToolGroups.map((group) => (
-              <div key={group.heading} className="space-y-2">
-                <p className="px-1 text-[0.66rem] uppercase tracking-[0.24em] text-white/38">
-                  {group.heading}
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {group.items.map((tool) => {
-                    const active = isActive(tool.href);
-
-                    return (
-                      <Link
-                        key={tool.id}
-                        href={tool.href}
-                        className={`group inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition-all ${
-                          active
-                            ? "border-white/18 bg-white text-neutral-950 shadow-[0_16px_35px_rgba(255,255,255,0.12)]"
-                            : "border-white/10 bg-black/20 text-white/70 hover:border-white/18 hover:bg-white/[0.06] hover:text-white"
-                        }`}
-                        aria-current={active ? "page" : undefined}
-                      >
-                        <span className="text-[0.64rem] uppercase tracking-[0.18em] text-current/55">
-                          {tool.category}
-                        </span>
-                        <span className="font-medium text-current">{tool.label}</span>
-                      </Link>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {isOpen && (
+        {isOpen ? (
           <nav
-            className="glass-panel rounded-[2rem] border border-white/10 p-3 shadow-[0_30px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl lg:hidden"
+            className="glass-panel rounded-[1.75rem] border border-white/10 p-4 shadow-[0_30px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl"
             role="navigation"
-            aria-label="Mobile navigation"
+            aria-label="All tools"
           >
-            <div className="mb-3 flex items-center justify-between rounded-2xl border border-white/8 bg-white/5 px-4 py-3">
+            <div className="flex flex-col gap-3 border-b border-white/8 pb-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-[0.68rem] uppercase tracking-[0.24em] text-white/45">
-                  Launcher
+                  All tools
                 </p>
-                <p className="mt-1 text-sm font-medium text-white/88">
-                  Open any network command fast
+                <p className="mt-1 text-sm font-medium text-white/86">
+                  Open any route directly or use the command palette.
                 </p>
               </div>
-              <div className="flex items-center gap-1 rounded-full border border-white/10 bg-black/30 px-3 py-1.5 text-[0.68rem] uppercase tracking-[0.22em] text-white/58">
-                <Command className="h-3.5 w-3.5" />
-                {mod}
-              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  openCommandPalette(true);
+                  setIsOpen(false);
+                }}
+                className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-white/72 transition-colors hover:bg-white/[0.08] hover:text-white"
+              >
+                <Command className="h-4 w-4" />
+                Search tools
+                <span className="font-mono text-[0.68rem] uppercase tracking-[0.18em] text-white/48">
+                  {mod}+K
+                </span>
+              </button>
             </div>
-            <ul className="flex max-h-[min(70vh,28rem)] flex-col gap-1 overflow-y-auto">
-              {allTools.map((tool) => (
-                <li key={tool.id}>
-                  <Link
-                    href={tool.href}
-                    onClick={() => setIsOpen(false)}
-                    className={`block rounded-[1.35rem] border px-4 py-3 text-sm font-medium transition-all ${
-                      isActive(tool.href)
-                        ? "border-white/16 bg-white text-neutral-950 shadow-[0_18px_45px_rgba(255,255,255,0.16)]"
-                        : "border-white/8 bg-white/[0.03] text-white/74 hover:border-white/14 hover:bg-white/[0.06] hover:text-white"
-                    }`}
-                    aria-current={isActive(tool.href) ? "page" : undefined}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-[0.68rem] uppercase tracking-[0.24em] text-current/55">
-                          {tool.category}
-                        </p>
-                        <p className="mt-1 text-sm font-medium text-current">
-                          {tool.label}
-                        </p>
-                      </div>
-                      <span className="rounded-full border border-current/10 bg-black/20 px-3 py-1 font-mono text-[0.68rem] text-current/72">
-                        {tool.commandHint}
-                      </span>
-                    </div>
-                  </Link>
-                </li>
+
+            <div className="mt-4 grid gap-5 lg:grid-cols-2">
+              {commandPaletteGroups.map((group) => (
+                <div key={group.heading} className="space-y-3">
+                  <p className="text-[0.68rem] uppercase tracking-[0.24em] text-white/36">
+                    {group.heading}
+                  </p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {group.items.map((tool) => {
+                      const active = isActive(tool.href);
+
+                      return (
+                        <Link
+                          key={tool.id}
+                          href={tool.href}
+                          onClick={() => setIsOpen(false)}
+                          className={`rounded-[1.2rem] border px-4 py-3 text-left transition-all ${
+                            active
+                              ? "border-white/16 bg-white text-neutral-950 shadow-[0_16px_35px_rgba(255,255,255,0.12)]"
+                              : "border-white/8 bg-white/[0.03] text-white/74 hover:border-white/14 hover:bg-white/[0.06] hover:text-white"
+                          }`}
+                          aria-current={active ? "page" : undefined}
+                        >
+                          <p className="text-[0.66rem] uppercase tracking-[0.22em] text-current/52">
+                            {tool.category}
+                          </p>
+                          <p className="mt-1 text-sm font-medium text-current">
+                            {tool.label}
+                          </p>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
               ))}
-            </ul>
+            </div>
           </nav>
-        )}
+        ) : null}
       </div>
     </header>
   );
