@@ -8,7 +8,7 @@ pipeline {
                 [key: 'REPO_URL', value: '$.repository.clone_url', defaultValue: ''],
                 [key: 'AFTER_SHA', value: '$.after', defaultValue: '']
             ],
-            token: 'nangman-netlab-trigger',
+            tokenCredentialId: 'nangman-netlab-trigger',
             causeString: 'Netlab main push detected',
             regexpFilterText: '$REPO_URL $GIT_REF',
             regexpFilterExpression: '.*pandora0667/netlab.* refs/heads/main',
