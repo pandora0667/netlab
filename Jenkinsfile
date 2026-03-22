@@ -188,6 +188,7 @@ pipeline {
             steps {
                 sh '''
                     deadline=$(( $(date +%s) + $DEPLOY_TIMEOUT_SECONDS ))
+                    expected_fragment="\"buildSha\":\"$SHORT_SHA\""
 
                     while [ "$(date +%s)" -lt "$deadline" ]; do
                         body=$(curl -fsS "$APP_HEALTH_URL" || true)
@@ -195,10 +196,12 @@ pipeline {
                         if [ -n "$body" ]; then
                             echo "Health response: $body"
 
-                            if echo "$body" | grep -q "\"buildSha\":\"$SHORT_SHA\""; then
+                            case "$body" in
+                              *"$expected_fragment"*)
                                 echo "Deployment verified at $APP_HEALTH_URL"
                                 exit 0
-                            fi
+                                ;;
+                            esac
                         fi
 
                         sleep 5
