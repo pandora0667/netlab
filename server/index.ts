@@ -6,10 +6,61 @@ import { runtimeConfig } from "./config/runtime.js";
 
 const app = createApp({ includeErrorHandler: false });
 const server = createServer(app);
+const webSocketServer = attachWebSocketHandlers(server);
 
-attachWebSocketHandlers(server);
+let shuttingDown = false;
+
+function shutdown(signal: NodeJS.Signals) {
+  if (shuttingDown) {
+    return;
+  }
+
+  shuttingDown = true;
+
+  logger.info("Shutdown signal received", {
+    signal,
+  });
+
+  const forceExitTimer = setTimeout(() => {
+    logger.error("Forced shutdown after timeout", {
+      signal,
+      timeoutMs: 10_000,
+    });
+    process.exit(1);
+  }, 10_000);
+
+  forceExitTimer.unref();
+
+  webSocketServer.close(() => {
+    logger.info("WebSocket server closed", {
+      signal,
+    });
+  });
+
+  server.close((error) => {
+    clearTimeout(forceExitTimer);
+
+    if (error) {
+      logger.error("Failed to close server gracefully", {
+        signal,
+        error: error.message,
+      });
+      process.exit(1);
+      return;
+    }
+
+    logger.info("HTTP server closed", {
+      signal,
+    });
+    process.exit(0);
+  });
+}
 
 async function startServer() {
+  logger.info("Server starting", {
+    env: app.get("env"),
+  });
+
   if (app.get("env") === "development") {
     await setupVite(app, server);
   } else {
@@ -34,3 +85,6 @@ startServer().catch((error) => {
   });
   process.exit(1);
 });
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));

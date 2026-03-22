@@ -184,6 +184,7 @@ Transport exceptions:
 - Ping uses WebSockets and validates input on the server before execution.
 - Port scanning currently uses server-sent events, not worker threads.
 - The app writes structured logs under `logs/`.
+- The app also writes structured logs to stdout, so `docker logs` shows live operational events.
 - Every HTTP response includes an `X-Request-Id` header. The same request ID is written into application logs for traceability.
 - Abuse-oriented events such as rate-limit hits and blocked non-public targets are written to `logs/abuse.log`.
 - DNS propagation server metadata is loaded from `server/data/dns-servers.csv` in both local and container runtime paths.
@@ -226,6 +227,19 @@ The defaults are intentionally usable for a public tool, but they are still boun
 - Port scanning: `20` requests per `15` minutes, maximum `256` ports per request, maximum timeout `2000ms`, `4` concurrent globally, `1` concurrent per IP
 
 All of these values are configurable through environment variables in `.env.example`.
+
+### Logging
+
+- `LOG_LEVEL`
+  Base logger level. Recommended production default: `info`
+- `CONSOLE_LOG_LEVEL`
+  Stdout/stderr logger level. This is what `docker logs` will show.
+- `FILE_LOG_LEVEL`
+  File logger level under `logs/`
+- `LOG_PRETTY_CONSOLE`
+  `true` for human-readable console logs, `false` for structured JSON. Recommended production default: `false`
+
+In production, the default behavior is to emit structured console logs for startup, shutdown, warnings, errors, and operational HTTP traffic while suppressing noisy debug-level request chatter.
 
 ### Dependency Hygiene
 

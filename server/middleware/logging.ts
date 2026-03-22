@@ -1,6 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
 import logger from '../lib/logger';
 
+function shouldSkipProductionRequestLog(path: string) {
+  return path === '/healthz' || path === '/readyz';
+}
+
 export const requestLogger = (req: Request, res: Response, next: NextFunction) => {
   // Record request start time
   const start = Date.now();
@@ -18,22 +22,39 @@ export const requestLogger = (req: Request, res: Response, next: NextFunction) =
       userAgent: req.get('user-agent') || 'unknown'
     };
 
-    // Log error level for error status codes
+    if (res.statusCode >= 500) {
+      logger.error('HTTP Request Failed', log);
+      return;
+    }
+
     if (res.statusCode >= 400) {
-      logger.error('API Request Error', log);
-    } 
-    // Log info level for slow responses (>1s) or important endpoints
-    else if (
-      duration > 1000 || 
+      logger.warn('HTTP Request Rejected', log);
+      return;
+    }
+
+    const isApiRequest = req.path.startsWith('/api');
+    const isOperationalPath = req.path.startsWith('/ws') || isApiRequest;
+    const isSlowRequest = duration > 1000;
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    if (isProduction) {
+      if (!shouldSkipProductionRequestLog(req.path) && (isOperationalPath || isSlowRequest)) {
+        logger.info('HTTP Request', log);
+      }
+      return;
+    }
+
+    if (
+      isSlowRequest ||
       req.path.startsWith('/api/dns-propagation') ||
-      req.path.startsWith('/api/port-scanner')
+      req.path.startsWith('/api/port-scanner') ||
+      req.path.startsWith('/api/v1')
     ) {
-      logger.info('API Request', log);
+      logger.info('HTTP Request', log);
+      return;
     }
-    // Log debug level for other regular requests
-    else {
-      logger.debug('API Request', log);
-    }
+
+    logger.debug('HTTP Request', log);
   });
 
   next();

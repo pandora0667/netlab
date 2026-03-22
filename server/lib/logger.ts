@@ -3,6 +3,13 @@ import winston from 'winston';
 import path from 'path';
 import { getRequestContext } from './request-context.js';
 
+const isProduction = process.env.NODE_ENV === 'production';
+const loggerLevel = process.env.LOG_LEVEL?.trim() || (isProduction ? 'info' : 'debug');
+const fileLogLevel = process.env.FILE_LOG_LEVEL?.trim() || loggerLevel;
+const consoleLogLevel = process.env.CONSOLE_LOG_LEVEL?.trim() || loggerLevel;
+const prettyConsoleLogs = (process.env.LOG_PRETTY_CONSOLE?.trim()
+  || (isProduction ? 'false' : 'true')) === 'true';
+
 const consoleFormat = winston.format.combine(
   winston.format.colorize(),
   winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
@@ -57,13 +64,13 @@ function createFileTransport(filename: string, level: string, maxFiles: number) 
 
 // Create logger
 const logger = winston.createLogger({
-  level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
+  level: loggerLevel,
   format: logFormat,
   defaultMeta: { service: 'netlab' },
   transports: [
     createFileTransport('error.log', 'error', 5),
-    createFileTransport('info.log', 'info', 5),
-    ...(process.env.NODE_ENV !== 'production' ? [
+    createFileTransport('info.log', fileLogLevel, 5),
+    ...(!isProduction ? [
       createFileTransport('debug.log', 'debug', 2)
     ] : []),
   ],
@@ -78,14 +85,15 @@ export const abuseLogger = winston.createLogger({
   ],
 });
 
-if (process.env.NODE_ENV !== 'production') {
-  logger.add(new winston.transports.Console({
-    format: consoleFormat,
-  }));
+const consoleTransport = new winston.transports.Console({
+  level: consoleLogLevel,
+  format: prettyConsoleLogs ? consoleFormat : logFormat,
+});
 
-  abuseLogger.add(new winston.transports.Console({
-    format: consoleFormat,
-  }));
-}
+logger.add(consoleTransport);
+abuseLogger.add(new winston.transports.Console({
+  level: 'info',
+  format: prettyConsoleLogs ? consoleFormat : logFormat,
+}));
 
 export default logger;
