@@ -25,8 +25,8 @@ export default function Navigation() {
 
   return (
     <header className="sticky top-0 z-50 px-4 pt-5 sm:px-6" role="banner">
-      <div className="mx-auto flex max-w-7xl flex-col gap-3">
-        <div className="floating-nav flex items-center gap-2 rounded-full px-2 py-2">
+      <div className="mx-auto flex max-w-[112rem] flex-col gap-3">
+        <div className="floating-nav flex items-center gap-2 rounded-[1.6rem] px-2 py-2 sm:rounded-full">
           <Link
             href="/"
             onClick={() => setIsOpen(false)}
@@ -49,7 +49,7 @@ export default function Navigation() {
           </Link>
 
           <nav
-            className="hidden flex-1 items-center justify-center gap-1 xl:flex"
+            className="hidden flex-1 items-center justify-center gap-1 lg:flex"
             aria-label="Primary"
           >
             {primaryNavItems.map((item) => {
@@ -73,6 +73,18 @@ export default function Navigation() {
           </nav>
 
           <div className="ml-auto flex items-center gap-1.5">
+            <Button
+              type="button"
+              variant="ghost"
+              className="hidden rounded-full border border-white/10 bg-white/[0.04] px-4 text-sm text-white/74 hover:bg-white/[0.08] hover:text-white md:inline-flex"
+              onClick={() => {
+                openCommandPalette(true);
+                setIsOpen(false);
+              }}
+            >
+              <Command className="mr-2 h-4 w-4" />
+              Search tools
+            </Button>
             <span className="hidden rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[0.68rem] font-mono uppercase tracking-[0.2em] text-white/54 lg:inline-flex">
               {mod}+K
             </span>
@@ -147,6 +159,9 @@ export default function Navigation() {
                           </p>
                           <p className="mt-1 text-sm font-medium text-current">
                             {tool.label}
+                          </p>
+                          <p className="mt-1 text-xs leading-5 text-current/68">
+                            {tool.useCase}
                           </p>
                         </Link>
                       );

@@ -1,8 +1,11 @@
 import { type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { useModKeyLabel } from "@/hooks/use-mod-key-label";
-import { findCommandPaletteEntryByHref, getHomeToolTiles } from "@/lib/command-palette-items";
-import { ArrowUpRight } from "lucide-react";
+import {
+  commandPaletteGroups,
+  findCommandPaletteEntryByHref,
+} from "@/lib/command-palette-items";
+import { Command, Compass, Home } from "lucide-react";
 
 type ToolPageShellProps = {
   title: string;
@@ -20,14 +23,28 @@ export function ToolPageShell({
   const [location] = useLocation();
   const mod = useModKeyLabel();
   const activeEntry = findCommandPaletteEntryByHref(location);
-  const otherTools = getHomeToolTiles()
-    .filter((item) => item.href !== location)
-    .slice(0, 5);
+  const groupedTools = commandPaletteGroups.find((group) => group.heading === "Tools")?.items ?? [];
+  const adjacentTools = groupedTools.filter((item) => item.href !== location).slice(0, 3);
 
   return (
-    <div className="mx-auto w-full max-w-[112rem] space-y-3 sm:space-y-4">
+    <div className="mx-auto w-full max-w-none space-y-3 sm:space-y-4">
       <section className="workbench-header rounded-[1.45rem] px-4 py-3 sm:px-5 sm:py-3.5">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="space-y-4">
+          <nav
+            aria-label="Breadcrumb"
+            className="flex flex-wrap items-center gap-2 text-[0.68rem] uppercase tracking-[0.22em] text-white/42"
+          >
+            <Link href="/" className="inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/[0.03] px-3 py-1.5 hover:text-white">
+              <Home className="h-3.5 w-3.5" />
+              Home
+            </Link>
+            <span>/</span>
+            <span>{activeEntry?.category ?? "Diagnostic"}</span>
+            <span>/</span>
+            <span className="text-white/72">{title}</span>
+          </nav>
+
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem] xl:items-start">
           <div className="min-w-0 space-y-3">
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full border border-white/10 bg-white/6 px-3 py-1 text-[0.68rem] uppercase tracking-[0.24em] text-white/58">
@@ -52,37 +69,50 @@ export function ToolPageShell({
                   {description}
                 </p>
               ) : null}
+              {activeEntry?.useCase ? (
+                <p className="max-w-4xl text-sm leading-6 text-cyan-100/72">
+                  Best for: {activeEntry.useCase}
+                </p>
+              ) : null}
             </div>
           </div>
 
-          <div className="flex shrink-0 flex-col items-start gap-3 xl:items-end">
-            <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[0.68rem] font-mono uppercase tracking-[0.2em] text-white/56">
-              {mod}+K switch tools
-            </span>
+            <aside className="tool-surface-muted space-y-3">
+              <div className="flex items-center gap-2 text-white">
+                <Compass className="h-4 w-4 text-cyan-200" />
+                <p className="text-sm font-medium">Operator context</p>
+              </div>
+              <div className="space-y-2 text-sm leading-6 text-white/62">
+                <p>Stay on approved public targets and compare results across layers before concluding root cause.</p>
+                <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[0.68rem] font-mono uppercase tracking-[0.2em] text-white/56">
+                  <Command className="h-3.5 w-3.5" />
+                  {mod}+K switch tools
+                </div>
+              </div>
+            </aside>
+          </div>
+
+          <div className="flex flex-wrap items-start justify-between gap-3 border-t border-white/8 pt-3">
+            <div className="space-y-2">
+              <p className="text-[0.68rem] uppercase tracking-[0.24em] text-white/40">
+                Continue with
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {adjacentTools.map((tool) => (
+                  <Link
+                    key={tool.href}
+                    href={tool.href}
+                    className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-white/72 transition-colors hover:border-white/16 hover:text-white"
+                  >
+                    {tool.label}
+                  </Link>
+                ))}
+              </div>
+            </div>
             {actions ? (
               <div className="flex flex-wrap items-center gap-2">{actions}</div>
             ) : null}
           </div>
-        </div>
-
-        <div className="mt-2.5 flex flex-wrap gap-2">
-          {otherTools.map((tool) => (
-            <Link
-              key={tool.href}
-              href={tool.href}
-              className="workbench-route-chip group"
-            >
-              <span className="min-w-0">
-                <span className="block text-[0.62rem] uppercase tracking-[0.2em] text-white/38">
-                  {tool.category}
-                </span>
-                <span className="mt-1 block text-sm font-medium text-white">
-                  {tool.label}
-                </span>
-              </span>
-              <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-white/32 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-white/72" />
-            </Link>
-          ))}
         </div>
       </section>
 

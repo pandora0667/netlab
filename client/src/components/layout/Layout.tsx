@@ -1,5 +1,5 @@
 import { ReactNode, Suspense } from "react";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 import Navigation from "./Navigation";
 import { CommandPaletteProvider } from "@/components/layout/command-palette";
 import { ErrorBoundary } from "@/components/layout/ErrorBoundary";
@@ -24,13 +24,14 @@ function LoadingSpinner() {
 }
 
 export default function Layout({ children }: LayoutProps) {
-  const [location] = useLocation();
-  const isHome = location === "/";
   const footerGroups = commandPaletteGroups.filter((group) => group.items.length > 0);
 
   return (
     <CommandPaletteProvider>
       <div className="relative min-h-screen overflow-hidden bg-background text-foreground">
+        <a href="#main-content" className="skip-link">
+          Skip to main content
+        </a>
         <div className="netlab-ambient" aria-hidden />
         <div className="netlab-grid" aria-hidden />
         <div className="relative z-10 flex min-h-screen flex-col">
@@ -39,10 +40,10 @@ export default function Layout({ children }: LayoutProps) {
           <ErrorBoundary>
             <Suspense fallback={<LoadingSpinner />}>
               <main
-                className={`mx-auto flex w-full flex-1 px-3 pb-20 pt-6 sm:px-5 ${
-                  isHome ? "max-w-7xl" : "max-w-[100rem]"
-                }`}
+                id="main-content"
+                className="mx-auto flex w-full max-w-[112rem] flex-1 px-3 pb-20 pt-6 sm:px-5"
                 role="main"
+                tabIndex={-1}
               >
                 {children}
               </main>
@@ -53,7 +54,7 @@ export default function Layout({ children }: LayoutProps) {
             className="mt-auto border-t border-white/6 bg-black/20 backdrop-blur-xl"
             role="contentinfo"
           >
-            <div className="mx-auto grid max-w-7xl gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,2fr)]">
+            <div className="mx-auto grid max-w-[112rem] gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,2fr)]">
               <div className="space-y-4">
                 <p className="text-[0.7rem] uppercase tracking-[0.28em] text-white/42">
                   Netlab surface
@@ -88,7 +89,7 @@ export default function Layout({ children }: LayoutProps) {
                 ))}
               </div>
             </div>
-            <div className="mx-auto flex max-w-7xl flex-col gap-3 border-t border-white/6 px-4 py-5 text-[0.7rem] uppercase tracking-[0.24em] text-white/32 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <div className="mx-auto flex max-w-[112rem] flex-col gap-3 border-t border-white/6 px-4 py-5 text-[0.7rem] uppercase tracking-[0.24em] text-white/32 sm:flex-row sm:items-center sm:justify-between sm:px-6">
               <p>© {new Date().getFullYear()} Netlab</p>
               <div className="flex items-center gap-4">
                 <a

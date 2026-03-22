@@ -47,6 +47,24 @@
     @apply outline-2 outline-offset-2 outline-ring;
   }
 
+  .skip-link {
+    position: fixed;
+    left: 1rem;
+    top: 1rem;
+    z-index: 80;
+    border-radius: 999px;
+    border: 1px solid rgb(255 255 255 / 0.14);
+    background: rgb(8 11 18 / 0.95);
+    color: white;
+    padding: 0.75rem 1rem;
+    transform: translateY(-200%);
+    transition: transform 180ms ease;
+  }
+
+  .skip-link:focus {
+    transform: translateY(0);
+  }
+
   ::-webkit-scrollbar {
     @apply w-2;
   }
@@ -246,11 +264,13 @@
     text-align: left;
     transition:
       color 180ms ease,
-      transform 180ms ease;
+      transform 180ms ease,
+      border-color 180ms ease;
   }
 
   .home-tool-row:hover {
     transform: translateX(4px);
+    border-color: rgb(255 255 255 / 0.14);
   }
 
   .tool-card {
@@ -444,6 +464,11 @@
   }
 
   .home-tool-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .home-list-row {
     align-items: flex-start;
     flex-direction: column;
   }

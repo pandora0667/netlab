@@ -1,10 +1,10 @@
 import { Button } from "@/components/ui/button";
-import { useLocation } from "wouter";
-import { getHomeToolTiles } from "@/lib/command-palette-items";
+import { Link, useLocation } from "wouter";
+import { getHomeToolTiles, quickStartWorkflows } from "@/lib/command-palette-items";
 import { useModKeyLabel } from "@/hooks/use-mod-key-label";
 import { useCommandPalette } from "@/components/layout/command-palette";
 import { SEO } from "../components/SEO";
-import { ArrowUpRight, Search } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Search } from "lucide-react";
 
 const principles = [
   {
@@ -27,6 +27,7 @@ export default function Home() {
   const { setOpen: openPalette } = useCommandPalette();
   const tiles = getHomeToolTiles();
   const heroRoutes = tiles.slice(0, 6);
+  const priorityTools = tiles.slice(0, 3);
 
   return (
     <>
@@ -35,6 +36,20 @@ export default function Home() {
         <section className="home-hero -mx-4 overflow-hidden sm:-mx-6">
           <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:py-20">
             <div className="max-w-4xl">
+              <nav
+                aria-label="Home sections"
+                className="mb-6 flex flex-wrap items-center gap-2"
+              >
+                <a href="#start-here" className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[0.72rem] uppercase tracking-[0.18em] text-white/62 transition-colors hover:text-white">
+                  Start here
+                </a>
+                <a href="#all-tools" className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[0.72rem] uppercase tracking-[0.18em] text-white/62 transition-colors hover:text-white">
+                  All tools
+                </a>
+                <a href="#workflows" className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[0.72rem] uppercase tracking-[0.18em] text-white/62 transition-colors hover:text-white">
+                  Workflow guides
+                </a>
+              </nav>
               <p className="text-[0.72rem] font-medium uppercase tracking-[0.34em] text-white/46">
                 NETLAB
               </p>
@@ -69,7 +84,7 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="home-hero-plane mt-14 lg:mt-16">
+            <div id="start-here" className="home-hero-plane mt-14 lg:mt-16">
               <div className="home-search-row">
                 <Search className="h-4 w-4 text-white/42" />
                 <span className="flex-1 truncate text-sm text-white/58">
@@ -117,30 +132,21 @@ export default function Home() {
 
                 <div className="home-detail-panel">
                   <p className="text-[0.68rem] uppercase tracking-[0.26em] text-white/40">
-                    Why it reads better
+                    Start with these
                   </p>
                   <div className="mt-5 space-y-5">
-                    <div>
-                      <p className="text-sm font-medium text-white">One primary promise</p>
-                      <p className="mt-2 text-sm leading-7 text-white/56">
-                        The first viewport is one composition: brand, promise, action, and a
-                        single product plane.
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-white">Real product anchor</p>
-                      <p className="mt-2 text-sm leading-7 text-white/56">
-                        The hero visual is not decorative chrome. It previews how navigation and
-                        tool discovery actually feel.
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-white">Lower visual pressure</p>
-                      <p className="mt-2 text-sm leading-7 text-white/56">
-                        The palette stays dark and polished, but the glow, contrast, and number
-                        of competing blocks stay restrained.
-                      </p>
-                    </div>
+                    {priorityTools.map((tool) => (
+                      <Link
+                        key={tool.id}
+                        href={tool.href}
+                        className="block rounded-[1.2rem] border border-white/8 bg-white/[0.03] p-4 transition-colors hover:border-white/14 hover:bg-white/[0.05]"
+                      >
+                        <p className="text-sm font-medium text-white">{tool.label}</p>
+                        <p className="mt-2 text-sm leading-7 text-white/56">
+                          {tool.useCase}
+                        </p>
+                      </Link>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -161,7 +167,40 @@ export default function Home() {
           ))}
         </section>
 
-        <section className="space-y-6">
+        <section id="workflows" className="space-y-6">
+          <div className="max-w-3xl space-y-3">
+            <p className="text-[0.72rem] uppercase tracking-[0.26em] text-white/40">
+              Workflow guides
+            </p>
+            <h2 className="font-['Space_Grotesk'] text-3xl font-bold tracking-[-0.05em] text-white sm:text-4xl">
+              Start from the user problem, not the tool name.
+            </h2>
+            <p className="text-sm leading-7 text-white/56 sm:text-base">
+              These paths reduce blind switching by giving operators a better first move and a cleaner escalation path.
+            </p>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-3">
+            {quickStartWorkflows.map((workflow) => (
+              <article key={workflow.id} className="tool-surface space-y-4">
+                <div className="space-y-2">
+                  <p className="tool-eyebrow">{workflow.title}</p>
+                  <p className="tool-copy">{workflow.description}</p>
+                </div>
+                <div className="space-y-2">
+                  {workflow.steps.map((step, index) => (
+                    <div key={`${workflow.id}-${step}`} className="flex items-center justify-between rounded-[1rem] border border-white/8 bg-white/[0.03] px-4 py-3 text-sm text-white/78">
+                      <span>{index + 1}. {step}</span>
+                      <ArrowRight className="h-4 w-4 text-white/34" />
+                    </div>
+                  ))}
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section id="all-tools" className="space-y-6">
           <div className="max-w-3xl space-y-3">
             <p className="text-[0.72rem] uppercase tracking-[0.26em] text-white/40">
               Tool index
@@ -180,10 +219,9 @@ export default function Home() {
               const Icon = tool.icon;
 
               return (
-                <button
+                <Link
                   key={tool.id}
-                  type="button"
-                  onClick={() => setLocation(tool.href)}
+                  href={tool.href}
                   className="home-tool-row"
                 >
                   <span className="flex items-center gap-4">
@@ -206,7 +244,7 @@ export default function Home() {
                     <span>{tool.accent}</span>
                     <ArrowUpRight className="h-4 w-4" />
                   </span>
-                </button>
+                </Link>
               );
             })}
           </div>
