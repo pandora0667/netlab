@@ -15,11 +15,20 @@ const DNSLookup = lazy(() => import("./components/tools/DNSLookup"));
 const SubnetCalculator = lazy(() => import("./components/tools/SubnetCalculator"));
 const PingTool = lazy(() => import("./components/tools/PingTool"));
 const TraceRouteTool = lazy(() => import("./components/tools/TraceRouteTool"));
+const NetworkEngineeringWorkbench = lazy(
+  () => import("./components/tools/NetworkEngineeringWorkbench"),
+);
 const HttpTlsInspector = lazy(() => import("./components/tools/HttpTlsInspector"));
+const WebsiteSecurityReport = lazy(
+  () => import("./components/tools/WebsiteSecurityReport"),
+);
 const WhoisLookup = lazy(() => import("./components/tools/WhoisLookup"));
 const PortScanner = lazy(() => import("./components/tools/PortScanner"));
 const DNSPropagationChecker = lazy(
   () => import("./components/tools/DNSPropagationChecker"),
+);
+const EmailSecurityChecker = lazy(
+  () => import("./components/tools/EmailSecurityChecker"),
 );
 
 createRoot(document.getElementById("root")!).render(
@@ -34,10 +43,13 @@ createRoot(document.getElementById("root")!).render(
             <Route path="/subnet-calc" component={SubnetCalculator} />
             <Route path="/ping" component={PingTool} />
             <Route path="/trace" component={TraceRouteTool} />
+            <Route path="/network-engineering" component={NetworkEngineeringWorkbench} />
             <Route path="/http-inspector" component={HttpTlsInspector} />
+            <Route path="/website-security" component={WebsiteSecurityReport} />
             <Route path="/whois" component={WhoisLookup} />
             <Route path="/port-scan" component={PortScanner} />
             <Route path="/dns-propagation" component={DNSPropagationChecker} />
+            <Route path="/email-security" component={EmailSecurityChecker} />
             <Route>
               <div className="mx-auto flex max-w-sm flex-col items-center gap-3 py-20 text-center">
                 <SEO page="notFound" />

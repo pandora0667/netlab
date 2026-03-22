@@ -1,5 +1,6 @@
 import { spawn } from "child_process";
 import { resolvePublicTarget } from "../../src/lib/public-targets.js";
+import { isPublicIPAddress } from "../../../shared/network/ip.js";
 import type { TraceHop, TraceSummary } from "./network.types.js";
 
 const DEFAULT_TRACE_TIMEOUT_MS = 2_000;
@@ -25,6 +26,7 @@ function parseTracerouteLine(line: string, targetIp: string): TraceHop | null {
     return {
       hop,
       responder: null,
+      redacted: false,
       latencyMs: null,
       status: "timeout",
       reachedTarget: false,
@@ -40,9 +42,34 @@ function parseTracerouteLine(line: string, targetIp: string): TraceHop | null {
   return {
     hop,
     responder,
+    redacted: false,
     latencyMs,
     status: reachedTarget ? "destination" : "hop",
     reachedTarget,
+  };
+}
+
+function shouldRedactHop(hop: TraceHop): boolean {
+  if (!hop.responder) {
+    return false;
+  }
+
+  if (hop.hop <= 2) {
+    return true;
+  }
+
+  return !isPublicIPAddress(hop.responder);
+}
+
+export function redactTraceHop(hop: TraceHop): TraceHop {
+  if (!shouldRedactHop(hop)) {
+    return hop;
+  }
+
+  return {
+    ...hop,
+    responder: "redacted",
+    redacted: true,
   };
 }
 
@@ -127,7 +154,8 @@ class TraceService {
     const hops = output
       .split("\n")
       .map((line) => parseTracerouteLine(line, resolvedTarget))
-      .filter((hop): hop is TraceHop => Boolean(hop));
+      .filter((hop): hop is TraceHop => Boolean(hop))
+      .map((hop) => redactTraceHop(hop));
 
     return {
       host,

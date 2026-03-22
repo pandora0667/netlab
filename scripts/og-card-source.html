@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Netlab OG Card</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg-0: #070b13;
+        --bg-1: #0d1421;
+        --panel: rgba(255, 255, 255, 0.05);
+        --panel-strong: rgba(255, 255, 255, 0.92);
+        --border: rgba(255, 255, 255, 0.08);
+        --muted: rgba(255, 255, 255, 0.62);
+        --soft: rgba(255, 255, 255, 0.42);
+        --accent: #7dc8ea;
+        --accent-soft: rgba(125, 200, 234, 0.18);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        width: 1200px;
+        height: 630px;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 16% -8%, rgba(91, 170, 214, 0.18), transparent 26%),
+          radial-gradient(circle at 86% 12%, rgba(111, 118, 184, 0.14), transparent 24%),
+          linear-gradient(180deg, #0f1624 0%, #0a101b 54%, #070b13 100%);
+        color: white;
+        font-family: "Space Grotesk", ui-sans-serif, sans-serif;
+      }
+
+      body::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+        background-size: 120px 120px;
+        mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.4), transparent 100%);
+        opacity: 0.16;
+        pointer-events: none;
+      }
+
+      .frame {
+        position: relative;
+        display: grid;
+        grid-template-columns: 1.1fr 0.9fr;
+        gap: 34px;
+        width: 100%;
+        height: 100%;
+        padding: 56px 56px 46px;
+      }
+
+      .eyebrow {
+        font-family: "IBM Plex Mono", ui-monospace, monospace;
+        font-size: 12px;
+        letter-spacing: 0.34em;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.46);
+      }
+
+      .brand {
+        margin-top: 16px;
+        font-size: 112px;
+        line-height: 0.88;
+        letter-spacing: -0.09em;
+        font-weight: 700;
+      }
+
+      .headline {
+        margin-top: 18px;
+        max-width: 560px;
+        font-size: 33px;
+        line-height: 1.18;
+        letter-spacing: -0.04em;
+        color: rgba(255, 255, 255, 0.9);
+      }
+
+      .copy {
+        margin-top: 22px;
+        max-width: 560px;
+        font-size: 18px;
+        line-height: 1.72;
+        color: var(--muted);
+      }
+
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 28px;
+      }
+
+      .chip {
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.04);
+        border-radius: 999px;
+        padding: 12px 16px;
+        font-family: "IBM Plex Mono", ui-monospace, monospace;
+        font-size: 12px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.72);
+      }
+
+      .panel {
+        position: relative;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        border-radius: 30px;
+        background:
+          radial-gradient(circle at top right, rgba(108, 176, 214, 0.12), transparent 24%),
+          linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.018));
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.06),
+          0 24px 70px rgba(2, 6, 20, 0.34);
+        backdrop-filter: blur(20px);
+        padding: 22px;
+      }
+
+      .panel::after {
+        content: "";
+        position: absolute;
+        inset: auto -20% -32% auto;
+        width: 260px;
+        height: 260px;
+        border-radius: 999px;
+        background: radial-gradient(circle, rgba(104, 114, 170, 0.16), transparent 68%);
+        filter: blur(18px);
+      }
+
+      .search {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.03);
+        padding: 14px 16px;
+        color: rgba(255, 255, 255, 0.58);
+        font-size: 14px;
+      }
+
+      .search .kbd {
+        margin-left: auto;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 999px;
+        padding: 8px 10px;
+        background: rgba(0, 0, 0, 0.18);
+        font-family: "IBM Plex Mono", ui-monospace, monospace;
+        font-size: 11px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.56);
+      }
+
+      .rows {
+        display: grid;
+        gap: 12px;
+        margin-top: 16px;
+      }
+
+      .row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 22px;
+        background: rgba(255, 255, 255, 0.02);
+        padding: 14px 16px;
+        color: rgba(255, 255, 255, 0.82);
+      }
+
+      .row.active {
+        background: var(--panel-strong);
+        color: rgba(18, 22, 33, 0.96);
+      }
+
+      .row-left {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+
+      .icon {
+        width: 42px;
+        height: 42px;
+        border-radius: 14px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(8, 11, 18, 0.42);
+        color: rgba(181, 219, 235, 0.92);
+        display: grid;
+        place-items: center;
+        flex-shrink: 0;
+      }
+
+      .row.active .icon {
+        background: rgba(18, 22, 33, 0.96);
+        border-color: transparent;
+        color: white;
+      }
+
+      .row-copy {
+        display: grid;
+        gap: 4px;
+      }
+
+      .row-copy .kicker {
+        font-family: "IBM Plex Mono", ui-monospace, monospace;
+        font-size: 11px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: currentColor;
+        opacity: 0.5;
+      }
+
+      .row-copy .label {
+        font-size: 18px;
+        font-weight: 500;
+      }
+
+      .hint {
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 999px;
+        padding: 8px 10px;
+        font-family: "IBM Plex Mono", ui-monospace, monospace;
+        font-size: 10px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        opacity: 0.66;
+      }
+
+      .footer {
+        position: absolute;
+        left: 56px;
+        right: 56px;
+        bottom: 30px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
+      }
+
+      .footer-copy {
+        font-size: 13px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--soft);
+      }
+
+      .accent-line {
+        width: 160px;
+        height: 2px;
+        background: linear-gradient(90deg, rgba(125, 200, 234, 0.9), rgba(125, 200, 234, 0));
+        box-shadow: 0 0 18px rgba(125, 200, 234, 0.32);
+      }
+
+      .orb {
+        position: absolute;
+        top: 52px;
+        right: 72px;
+        width: 210px;
+        height: 210px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background:
+          radial-gradient(circle at 50% 50%, rgba(125, 200, 234, 0.18), transparent 62%);
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+        opacity: 0.8;
+      }
+
+      .orb::before,
+      .orb::after {
+        content: "";
+        position: absolute;
+        border-radius: 999px;
+      }
+
+      .orb::before {
+        inset: 18px;
+        border: 1px solid rgba(125, 200, 234, 0.35);
+      }
+
+      .orb::after {
+        inset: 52px;
+        background: radial-gradient(circle, rgba(125, 200, 234, 0.78), rgba(125, 200, 234, 0) 70%);
+        filter: blur(18px);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="frame">
+      <section>
+        <div class="eyebrow">NETLAB</div>
+        <div class="brand">NETLAB</div>
+        <div class="headline">Public network diagnostics in a quieter, command-first workspace.</div>
+        <div class="copy">
+          Inspect DNS, path, routing, website posture, mail posture, and bounded public surface from one operator-focused command plane.
+        </div>
+        <div class="chips">
+          <div class="chip">Public-only diagnostics</div>
+          <div class="chip">Routing and RPKI</div>
+          <div class="chip">Website and mail posture</div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="orb"></div>
+        <div class="search">
+          Search routes, run a diagnostic, or jump to a tool
+          <span class="kbd">⌘+K</span>
+        </div>
+
+        <div class="rows">
+          <div class="row active">
+            <div class="row-left">
+              <div class="icon">R</div>
+              <div class="row-copy">
+                <div class="kicker">Engineering</div>
+                <div class="label">Routing and Authority</div>
+              </div>
+            </div>
+            <div class="hint">control plane</div>
+          </div>
+
+          <div class="row">
+            <div class="row-left">
+              <div class="icon">W</div>
+              <div class="row-copy">
+                <div class="kicker">Posture</div>
+                <div class="label">Website Security</div>
+              </div>
+            </div>
+            <div class="hint">edge score</div>
+          </div>
+
+          <div class="row">
+            <div class="row-left">
+              <div class="icon">M</div>
+              <div class="row-copy">
+                <div class="kicker">Mail</div>
+                <div class="label">Email Security</div>
+              </div>
+            </div>
+            <div class="hint">spf dmarc</div>
+          </div>
+
+          <div class="row">
+            <div class="row-left">
+              <div class="icon">T</div>
+              <div class="row-copy">
+                <div class="kicker">Path</div>
+                <div class="label">Trace and Exposure</div>
+              </div>
+            </div>
+            <div class="hint">bounded scan</div>
+          </div>
+        </div>
+      </section>
+
+      <div class="footer">
+        <div class="footer-copy">Operator depth, bounded public targets, cleaner triage</div>
+        <div class="accent-line"></div>
+      </div>
+    </div>
+  </body>
+</html>

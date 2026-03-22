@@ -201,6 +201,11 @@ export default function TraceRouteTool() {
                                 ? "Timed out at this hop"
                                 : "Intermediate hop"}
                           </p>
+                          {hop.redacted ? (
+                            <p className="mt-1 text-xs uppercase tracking-[0.18em] text-amber-200">
+                              Early-hop responder redacted
+                            </p>
+                          ) : null}
                         </div>
                         <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs uppercase tracking-[0.18em] text-white/58">
                           <LocateFixed className="h-3.5 w-3.5" />

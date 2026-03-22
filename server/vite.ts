@@ -15,6 +15,7 @@ const __dirname = dirname(__filename);
 import { type Server } from "http";
 
 const getRequestSiteUrl = (req: Request) => {
+  const configuredSiteUrl = normalizeSiteUrl(process.env.VITE_SITE_URL);
   const forwardedProtoHeader = req.headers["x-forwarded-proto"];
   const forwardedProto = Array.isArray(forwardedProtoHeader)
     ? forwardedProtoHeader[0]
@@ -23,7 +24,16 @@ const getRequestSiteUrl = (req: Request) => {
   const host = req.get("host");
 
   if (!host) {
-    return normalizeSiteUrl(process.env.VITE_SITE_URL);
+    return configuredSiteUrl;
+  }
+
+  try {
+    const configuredUrl = new URL(configuredSiteUrl);
+    if (configuredUrl.host === host) {
+      return configuredSiteUrl;
+    }
+  } catch {
+    // fall back to the request-derived origin below
   }
 
   return normalizeSiteUrl(`${protocol}://${host}`);
@@ -59,6 +69,7 @@ const renderSeoTemplate = (template: string, req: Request) => {
     .replaceAll("__SEO_DESCRIPTION__", escapeHtmlAttribute(seo.description))
     .replaceAll("__SEO_CANONICAL__", escapeHtmlAttribute(seo.canonicalUrl))
     .replaceAll("__SEO_OG_IMAGE__", escapeHtmlAttribute(seo.ogImageUrl))
+    .replaceAll("__SEO_OG_IMAGE_TYPE__", "image/jpeg")
     .replaceAll("__SEO_IMAGE_ALT__", escapeHtmlAttribute(seo.imageAlt))
     .replaceAll("__SEO_ROBOTS__", robotsValue)
     .replaceAll("__SEO_OG_TYPE__", "website")

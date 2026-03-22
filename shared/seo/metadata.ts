@@ -5,10 +5,13 @@ export type SEOPageKey =
   | "subnetCalculator"
   | "pingTool"
   | "traceTool"
+  | "networkEngineering"
   | "httpInspector"
+  | "websiteSecurity"
   | "whoisLookup"
   | "dnsPropagation"
   | "portScanner"
+  | "emailSecurity"
   | "notFound";
 
 export interface SEOPageDefinition {
@@ -45,7 +48,7 @@ export const seoPages: Record<SEOPageKey, SEOPageDefinition> = {
     path: "/",
     title: "Netlab | Public Network Diagnostics Workspace",
     description:
-      "Run public DNS lookup, DNS propagation checks, IP inspection, subnet planning, ping, WHOIS, and bounded port scans from one network diagnostics workspace.",
+      "Run public DNS, path, routing, HTTP/TLS, website security, email posture, and bounded port diagnostics from one operator-focused network workspace.",
     imageAlt: "Netlab network diagnostics workspace preview",
     changeFrequency: "weekly",
     priority: "1.0",
@@ -100,6 +103,16 @@ export const seoPages: Record<SEOPageKey, SEOPageDefinition> = {
     changeFrequency: "weekly",
     priority: "0.9",
   },
+  networkEngineering: {
+    key: "networkEngineering",
+    path: "/network-engineering",
+    title: "Network Engineering Workbench | Routing, Authority, IPv6, and MTU | Netlab",
+    description:
+      "Inspect routing visibility, origin ASN, RPKI, DNS authority health, IPv4 and IPv6 parity, and path MTU from one operator-focused workbench.",
+    imageAlt: "Netlab network engineering workbench preview",
+    changeFrequency: "weekly",
+    priority: "0.9",
+  },
   httpInspector: {
     key: "httpInspector",
     path: "/http-inspector",
@@ -110,6 +123,16 @@ export const seoPages: Record<SEOPageKey, SEOPageDefinition> = {
     changeFrequency: "weekly",
     priority: "0.9",
   },
+  websiteSecurity: {
+    key: "websiteSecurity",
+    path: "/website-security",
+    title: "Website Security Posture | HTTP, TLS, DNSSEC, and CAA | Netlab",
+    description:
+      "Score website security posture with checks for headers, TLS, HSTS, DNSSEC, CAA, and security.txt.",
+    imageAlt: "Netlab website security posture preview",
+    changeFrequency: "weekly",
+    priority: "0.9",
+  },
   whoisLookup: {
     key: "whoisLookup",
     path: "/whois",
@@ -117,6 +140,16 @@ export const seoPages: Record<SEOPageKey, SEOPageDefinition> = {
     description:
       "Inspect domain registration records, registrar details, and ownership metadata with a focused WHOIS lookup tool.",
     imageAlt: "Netlab WHOIS lookup preview",
+    changeFrequency: "weekly",
+    priority: "0.9",
+  },
+  emailSecurity: {
+    key: "emailSecurity",
+    path: "/email-security",
+    title: "Email Security Checker | SPF, DMARC, DKIM, and STARTTLS | Netlab",
+    description:
+      "Inspect email security posture across MX, SPF, DMARC, DKIM heuristics, STARTTLS, MTA-STS, and TLS-RPT.",
+    imageAlt: "Netlab email security checker preview",
     changeFrequency: "weekly",
     priority: "0.9",
   },
@@ -223,6 +256,11 @@ export const buildStructuredData = (entry: ResolvedSEOEntry) => {
         "DNS propagation checker",
         "Subnet calculator",
         "Ping tool",
+        "Trace route",
+        "HTTP and TLS inspector",
+        "Network engineering workbench",
+        "Website security posture report",
+        "Email security checker",
         "WHOIS lookup",
         "Bounded public port scanner",
       ],

@@ -369,4 +369,56 @@ describe("API routes", () => {
     assertErrorEnvelope(payload);
     assert.equal(payload.error.code, "PUBLIC_TARGET_REQUIRED");
   });
+
+  it("rejects routing reports without input", async () => {
+    const response = await request("/api/v1/engineering/routing-reports", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({}),
+    });
+
+    assert.equal(response.status, 400);
+    const payload = await response.json();
+
+    assertErrorEnvelope(payload);
+    assert.equal(payload.error.code, "INVALID_ROUTING_REPORT_REQUEST");
+  });
+
+  it("rejects authority reports for invalid domains", async () => {
+    const response = await request("/api/v1/engineering/authority-reports", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        domain: "not a domain",
+      }),
+    });
+
+    assert.equal(response.status, 400);
+    const payload = await response.json();
+
+    assertErrorEnvelope(payload);
+    assert.equal(payload.error.code, "INVALID_AUTHORITY_REPORT_REQUEST");
+  });
+
+  it("rejects email security reports for invalid domains", async () => {
+    const response = await request("/api/v1/engineering/email-security-reports", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        domain: "localhost",
+      }),
+    });
+
+    assert.equal(response.status, 400);
+    const payload = await response.json();
+
+    assertErrorEnvelope(payload);
+    assert.equal(payload.error.code, "INVALID_EMAIL_SECURITY_REQUEST");
+  });
 });

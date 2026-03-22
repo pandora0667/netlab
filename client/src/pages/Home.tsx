@@ -60,8 +60,8 @@ export default function Home() {
                 Public network diagnostics in a quieter, command-first workspace.
               </h2>
               <p className="mt-6 max-w-2xl text-base leading-8 text-white/60 sm:text-lg">
-                Inspect IP, DNS, latency, WHOIS, propagation, and ports without
-                bouncing between tabs or wrestling with noisy UI.
+                Inspect IP, DNS, path, routing, web edge, mail posture, and bounded
+                exposure without bouncing between tabs or wrestling with noisy UI.
               </p>
 
               <div className="mt-9 flex flex-col gap-3 sm:flex-row">

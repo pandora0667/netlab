@@ -90,6 +90,7 @@ export function SEO({ page }: SEOProps) {
     upsertMetaByName("twitter:title", seo.title);
     upsertMetaByName("twitter:description", seo.description);
     upsertMetaByName("twitter:image", seo.ogImageUrl);
+    upsertMetaByName("twitter:image:src", seo.ogImageUrl);
     upsertMetaByName("twitter:image:alt", seo.imageAlt);
     upsertMetaByProperty("og:type", "website");
     upsertMetaByProperty("og:site_name", siteName);
@@ -97,6 +98,8 @@ export function SEO({ page }: SEOProps) {
     upsertMetaByProperty("og:description", seo.description);
     upsertMetaByProperty("og:url", seo.canonicalUrl);
     upsertMetaByProperty("og:image", seo.ogImageUrl);
+    upsertMetaByProperty("og:image:url", seo.ogImageUrl);
+    upsertMetaByProperty("og:image:type", "image/jpeg");
     upsertMetaByProperty("og:image:alt", seo.imageAlt);
     upsertMetaByProperty("og:locale", "en_US");
 

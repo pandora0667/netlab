@@ -44,6 +44,7 @@ export interface PingSummary {
 export interface TraceHop {
   hop: number;
   responder: string | null;
+  redacted: boolean;
   latencyMs: number | null;
   status: "hop" | "destination" | "timeout";
   reachedTarget: boolean;

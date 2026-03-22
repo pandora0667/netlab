@@ -1,6 +1,7 @@
 # Netlab
 
-Netlab is a TypeScript full-stack network utility app built on a single Express server.  
+Netlab is a public network diagnostics workspace built as a single TypeScript full-stack app on Express and React.  
+It is designed for bounded diagnostics on public infrastructure and internet-facing services, not private-network discovery.  
 In development, the server runs Vite in middleware mode and serves the React client from the same process.  
 In production, the server serves the built client from `dist/public`.
 
@@ -12,13 +13,14 @@ In production, the server serves the built client from `dist/public`.
 
 ## Implemented Tools
 
-- IP checker
-- DNS lookup with selectable public resolvers and custom resolver validation
-- DNS propagation checker with request-scoped WebSocket updates
-- Subnet calculator
-- Ping tool with WebSocket progress
-- WHOIS lookup
-- Port scanner with SSE progress and JSON/CSV export
+- Identity and ownership: IP Checker, WHOIS Lookup
+- DNS and naming: DNS Lookup with selectable public resolvers and custom resolver validation, DNS Propagation Checker with request-scoped WebSocket updates
+- Addressing: Subnet Calculator
+- Reachability and path: Ping with WebSocket progress, Trace Route with bounded hop probing and early-hop responder redaction
+- Web edge: HTTP/TLS Inspector, Website Security Posture report
+- Network engineering: Routing and RPKI inspection, DNS authority and DNSSEC checks, IPv4/IPv6 parity, Path MTU diagnostics
+- Mail posture: Email Security Checker for MX, SPF, DMARC, DKIM heuristics, STARTTLS, MTA-STS, and TLS-RPT
+- Exposure: Port Scanner with SSE progress and JSON/CSV export
 
 ## Repository Layout
 
@@ -78,7 +80,7 @@ pnpm run test
 pnpm run typecheck
 ```
 
-The current automated tests cover validation utilities plus HTTP route regressions for both legacy `/api/*` endpoints and the new `/api/v1/*` envelope-based endpoints. Browser flows are not yet covered.
+The current automated tests cover validation utilities plus HTTP route regressions for both legacy `/api/*` endpoints and the new `/api/v1/*` envelope-based endpoints. Browser flows are still verified manually.
 
 ## Build
 
@@ -171,6 +173,7 @@ Current v1 modules:
 - `/api/v1/network`
 - `/api/v1/dns`
 - `/api/v1/dns-propagation`
+- `/api/v1/engineering`
 - `/api/v1/port-scans`
 
 Transport exceptions:
@@ -182,6 +185,9 @@ Transport exceptions:
 
 - DNS propagation uses WebSockets for streaming result, progress, and completion events.
 - Ping uses WebSockets and validates input on the server before execution.
+- Trace Route uses bounded hop and timeout settings and redacts the first two hops plus non-public responder addresses.
+- HTTP/TLS Inspector follows redirects and summarizes headers, TLS versions, HSTS, and certificate health.
+- Engineering and posture reports may combine local probes with external public data sources and return partial notes when one source degrades.
 - Port scanning currently uses server-sent events, not worker threads.
 - The app writes structured logs under `logs/`.
 - The app also writes structured logs to stdout, so `docker logs` shows live operational events.
@@ -212,7 +218,7 @@ If this setting is wrong, `req.ip`, rate limits, and abuse logs may use the wron
 
 ### Outbound Safety Policy
 
-- `ping`, custom DNS server validation, and port scanning only allow public targets.
+- `ping`, `trace`, HTTP inspection, custom DNS server validation, routing/posture reports, and port scanning only allow public targets.
 - Private, loopback, link-local, multicast, and reserved address ranges are blocked.
 - Hostnames are resolved first and are rejected if any resolved address is non-public.
 
@@ -224,6 +230,9 @@ The defaults are intentionally usable for a public tool, but they are still boun
 - Ping: `90` requests per `15` minutes, `20` concurrent globally, `2` concurrent per IP
 - DNS lookup and validation: `60` requests per `15` minutes per IP
 - DNS propagation: `30` requests per `15` minutes, `8` concurrent globally, `2` concurrent per IP
+- Trace route: `12` concurrent globally, `2` concurrent per IP
+- HTTP inspection: `16` concurrent globally, `3` concurrent per IP
+- WHOIS: `12` concurrent globally, `2` concurrent per IP
 - Port scanning: `20` requests per `15` minutes, maximum `256` ports per request, maximum timeout `2000ms`, `4` concurrent globally, `1` concurrent per IP
 
 All of these values are configurable through environment variables in `.env.example`.

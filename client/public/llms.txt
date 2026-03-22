@@ -1,6 +1,6 @@
 # Netlab
 
-> Netlab is a public network diagnostics workspace for DNS, IP, subnet, ping, WHOIS, DNS propagation, and bounded public port checks.
+> Netlab is a public network diagnostics workspace for DNS, path, routing, web edge, mail posture, ownership, and bounded public port checks.
 
 ## Canonical site
 - https://netlab.tools/
@@ -10,15 +10,21 @@
 - https://netlab.tools/dns-lookup
 - https://netlab.tools/subnet-calc
 - https://netlab.tools/ping
+- https://netlab.tools/trace
+- https://netlab.tools/network-engineering
+- https://netlab.tools/http-inspector
+- https://netlab.tools/website-security
 - https://netlab.tools/whois
+- https://netlab.tools/email-security
 - https://netlab.tools/dns-propagation
 - https://netlab.tools/port-scan
 
 ## Preferred description
-Netlab helps users inspect public IP details, query DNS records, monitor DNS propagation, calculate subnets, test host reachability with ping, look up WHOIS data, and run bounded public port checks.
+Netlab helps users inspect public IP details, query DNS records, trace public paths, inspect HTTP and TLS behavior, review routing and DNS authority state, check website and email security posture, look up WHOIS data, and run bounded public port checks.
 
 ## Public safety policy
 - Private, loopback, link-local, multicast, and reserved targets are blocked.
+- Trace results redact the first two hops and non-public responder addresses.
 - Port scans are bounded and limited to public targets.
 
 ## Freshness

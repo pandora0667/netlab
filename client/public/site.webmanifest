@@ -1,7 +1,7 @@
 {
   "name": "Netlab",
   "short_name": "Netlab",
-  "description": "Public network diagnostics workspace for DNS, IP, subnet, ping, WHOIS, and bounded port checks.",
+  "description": "Public network diagnostics workspace for DNS, path, routing, web edge, mail posture, and bounded public port checks.",
   "icons": [
     {
       "src": "/android-chrome-192x192.png",

@@ -7,7 +7,12 @@ Netlab is a browser-based network diagnostics workspace served from a single pub
 - DNS Lookup: query public DNS records including A, AAAA, MX, TXT, CNAME, NS, and SOA.
 - Subnet Calculator: calculate network ranges, host counts, and subnet layouts from CIDR and masks.
 - Ping Tool: test reachability and latency for public targets.
+- Trace Route: run a bounded hop-by-hop path probe with early-hop responder redaction.
+- HTTP/TLS Inspector: inspect redirect chains, response headers, TLS versions, HSTS, and certificate health.
+- Network Engineering Workbench: inspect routing visibility, origin ASN, RPKI, DNS authority health, IPv4/IPv6 parity, and path MTU.
+- Website Security Posture: score website edge posture across HTTP, TLS, CAA, DNSSEC, and security.txt.
 - WHOIS Lookup: inspect domain registration and registrar information.
+- Email Security Checker: inspect MX, SPF, DMARC, DKIM heuristics, STARTTLS, MTA-STS, and TLS-RPT.
 - DNS Propagation Checker: compare resolver answers across global public DNS servers.
 - Port Scanner: run bounded public TCP port checks with safety limits.
 
@@ -20,7 +25,12 @@ Netlab is meant for legitimate public-network diagnostics. It is not intended fo
 - DNS Lookup: https://netlab.tools/dns-lookup
 - Subnet Calculator: https://netlab.tools/subnet-calc
 - Ping Tool: https://netlab.tools/ping
+- Trace Route: https://netlab.tools/trace
+- Network Engineering Workbench: https://netlab.tools/network-engineering
+- HTTP/TLS Inspector: https://netlab.tools/http-inspector
+- Website Security Posture: https://netlab.tools/website-security
 - WHOIS Lookup: https://netlab.tools/whois
+- Email Security Checker: https://netlab.tools/email-security
 - DNS Propagation Checker: https://netlab.tools/dns-propagation
 - Port Scanner: https://netlab.tools/port-scan
 
@@ -33,6 +43,7 @@ Netlab is meant for legitimate public-network diagnostics. It is not intended fo
 ## Important constraints
 - Targets must resolve to public IP addresses.
 - Private, loopback, link-local, multicast, and reserved ranges are blocked.
+- Trace Route redacts the first two hops and any non-public responder addresses.
 - Port scanning is rate-limited and bounded by request limits.
 
 ## Preferred citation

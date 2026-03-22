@@ -10,6 +10,7 @@ import {
   ScanSearch,
   Search,
   ShieldCheck,
+  Shield,
 } from "lucide-react";
 
 export type CommandPaletteEntry = {
@@ -110,6 +111,18 @@ export const commandPaletteGroups: {
         useCase: "Use after Ping when latency or routing looks inconsistent.",
       },
       {
+        id: "network-engineering",
+        label: "Network Engineering",
+        href: "/network-engineering",
+        icon: Route,
+        keywords: ["bgp", "rpki", "authority", "ipv6", "mtu"],
+        description: "Inspect routing state, DNS authority, dual-stack parity, and path MTU.",
+        category: "Engineering",
+        commandHint: "inspect control plane",
+        accent: "Operator Depth",
+        useCase: "Best when you need control-plane and dual-stack context, not just host reachability.",
+      },
+      {
         id: "http-inspector",
         label: "HTTP/TLS Inspector",
         href: "/http-inspector",
@@ -122,6 +135,18 @@ export const commandPaletteGroups: {
         useCase: "Best when the hostname resolves but the web service still feels wrong.",
       },
       {
+        id: "website-security",
+        label: "Website Security",
+        href: "/website-security",
+        icon: ShieldCheck,
+        keywords: ["headers", "security.txt", "caa", "dnssec"],
+        description: "Score website security posture across HTTP, TLS, and DNS controls.",
+        category: "Posture",
+        commandHint: "score website posture",
+        accent: "Security Grade",
+        useCase: "Use when you want an explainable website posture score instead of raw header output.",
+      },
+      {
         id: "whois",
         label: "WHOIS",
         href: "/whois",
@@ -132,6 +157,18 @@ export const commandPaletteGroups: {
         commandHint: "inspect whois",
         accent: "Registration Data",
         useCase: "Useful for registrar, delegation, and registration context.",
+      },
+      {
+        id: "email-security",
+        label: "Email Security",
+        href: "/email-security",
+        icon: Shield,
+        keywords: ["spf", "dmarc", "dkim", "mx", "starttls"],
+        description: "Inspect SPF, DMARC, DKIM heuristics, MX posture, and STARTTLS.",
+        category: "Mail",
+        commandHint: "check mail posture",
+        accent: "Mail Controls",
+        useCase: "Best when mail deliverability or transport security feels incomplete.",
       },
       {
         id: "dns-propagation",
@@ -191,12 +228,18 @@ export const quickStartWorkflows: {
     id: "service-debug",
     title: "A site is up, but users report failures",
     description: "Separate transport, path, and application issues instead of guessing one layer.",
-    steps: ["Ping", "Trace Route", "HTTP/TLS Inspector"],
+    steps: ["Ping", "Trace Route", "Website Security"],
   },
   {
     id: "surface-review",
     title: "You need a public exposure snapshot",
     description: "Confirm identity first, then inspect open surface and ownership context.",
     steps: ["IP Checker", "Port Scanner", "WHOIS"],
+  },
+  {
+    id: "control-plane-debug",
+    title: "The route or edge policy feels wrong",
+    description: "Check origin state, authority health, dual-stack drift, and path MTU before escalating upstream.",
+    steps: ["Network Engineering", "DNS Propagation", "HTTP/TLS Inspector"],
   },
 ];
