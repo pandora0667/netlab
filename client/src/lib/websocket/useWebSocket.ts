@@ -5,6 +5,7 @@ export const useWebSocket = (config: WebSocketConfig) => {
   const wsRef = useRef<WebSocket | null>(null);
   const configRef = useRef(config);
   const reconnectAttemptsRef = useRef(0);
+  const isIntentionalCloseRef = useRef(false);
   const maxReconnectAttempts = 5;
   const [isConnected, setIsConnected] = useState(false);
 
@@ -36,11 +37,13 @@ export const useWebSocket = (config: WebSocketConfig) => {
       try {
         // Clean up existing connection
         if (wsRef.current) {
+          isIntentionalCloseRef.current = true;
           wsRef.current.close(1000, 'Reconnecting');
           wsRef.current = null;
         }
 
         const ws = new WebSocket(`${protocol}//${host}${configRef.current.domain}`);
+        isIntentionalCloseRef.current = false;
         console.log(`Attempting to connect to ${protocol}//${host}${configRef.current.domain}`);
 
         ws.onopen = () => {
@@ -60,11 +63,11 @@ export const useWebSocket = (config: WebSocketConfig) => {
           }
         };
 
-        ws.onerror = (error) => {
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          console.error(`WebSocket error on ${configRef.current.domain}:`, errorMessage);
+        ws.onerror = (_error) => {
+          if (isIntentionalCloseRef.current) {
+            return;
+          }
           setIsConnected(false);
-          configRef.current.onError?.(error);
         };
 
         ws.onclose = (event) => {
@@ -110,6 +113,7 @@ export const useWebSocket = (config: WebSocketConfig) => {
     return () => {
       clearTimeout(reconnectTimeout);
       if (wsRef.current) {
+        isIntentionalCloseRef.current = true;
         wsRef.current.close(1000, 'Component unmounting');
         wsRef.current = null;
       }

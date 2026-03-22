@@ -12,15 +12,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Table, TableBody, TableCell, TableHead,
-  TableHeader, TableRow
-} from "@/components/ui/table";
-import {
   Loader2, AlertCircle, CheckCircle2, XCircle,
   Download, Plus, Trash2, Server
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { motion, AnimatePresence } from "framer-motion";
 import { z } from "zod";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
@@ -28,6 +23,7 @@ import {
   AccordionContent 
 } from "@/components/ui/accordion";
 import { SEO } from "../SEO";
+import { ToolPageShell } from "@/components/layout/ToolPageShell";
 import { lookupDnsRecords, validateDnsServer } from "@/domains/dns/api";
 import { DNS_RESOLVER_OPTIONS } from "@/domains/dns/constants";
 import type { DNSLookupResult } from "@/domains/dns/types";
@@ -250,6 +246,20 @@ export default function DNSLookup() {
     appendDomain({ id: Date.now().toString(), value: '' });
   }, [appendDomain]);
 
+  const convertToCSV = useCallback((lookupResults: DNSLookupResult[]) => {
+    const headers = ['Domain', 'Record Type', 'Server', 'Result', 'Query Time'];
+    const rows = lookupResults.flatMap(result =>
+      result.results.map(server => [
+        result.domain,
+        server.recordType,
+        server.server,
+        Array.isArray(server.records) ? server.records.join(';') : JSON.stringify(server.records),
+        server.queryTime
+      ])
+    );
+    return [headers, ...rows].map(row => row.join(',')).join('\n');
+  }, []);
+
   const handleExport = useCallback((format: 'json' | 'csv') => {
     if (!results.length) return;
 
@@ -268,7 +278,7 @@ export default function DNSLookup() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  }, [results]);
+  }, [convertToCSV, results]);
 
   const cancelQueries = useCallback(() => {
     if (abortController.current) {
@@ -443,29 +453,24 @@ export default function DNSLookup() {
     }
   }, [runCustomServerValidation, toast]);
 
-  const convertToCSV = useCallback((results: DNSLookupResult[]) => {
-    const headers = ['Domain', 'Record Type', 'Server', 'Result', 'Query Time'];
-    const rows = results.flatMap(result => 
-      result.results.map(server => [
-        result.domain,
-        server.recordType,
-        server.server,
-        Array.isArray(server.records) ? server.records.join(';') : JSON.stringify(server.records),
-        server.queryTime
-      ])
-    );
-    return [headers, ...rows].map(row => row.join(',')).join('\n');
-  }, []);
-
   return (
     <>
       <SEO page="dnsLookup" />
+      <ToolPageShell
+        title="DNS Lookup"
+        description="Query A, MX, TXT, and related records using public resolvers or a custom server."
+      >
+      <div className="space-y-4">
+      <div className="tool-grid">
       <div className="space-y-6">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <Card>
+            <Card className="border-white/8 bg-white/[0.02]">
               <CardHeader>
-                <CardTitle>Domain Configuration</CardTitle>
+                <CardTitle className="space-y-2">
+                  <div className="tool-eyebrow">Query setup</div>
+                  <div className="text-xl text-white">Target domains and resolvers</div>
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 {/* Domains Input */}
@@ -482,13 +487,10 @@ export default function DNSLookup() {
                       Add Domain
                     </Button>
                   </div>
-                  <AnimatePresence>
+                  <>
                     {domainFields.map((field, index) => (
-                      <motion.div
+                      <div
                         key={field.id}
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
                         className="flex items-center gap-2"
                       >
                         <FormField
@@ -516,9 +518,9 @@ export default function DNSLookup() {
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         )}
-                      </motion.div>
+                      </div>
                     ))}
-                  </AnimatePresence>
+                  </>
                 </div>
 
                 {/* DNS Servers Selection */}
@@ -616,7 +618,7 @@ export default function DNSLookup() {
               </CardContent>
             </Card>
 
-            <div className="flex justify-between">
+            <div className="flex flex-wrap justify-between gap-3">
               <div className="flex gap-2">
                 <Button
                   type="submit"
@@ -661,22 +663,37 @@ export default function DNSLookup() {
           </form>
         </Form>
 
-        <AnimatePresence>
-          {results.map((result, index) => (
-            <motion.div
-              key={`${result.domain}-${index}`}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-            >
-              <ResultCard
-                result={result}
-                serverStatuses={serverStatuses}
-              />
-            </motion.div>
-          ))}
-        </AnimatePresence>
       </div>
+      <aside className="tool-surface space-y-4">
+        <div className="space-y-2">
+          <p className="tool-eyebrow">Operator guidance</p>
+          <p className="tool-heading">Use multiple public resolvers when you care about disagreement, not just raw answers.</p>
+        </div>
+        <div className="tool-inline-guidance text-sm text-white/66">
+          <div className="tool-surface-muted">
+            Add more than one resolver when you want to spot cache drift or resolver-specific failures.
+          </div>
+          <div className="tool-surface-muted">
+            Use a custom server only when you need to inspect a known resolver directly.
+          </div>
+          <div className="tool-surface-muted">
+            Enable all records when you need a broad registry view. Keep it narrower for faster routine checks.
+          </div>
+        </div>
+      </aside>
+      </div>
+      <div className="space-y-4">
+        {results.map((result, index) => (
+          <div key={`${result.domain}-${index}`}>
+            <ResultCard
+              result={result}
+              serverStatuses={serverStatuses}
+            />
+          </div>
+        ))}
+      </div>
+      </div>
+      </ToolPageShell>
     </>
   );
 }

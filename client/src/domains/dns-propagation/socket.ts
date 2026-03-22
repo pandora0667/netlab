@@ -181,7 +181,7 @@ export function useDnsPropagationSocket(
         type: "subscribe",
         data: { requestId },
       }),
-    [socket.sendMessage],
+    [socket],
   );
 
   const unsubscribeFromRequest = useCallback(
@@ -190,7 +190,7 @@ export function useDnsPropagationSocket(
         type: "unsubscribe",
         data: { requestId },
       }),
-    [socket.sendMessage],
+    [socket],
   );
 
   return {

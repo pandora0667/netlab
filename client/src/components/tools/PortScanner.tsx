@@ -9,7 +9,6 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-  FormDescription,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import {
@@ -21,7 +20,7 @@ import {
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ShieldEllipsis } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -40,6 +39,8 @@ import {
   exportPortScanResults,
 } from '@/domains/port-scan/api';
 import { PortScannerResults } from './PortScannerResults';
+import { SEO } from '../SEO';
+import { ToolPageShell } from '@/components/layout/ToolPageShell';
 
 const portScannerSchema = z.object({
   targetIp: z.string().ip({ message: "Please enter a valid IP address" }),
@@ -242,14 +243,34 @@ export default function PortScanner() {
   };
 
   return (
+    <>
+      <SEO page="portScanner" />
+      <ToolPageShell
+        title="Port Scanner"
+        description="Scan TCP or UDP ports on a public target within the allowed limits. Progress streams over SSE."
+      >
     <div className="space-y-4">
+    <div className="tool-grid">
+      <div className="space-y-4">
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-          <div className="flex justify-between items-center">
-            <h2 className="text-lg font-semibold">Port Scanner</h2>
-          </div>
-          <Card>
-            <CardContent className="pt-6">
+          <div className="tool-surface space-y-6">
+            <div className="space-y-3">
+              <span className="tool-kicker">
+                <ShieldEllipsis className="h-3.5 w-3.5" />
+                Public-only scan
+              </span>
+              <div className="space-y-2">
+                <p className="tool-heading">Run a bounded port probe with clear limits and live progress.</p>
+                <p className="tool-copy">
+                  This scanner is intentionally constrained for public targets. Set the target,
+                  protocol, and range first, then watch the run stream in real time.
+                </p>
+              </div>
+            </div>
+
+          <Card className="border-white/8 bg-white/[0.02]">
+            <CardContent className="p-4 pt-6 sm:p-6">
               <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
@@ -405,7 +426,7 @@ export default function PortScanner() {
                                   <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
                                     {group.name}
                                   </label>
-                                  <p className="text-xs text-gray-500">
+                                  <p className="text-xs text-muted-foreground">
                                     {group.ports.map(p => p.port).join(', ')}
                                   </p>
                                 </div>
@@ -437,14 +458,15 @@ export default function PortScanner() {
               </div>
             </CardContent>
           </Card>
+          </div>
         </form>
       </Form>
 
       {isScanning && scanProgress.totalPorts > 0 && (
-        <Card>
-          <CardContent className="pt-6">
+        <Card className="border-white/8 bg-white/[0.02]">
+          <CardContent className="p-4 pt-6 sm:p-6">
             <div className="space-y-2">
-              <div className="flex justify-between text-sm text-gray-500">
+              <div className="flex justify-between text-sm text-muted-foreground">
                 <span>
                   Scanning port {scanProgress.currentPort} 
                   ({scanProgress.scannedPorts} of {scanProgress.totalPorts} ports)
@@ -456,7 +478,35 @@ export default function PortScanner() {
           </CardContent>
         </Card>
       )}
-
+    </div>
+    <aside className="tool-surface space-y-4">
+      <div className="space-y-2">
+        <p className="tool-eyebrow">Run policy</p>
+        <p className="tool-heading">Use the smallest scan that answers the question.</p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="tool-metric">
+          <p className="tool-metric-label">Max ports</p>
+          <p className="tool-metric-value">{PORT_SCAN_MAX_PORTS}</p>
+        </div>
+        <div className="tool-metric">
+          <p className="tool-metric-label">Max timeout</p>
+          <p className="tool-metric-value">{PORT_SCAN_MAX_TIMEOUT_MS}ms</p>
+        </div>
+        <div className="tool-surface-muted">
+          Range scans are best for narrow investigations around a suspected service window.
+        </div>
+        <div className="tool-surface-muted">
+          Port groups are faster when you only care about common services like HTTP, DNS, SSH, or mail.
+        </div>
+      </div>
+      <div className="tool-inline-guidance text-sm text-white/66">
+        <div className="tool-surface-muted">
+          Stop the run early if you already have enough signal. That keeps the UI responsive and the request budget cleaner.
+        </div>
+      </div>
+    </aside>
+    </div>
       {scanSummary && (
         <PortScannerResults
           summary={scanSummary}
@@ -465,5 +515,7 @@ export default function PortScanner() {
         />
       )}
     </div>
+      </ToolPageShell>
+    </>
   );
 }

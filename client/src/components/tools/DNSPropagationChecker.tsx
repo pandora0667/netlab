@@ -23,7 +23,7 @@ import {
   TableRow,
 } from '../ui/table';
 import { Badge } from '../ui/badge';
-import { Loader2, Download, Map, PieChart } from 'lucide-react';
+import { Loader2, Download, Map, PieChart, Orbit } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { startDnsPropagationRequest } from "@/domains/dns-propagation/api";
 import {
@@ -45,6 +45,8 @@ import {
   type QueryStats,
   REGIONS,
 } from './dns-propagation/shared';
+import { SEO } from '../SEO';
+import { ToolPageShell } from '@/components/layout/ToolPageShell';
 
 const DNSPropagationMap = lazy(
   () => import('./dns-propagation/DNSPropagationMap'),
@@ -170,6 +172,13 @@ export default function DNSPropagationChecker() {
     return true;
   });
 
+  const activeFilterTokens = [
+    `View: ${view}`,
+    filter.status !== 'all' ? `Status: ${filter.status}` : null,
+    filter.dnssec !== 'all' ? `DNSSEC: ${filter.dnssec}` : null,
+    `Showing ${filteredResults.length}`,
+  ].filter(Boolean) as string[];
+
   const generateReport = () => {
     const serializedReport = serializeDnsPropagationReport({
       domain,
@@ -207,86 +216,107 @@ export default function DNSPropagationChecker() {
 
       default:
         return (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Country</TableHead>
-                <TableHead>DNS Server</TableHead>
-                <TableHead>Server IP</TableHead>
-                <TableHead>Response</TableHead>
-                <TableHead>DNSSEC</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Latency</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredResults.map((result, index) => (
-                <TableRow key={index}>
-                  <TableCell>{result.server.country_code}</TableCell>
-                  <TableCell>{result.server.name || 'N/A'}</TableCell>
-                  <TableCell>{result.server.ip_address}</TableCell>
-                  <TableCell>{result.response}</TableCell>
-                  <TableCell>
-                    <Badge variant={result.server.dnssec ? 'default' : 'secondary'}>
-                      {result.server.dnssec ? 'Yes' : 'No'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={result.status === 'success' ? 'default' : 'destructive'}>
-                      {result.status === 'success' ? 'Working' : 'Error'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{result.latency}ms</TableCell>
+          <div className="max-h-[68vh] overflow-auto rounded-[1.1rem] border border-white/8 bg-black/10">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="sticky top-0 bg-[rgb(14_17_27_/_0.96)] backdrop-blur">Country</TableHead>
+                  <TableHead className="sticky top-0 bg-[rgb(14_17_27_/_0.96)] backdrop-blur">DNS Server</TableHead>
+                  <TableHead className="sticky top-0 bg-[rgb(14_17_27_/_0.96)] backdrop-blur">Server IP</TableHead>
+                  <TableHead className="sticky top-0 bg-[rgb(14_17_27_/_0.96)] backdrop-blur">Response</TableHead>
+                  <TableHead className="sticky top-0 bg-[rgb(14_17_27_/_0.96)] backdrop-blur">DNSSEC</TableHead>
+                  <TableHead className="sticky top-0 bg-[rgb(14_17_27_/_0.96)] backdrop-blur">Status</TableHead>
+                  <TableHead className="sticky top-0 bg-[rgb(14_17_27_/_0.96)] backdrop-blur">Latency</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredResults.map((result, index) => (
+                  <TableRow key={index}>
+                    <TableCell>{result.server.country_code}</TableCell>
+                    <TableCell>{result.server.name || 'N/A'}</TableCell>
+                    <TableCell>{result.server.ip_address}</TableCell>
+                    <TableCell>{result.response}</TableCell>
+                    <TableCell>
+                      <Badge variant={result.server.dnssec ? 'default' : 'secondary'}>
+                        {result.server.dnssec ? 'Yes' : 'No'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={result.status === 'success' ? 'default' : 'destructive'}>
+                        {result.status === 'success' ? 'Working' : 'Error'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{result.latency}ms</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         );
     }
   };
 
   return (
-    <Card className="p-6">
-      <div className="space-y-4">
-        <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-bold">DNS Propagation Checker</h2>
-          <div className="flex space-x-2">
+    <>
+      <SEO page="dnsPropagation" />
+      <ToolPageShell
+        title="DNS Propagation"
+        description="Compare the same domain response across multiple resolvers. Live updates stream over WebSocket."
+        actions={
+          <div className="flex flex-wrap gap-1">
             <Button
-              variant="outline"
+              variant={view === "table" ? "default" : "outline"}
               size="sm"
-              onClick={() => setView('table')}
-              className={view === 'table' ? 'bg-primary text-primary-foreground' : ''}
+              onClick={() => setView("table")}
             >
               Table
             </Button>
             <Button
-              variant="outline"
+              variant={view === "map" ? "default" : "outline"}
               size="sm"
-              onClick={() => setView('map')}
-              className={view === 'map' ? 'bg-primary text-primary-foreground' : ''}
+              onClick={() => setView("map")}
             >
-              <Map className="w-4 h-4 mr-2" />
+              <Map className="mr-1.5 h-4 w-4" />
               Map
             </Button>
             <Button
-              variant="outline"
+              variant={view === "chart" ? "default" : "outline"}
               size="sm"
-              onClick={() => setView('chart')}
-              className={view === 'chart' ? 'bg-primary text-primary-foreground' : ''}
+              onClick={() => setView("chart")}
             >
-              <PieChart className="w-4 h-4 mr-2" />
+              <PieChart className="mr-1.5 h-4 w-4" />
               Chart
             </Button>
           </div>
+        }
+      >
+    <div className="space-y-4">
+    <div className="tool-grid">
+    <div className="tool-surface space-y-6">
+      <div className="space-y-3">
+        <span className="tool-kicker">
+          <Orbit className="h-3.5 w-3.5" />
+          Distributed resolution
+        </span>
+        <div className="space-y-2">
+          <p className="tool-heading">Track how the same DNS answer spreads across public resolvers.</p>
+          <p className="tool-copy">
+            Start with a domain and region scope, then switch between table, map, and chart views
+            depending on whether you need raw inspection or a quick propagation read.
+          </p>
         </div>
-        
-        <div className="flex space-x-4">
+      </div>
+
+    <Card className="border-white/8 bg-white/[0.02] p-4 sm:p-6">
+      <div className="space-y-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
           <Input
-            placeholder="Enter domain name (e.g., example.com)"
+            className="sm:min-w-[12rem] sm:flex-1"
+            placeholder="example.com"
             value={domain}
             onChange={(e) => setDomain(e.target.value)}
           />
-          
+
           <Select
             value={selectedRegion}
             onValueChange={setSelectedRegion}
@@ -331,80 +361,123 @@ export default function DNSPropagationChecker() {
         </div>
 
         {isLoading && (
-          <div className="w-full bg-secondary rounded-full h-2.5 mb-4">
+          <div className="mb-4 h-2 w-full overflow-hidden rounded-full bg-muted">
             <div
-              className="bg-primary h-2.5 rounded-full transition-all duration-500"
+              className="h-full rounded-full bg-primary transition-all duration-500"
               style={{ width: `${progress}%` }}
-            ></div>
+            />
           </div>
         )}
 
-        {results.length > 0 && (
-          <div className="grid grid-cols-4 gap-4">
-            <Card className="p-4">
-              <h3 className="text-sm font-medium">Total Queries</h3>
-              <p className="text-2xl font-bold">{stats.totalQueries}</p>
-            </Card>
-            <Card className="p-4">
-              <h3 className="text-sm font-medium">Success Rate</h3>
-              <p className="text-2xl font-bold text-green-500">
-                {Math.round((stats.successfulQueries / stats.totalQueries) * 100)}%
-              </p>
-            </Card>
-            <Card className="p-4">
-              <h3 className="text-sm font-medium">Average Latency</h3>
-              <p className="text-2xl font-bold">{stats.averageLatency}ms</p>
-            </Card>
-            <Card className="p-4">
-              <h3 className="text-sm font-medium">DNSSEC Enabled</h3>
-              <p className="text-2xl font-bold text-blue-500">
-                {Math.round((stats.dnssecEnabled / stats.totalQueries) * 100)}%
-              </p>
-            </Card>
-          </div>
-        )}
-
-        {results.length > 0 && (
-          <div className="space-y-4">
-            <div className="flex space-x-4">
-              <Select
-                value={filter.status}
-                onValueChange={(value: FilterState['status']) => 
-                  setFilter({ ...filter, status: value })
-                }
-              >
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Filter by status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="success">Working</SelectItem>
-                  <SelectItem value="error">Not Working</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Select
-                value={filter.dnssec}
-                onValueChange={(value: FilterState['dnssec']) => 
-                  setFilter({ ...filter, dnssec: value })
-                }
-              >
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Filter by DNSSEC" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="enabled">DNSSEC Enabled</SelectItem>
-                  <SelectItem value="disabled">DNSSEC Disabled</SelectItem>
-                  <SelectItem value="all">All DNSSEC</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {renderContent()}
-          </div>
-        )}
       </div>
     </Card>
+    </div>
+    <aside className="tool-surface space-y-4">
+      <div className="space-y-2">
+        <p className="tool-eyebrow">How to read it</p>
+        <p className="tool-heading">Propagation is disagreement over time, not a single pass/fail value.</p>
+      </div>
+      <div className="tool-inline-guidance text-sm text-white/66">
+        <div className="tool-surface-muted">
+          Use the table when you need exact resolver output and latency per server.
+        </div>
+        <div className="tool-surface-muted">
+          Use the map for geographic drift and the chart for quick ratio summaries.
+        </div>
+        <div className="tool-surface-muted">
+          A failed resolver does not always mean a broken domain. It can also reflect stale caches or regional recursion issues.
+        </div>
+      </div>
+    </aside>
+    </div>
+    {results.length > 0 && (
+      <div className="tool-surface space-y-4">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <Card className="p-3 sm:p-4">
+            <h3 className="text-xs font-medium text-muted-foreground">
+              Total Queries
+            </h3>
+            <p className="text-xl font-semibold tabular-nums">
+              {stats.totalQueries}
+            </p>
+          </Card>
+          <Card className="p-3 sm:p-4">
+            <h3 className="text-xs font-medium text-muted-foreground">
+              Success Rate
+            </h3>
+            <p className="text-xl font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
+              {Math.round((stats.successfulQueries / stats.totalQueries) * 100)}%
+            </p>
+          </Card>
+          <Card className="p-3 sm:p-4">
+            <h3 className="text-xs font-medium text-muted-foreground">
+              Avg Latency
+            </h3>
+            <p className="text-xl font-semibold tabular-nums">
+              {stats.averageLatency}ms
+            </p>
+          </Card>
+          <Card className="p-3 sm:p-4">
+            <h3 className="text-xs font-medium text-muted-foreground">
+              DNSSEC
+            </h3>
+            <p className="text-xl font-semibold tabular-nums text-sky-600 dark:text-sky-400">
+              {Math.round((stats.dnssecEnabled / stats.totalQueries) * 100)}%
+            </p>
+          </Card>
+        </div>
+
+        <div className="flex flex-wrap gap-4">
+          <Select
+            value={filter.status}
+            onValueChange={(value: FilterState['status']) =>
+              setFilter({ ...filter, status: value })
+            }
+          >
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Filter by status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="success">Working</SelectItem>
+              <SelectItem value="error">Not Working</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={filter.dnssec}
+            onValueChange={(value: FilterState['dnssec']) =>
+              setFilter({ ...filter, dnssec: value })
+            }
+          >
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Filter by DNSSEC" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="enabled">DNSSEC Enabled</SelectItem>
+              <SelectItem value="disabled">DNSSEC Disabled</SelectItem>
+              <SelectItem value="all">All DNSSEC</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {activeFilterTokens.map((token) => (
+            <span
+              key={token}
+              className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[0.72rem] font-mono uppercase tracking-[0.16em] text-white/58"
+            >
+              {token}
+            </span>
+          ))}
+        </div>
+
+        {renderContent()}
+      </div>
+    )}
+    </div>
+      </ToolPageShell>
+    </>
   );
 }
 

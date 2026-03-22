@@ -22,7 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Download, Loader2, HelpCircle } from "lucide-react";
+import { Download, Loader2, HelpCircle, Radar } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "react-hot-toast";
 import {
@@ -39,6 +39,66 @@ import {
   type PingSummary,
 } from "@/domains/ping/model";
 import { usePingSocket } from "@/domains/ping/socket";
+import { SEO } from "../SEO";
+import { ToolPageShell } from "@/components/layout/ToolPageShell";
+import {
+  GuidedTroubleshooting,
+  type GuidedTroubleshootingItem,
+} from "./GuidedTroubleshooting";
+
+function buildPingGuidance(results: PingSummary | null): GuidedTroubleshootingItem[] {
+  if (!results) {
+    return [];
+  }
+
+  const items: GuidedTroubleshootingItem[] = [];
+  const { statistics } = results;
+
+  if (statistics.successRate === 0) {
+    items.push({
+      title: "The target did not answer any attempts.",
+      detail:
+        "That usually points to filtering, routing failure, host unreachability, or a service that is not listening on the chosen TCP port.",
+      nextStep:
+        "Run Trace Route next, then compare with Port Scanner or HTTP/TLS Inspector for the same host.",
+      tone: "warn",
+    });
+  }
+
+  if (statistics.successRate > 0 && statistics.successRate < 100) {
+    items.push({
+      title: "There is packet loss or intermittent success.",
+      detail:
+        "Some attempts returned while others failed, which suggests instability rather than a clean up/down state.",
+      nextStep:
+        "Repeat the same target and compare the path with Trace Route to see whether the failure starts at a consistent hop.",
+      tone: "warn",
+    });
+  }
+
+  if (statistics.avgLatency > 150) {
+    items.push({
+      title: "Latency is high enough to justify a path check.",
+      detail:
+        "The host is reachable, but the average round-trip time is elevated for a quick first-pass probe.",
+      nextStep: "Use Trace Route to see whether delay grows early or only near the destination.",
+      tone: "info",
+    });
+  }
+
+  if (items.length === 0) {
+    items.push({
+      title: "Reachability looks healthy at first pass.",
+      detail:
+        "The target answered consistently and latency stayed within a normal range for a short diagnostic run.",
+      nextStep:
+        "If the service still feels broken, inspect DNS behavior or HTTP/TLS response details next.",
+      tone: "good",
+    });
+  }
+
+  return items;
+}
 
 export default function PingTool() {
   const [results, setResults] = useState<PingSummary | null>(null);
@@ -172,172 +232,187 @@ export default function PingTool() {
   }, [results]);
 
   return (
-    <div className="space-y-4">
-      <div className="text-center">
-        <h2 className="text-2xl font-semibold">Ping Tool</h2>
-        <p className="text-muted-foreground">Test connectivity to a host</p>
-      </div>
-
-      <Card className="p-6 shadow-lg">
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-            <div className="grid gap-8 md:grid-cols-2">
-              <div className="space-y-6">
-                <FormField
-                  control={form.control}
-                  name="host"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-sm font-medium">Host</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="example.com or IP address"
-                          className="transition-all focus:ring-2"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage className="text-xs mt-1" />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="type"
-                  render={({ field }) => (
-                    <FormItem>
-                      <div className="flex items-center gap-2 mb-2">
-                        <FormLabel className="text-sm font-medium">Ping Type</FormLabel>
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger>
-                              <HelpCircle className="h-4 w-4 text-muted-foreground hover:text-primary transition-colors" />
-                            </TooltipTrigger>
-                            <TooltipContent side="right">
-                              <div className="space-y-2">
-                                <p>
-                                  <strong>ICMP:</strong> Standard ping test
-                                </p>
-                                <p>
-                                  <strong>TCP:</strong> Test specific port connection
-                                </p>
-                              </div>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </div>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger className="w-full transition-all focus:ring-2">
-                            <SelectValue placeholder="Choose ping method" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="icmp">ICMP Ping</SelectItem>
-                          <SelectItem value="tcp">TCP Ping</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage className="text-xs mt-1" />
-                    </FormItem>
-                  )}
-                />
+    <>
+      <SEO page="pingTool" />
+      <ToolPageShell
+        title="Ping"
+        description="Measure reachability and latency to a public target over ICMP or TCP. Progress updates over WebSocket."
+      >
+      <div className="space-y-4">
+        <div className="tool-grid">
+          <div className="space-y-4">
+          <div className="tool-surface space-y-6">
+            <div className="space-y-3">
+              <span className="tool-kicker">
+                <Radar className="h-3.5 w-3.5" />
+                Live reachability
+              </span>
+              <div className="space-y-2">
+                <p className="tool-heading">Run a short public latency check without leaving the command surface.</p>
+                <p className="tool-copy">
+                  Choose ICMP for basic reachability or TCP when you want to probe a specific
+                  service port. Progress updates stream as each attempt completes.
+                </p>
               </div>
+            </div>
 
-              <div className="space-y-6">
-                {pingType === "tcp" && (
-                  <FormField
-                    control={form.control}
-                    name="port"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-sm font-medium">Port</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            min={1}
-                            max={65535}
-                            {...field}
-                            onChange={(e) => field.onChange(Number(e.target.value))}
-                          />
-                        </FormControl>
-                        <FormDescription className="text-xs">
-                          Enter a port number between 1 and 65535
-                        </FormDescription>
-                        <FormMessage className="text-xs mt-1" />
-                      </FormItem>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+                <div className="grid gap-8 md:grid-cols-2">
+                  <div className="space-y-6">
+                    <FormField
+                      control={form.control}
+                      name="host"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-sm font-medium">Host</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="example.com or IP address"
+                              className="transition-all focus:ring-2"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage className="text-xs mt-1" />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="type"
+                      render={({ field }) => (
+                        <FormItem>
+                          <div className="flex items-center gap-2 mb-2">
+                            <FormLabel className="text-sm font-medium">Ping Type</FormLabel>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger>
+                                  <HelpCircle className="h-4 w-4 text-muted-foreground hover:text-primary transition-colors" />
+                                </TooltipTrigger>
+                                <TooltipContent side="right">
+                                  <div className="space-y-2">
+                                    <p>
+                                      <strong>ICMP:</strong> Standard ping test
+                                    </p>
+                                    <p>
+                                      <strong>TCP:</strong> Test specific port connection
+                                    </p>
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
+                          <Select
+                            onValueChange={field.onChange}
+                            defaultValue={field.value}
+                          >
+                            <FormControl>
+                              <SelectTrigger className="w-full transition-all focus:ring-2">
+                                <SelectValue placeholder="Choose ping method" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="icmp">ICMP Ping</SelectItem>
+                              <SelectItem value="tcp">TCP Ping</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage className="text-xs mt-1" />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <div className="space-y-6">
+                    {pingType === "tcp" && (
+                      <FormField
+                        control={form.control}
+                        name="port"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-sm font-medium">Port</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                min={1}
+                                max={65535}
+                                {...field}
+                                onChange={(e) => field.onChange(Number(e.target.value))}
+                              />
+                            </FormControl>
+                            <FormDescription className="text-xs">
+                              Enter a port number between 1 and 65535
+                            </FormDescription>
+                            <FormMessage className="text-xs mt-1" />
+                          </FormItem>
+                        )}
+                      />
                     )}
-                  />
-                )}
 
-                <FormField
-                  control={form.control}
-                  name="count"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-sm font-medium">Number of Attempts</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          min={1}
-                          max={10}
-                          {...field}
-                          onChange={(e) => field.onChange(Number(e.target.value))}
-                        />
-                      </FormControl>
-                      <FormDescription className="text-xs">
-                        Enter a number between 1 and 10
-                      </FormDescription>
-                      <FormMessage className="text-xs mt-1" />
-                    </FormItem>
+                    <FormField
+                      control={form.control}
+                      name="count"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-sm font-medium">Number of Attempts</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min={1}
+                              max={10}
+                              {...field}
+                              onChange={(e) => field.onChange(Number(e.target.value))}
+                            />
+                          </FormControl>
+                          <FormDescription className="text-xs">
+                            Enter a number between 1 and 10
+                          </FormDescription>
+                          <FormMessage className="text-xs mt-1" />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    type="submit"
+                    disabled={isLoading || !isConnected}
+                    className="w-full md:w-auto"
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Running Test...
+                      </>
+                    ) : !isConnected ? (
+                      "Connecting..."
+                    ) : (
+                      "Start Ping Test"
+                    )}
+                  </Button>
+                  {results && (
+                    <>
+                      <Button
+                        variant="outline"
+                        onClick={() => handleExport("json")}
+                      >
+                        <Download className="mr-2 h-4 w-4" />
+                        Export JSON
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => handleExport("csv")}
+                      >
+                        <Download className="mr-2 h-4 w-4" />
+                        Export CSV
+                      </Button>
+                    </>
                   )}
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-2">
-              <Button
-                type="submit"
-                disabled={isLoading || !isConnected}
-                className="w-full md:w-auto"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Running Test...
-                  </>
-                ) : !isConnected ? (
-                  "Connecting..."
-                ) : (
-                  "Start Ping Test"
-                )}
-              </Button>
-              {results && (
-                <>
-                  <Button
-                    variant="outline"
-                    onClick={() => handleExport("json")}
-                    className="transition-all duration-200 hover:scale-105 focus:ring-2"
-                  >
-                    <Download className="mr-2 h-4 w-4" />
-                    Export JSON
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => handleExport("csv")}
-                    className="transition-all duration-200 hover:scale-105 focus:ring-2"
-                  >
-                    <Download className="mr-2 h-4 w-4" />
-                    Export CSV
-                  </Button>
-                </>
-              )}
-            </div>
-          </form>
-        </Form>
-      </Card>
+                </div>
+              </form>
+            </Form>
+          </div>
 
       {isLoading && (
         <Card className="p-4">
@@ -359,65 +434,108 @@ export default function PingTool() {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
+          </div>
+          <aside className="tool-surface space-y-4">
+        <div className="space-y-2">
+          <p className="tool-eyebrow">Read this before running</p>
+          <p className="tool-heading">Use short, intentional probes instead of long test runs.</p>
+        </div>
+        <div className="tool-inline-guidance text-sm text-white/66">
+          <div className="tool-surface-muted">
+            ICMP gives a plain reachability baseline. TCP is better when latency to a single service matters.
+          </div>
+          <div className="tool-surface-muted">
+            The timeout sets how long each attempt waits before the request is treated as failed.
+          </div>
+          <div className="tool-surface-muted">
+            Export JSON for full logs and CSV when you need a quick comparison in a spreadsheet.
+          </div>
+        </div>
+      </aside>
+      </div>
 
       {results && (
-        <Card className="p-6 shadow-lg">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-            <h3 className="text-lg font-semibold">Test Results</h3>
+        <div className="tool-surface space-y-5">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="tool-metric">
+              <p className="tool-metric-label">Success rate</p>
+              <p className="tool-metric-value">{results.statistics.successRate.toFixed(1)}%</p>
+            </div>
+            <div className="tool-metric">
+              <p className="tool-metric-label">Average latency</p>
+              <p className="tool-metric-value">{results.statistics.avgLatency.toFixed(2)}ms</p>
+            </div>
+            <div className="tool-metric">
+              <p className="tool-metric-label">Minimum latency</p>
+              <p className="tool-metric-value">{results.statistics.minLatency.toFixed(2)}ms</p>
+            </div>
+            <div className="tool-metric">
+              <p className="tool-metric-label">Maximum latency</p>
+              <p className="tool-metric-value">{results.statistics.maxLatency.toFixed(2)}ms</p>
+            </div>
           </div>
 
-          <ScrollArea className="h-[300px] rounded-lg border">
-            <div className="space-y-2 p-4">
-              {results.results.map((result, index) => (
-                <div
-                  key={index}
-                  className={`p-4 rounded-lg transition-colors ${
-                    result.success
-                      ? "bg-green-100 dark:bg-green-900/20 border border-green-200 dark:border-green-800"
-                      : "bg-red-100 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
-                  }`}
-                >
-                  <div className="flex justify-between items-center">
-                    <span className="font-medium">Attempt {result.attempt}</span>
-                    {result.success ? (
-                      <span className="text-green-700 dark:text-green-300 font-medium">
-                        {result.latency?.toFixed(2)}ms
-                      </span>
-                    ) : (
-                      <span className="text-red-600 dark:text-red-300 font-medium">
-                        {result.error}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
+          <div className="space-y-3">
+            <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+              <h3 className="tool-heading">Attempt log</h3>
+              <p className="text-sm text-white/48">
+                {results.results.length} of {form.getValues("count")} attempts captured
+              </p>
             </div>
-          </ScrollArea>
 
-          <div className="mt-6 space-y-4">
-            <h4 className="font-medium text-lg">Statistics</h4>
-            <div className="grid md:grid-cols-2 gap-6">
-              <div className="space-y-3">
-                <p className="font-medium">
-                  Success Rate: {results.statistics.successRate.toFixed(1)}%
+            <ScrollArea className="h-[min(34rem,68vh)] rounded-[1.15rem] border border-white/8 bg-black/15">
+              <div className="space-y-2 p-3 sm:p-4">
+                {results.results.map((result, index) => (
+                  <div
+                    key={index}
+                    className={`rounded-lg border p-3 text-sm ${
+                      result.success
+                        ? "border-emerald-500/30 bg-emerald-500/5"
+                        : "border-destructive/30 bg-destructive/5"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium">Attempt {result.attempt}</span>
+                      {result.success ? (
+                        <span className="font-mono text-muted-foreground">
+                          {result.latency?.toFixed(2)}ms
+                        </span>
+                      ) : (
+                        <span className="text-destructive">{result.error}</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </div>
+
+          <div className="space-y-4 border-t border-white/8 pt-5">
+            <h4 className="tool-heading">Stability summary</h4>
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  Success rate {results.statistics.successRate.toFixed(1)}%
                 </p>
                 <Progress
                   value={results.statistics.successRate}
-                  className="h-2.5 rounded-full"
+                  className="h-2 rounded-full"
                 />
               </div>
-              <div className="space-y-3">
-                <p className="font-medium">Response Times</p>
-                <div className="space-y-2 text-sm">
-                  <p>Average: {results.statistics.avgLatency.toFixed(2)}ms</p>
-                  <p>Min: {results.statistics.minLatency.toFixed(2)}ms</p>
-                  <p>Max: {results.statistics.maxLatency.toFixed(2)}ms</p>
-                </div>
+              <div className="space-y-1 text-sm">
+                <p className="text-muted-foreground">Latency distribution</p>
+                <p>Average {results.statistics.avgLatency.toFixed(2)}ms</p>
+                <p>Minimum {results.statistics.minLatency.toFixed(2)}ms</p>
+                <p>Maximum {results.statistics.maxLatency.toFixed(2)}ms</p>
               </div>
             </div>
           </div>
-        </Card>
+        </div>
       )}
-    </div>
+
+      <GuidedTroubleshooting items={buildPingGuidance(results)} />
+      </div>
+      </ToolPageShell>
+    </>
   );
 }

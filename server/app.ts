@@ -7,7 +7,6 @@ import express, {
 import { type Server } from "http";
 import cors from "cors";
 import { WebSocketServer } from "ws";
-import { parse as parseUrl } from "url";
 import { registerRoutes } from "./routes.js";
 import { apiLimiter } from "./middleware/rateLimit.js";
 import { requestLogger } from "./middleware/logging.js";
@@ -53,6 +52,14 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use(requestLogger);
   app.use(express.json());
   app.use(express.urlencoded({ extended: false }));
+  app.get("/indexnow-key.txt", (_req, res) => {
+    if (!runtimeConfig.seo.indexNowKey) {
+      res.status(404).end();
+      return;
+    }
+
+    res.type("text/plain").send(runtimeConfig.seo.indexNowKey);
+  });
   app.get("/healthz", (_req, res) => {
     res.json({
       status: "ok",
@@ -86,7 +93,13 @@ export function attachWebSocketHandlers(server: Server) {
   const wss = new WebSocketServer({ noServer: true });
 
   server.on("upgrade", (request, socket, head) => {
-    const { pathname } = parseUrl(request.url || "");
+    const pathname = (() => {
+      try {
+        return new URL(request.url || "", "http://localhost").pathname;
+      } catch {
+        return "";
+      }
+    })();
 
     if (pathname === "/ws/dns-propagation") {
       wss.handleUpgrade(request, socket, head, (ws) => {
@@ -108,7 +121,9 @@ export function attachWebSocketHandlers(server: Server) {
       return;
     }
 
-    socket.destroy();
+    if (pathname?.startsWith("/ws/")) {
+      socket.destroy();
+    }
   });
 
   return wss;

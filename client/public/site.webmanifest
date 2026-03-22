@@ -1,7 +1,7 @@
 {
   "name": "Netlab",
   "short_name": "Netlab",
-  "description": "Online network diagnostics toolkit for DNS, IP, subnet, ping, WHOIS, and port checks.",
+  "description": "Public network diagnostics workspace for DNS, IP, subnet, ping, WHOIS, and bounded port checks.",
   "icons": [
     {
       "src": "/android-chrome-192x192.png",
@@ -16,8 +16,8 @@
       "purpose": "any maskable"
     }
   ],
-  "theme_color": "#0f172a",
-  "background_color": "#0f172a",
+  "theme_color": "#050505",
+  "background_color": "#050505",
   "display": "standalone",
   "start_url": "/"
 }

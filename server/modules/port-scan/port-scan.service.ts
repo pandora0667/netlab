@@ -113,20 +113,7 @@ async function scanUdpPort(
   return new Promise((resolve) => {
     const socket = dgram.createSocket("udp4");
     let resolved = false;
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
-
-    const cleanupAbortListener = attachAbortListener(signal, () => {
-      if (!resolved) {
-        resolved = true;
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-        }
-        socket.close();
-        resolve("Filtered");
-      }
-    });
-
-    timeoutId = setTimeout(() => {
+    const timeoutId = setTimeout(() => {
       if (!resolved) {
         resolved = true;
         cleanupAbortListener();
@@ -134,6 +121,15 @@ async function scanUdpPort(
         resolve("Open|Filtered");
       }
     }, timeout);
+
+    const cleanupAbortListener = attachAbortListener(signal, () => {
+      if (!resolved) {
+        resolved = true;
+        clearTimeout(timeoutId);
+        socket.close();
+        resolve("Filtered");
+      }
+    });
 
     socket.on("error", (error: Error & { code?: string }) => {
       if (!resolved) {

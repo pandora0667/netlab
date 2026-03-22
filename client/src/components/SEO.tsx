@@ -1,60 +1,108 @@
-import { Helmet } from 'react-helmet-async';
+import { useEffect } from "react";
 import {
-  defaultSEO,
-  pageSEOData,
-  resolveSeoUrl,
-  siteUrl,
-  type SEOData,
-} from '../lib/seo-config';
+  buildStructuredDataJson,
+  resolveSEOForPage,
+  siteName,
+  type SEOPageKey,
+} from "../lib/seo-config";
 
 interface SEOProps {
-  page?: keyof typeof pageSEOData;
+  page: SEOPageKey;
 }
 
-export function SEO({ page }: SEOProps) {
-  const seo: SEOData = page ? pageSEOData[page] : defaultSEO;
-  const canonicalPath = seo.canonical ?? defaultSEO.canonical ?? "/";
-  const ogImagePath = seo.ogImage ?? defaultSEO.ogImage ?? "/og-image.jpg";
-  const imageAlt = seo.imageAlt ?? defaultSEO.imageAlt ?? "Netlab preview";
-  const canonicalUrl = resolveSeoUrl(canonicalPath);
-  const ogImageUrl = resolveSeoUrl(ogImagePath);
+const upsertMetaByName = (name: string, content: string) => {
+  const selector = `meta[name="${name}"]`;
+  const element =
+    document.head.querySelector<HTMLMetaElement>(selector) ??
+    document.createElement("meta");
 
-  return (
-    <Helmet>
-      {/* Basic Meta Tags */}
-      <title>{seo.title}</title>
-      <meta name="description" content={seo.description} />
-      <meta name="keywords" content={seo.keywords.join(', ')} />
-      
-      {/* Open Graph */}
-      <meta property="og:title" content={seo.title} />
-      <meta property="og:description" content={seo.description} />
-      <meta property="og:type" content="website" />
-      <meta property="og:image" content={ogImageUrl} />
-      <meta property="og:image:alt" content={imageAlt} />
-      <meta property="og:url" content={canonicalUrl} />
-      <meta property="og:site_name" content="Netlab" />
-      
-      {/* Twitter Card */}
-      <meta name="twitter:card" content="summary_large_image" />
-      <meta name="twitter:title" content={seo.title} />
-      <meta name="twitter:description" content={seo.description} />
-      <meta name="twitter:image" content={ogImageUrl} />
-      <meta name="twitter:image:alt" content={imageAlt} />
-      
-      {/* Canonical URL */}
-      {canonicalPath && <link rel="canonical" href={canonicalUrl} />}
-      
-      {/* Additional Meta Tags */}
-      <meta name="robots" content="index, follow" />
-      <meta name="googlebot" content="index, follow" />
-      <meta name="language" content="English" />
-      <meta property="og:locale" content="en_US" />
-      <meta name="application-name" content="Netlab" />
-      <meta name="apple-mobile-web-app-title" content="Netlab" />
-      <meta name="theme-color" content="#0f172a" />
-      <meta name="format-detection" content="telephone=no" />
-      <meta name="twitter:domain" content={new URL(siteUrl).hostname} />
-    </Helmet>
-  );
+  if (!element.parentNode) {
+    element.setAttribute("name", name);
+    document.head.appendChild(element);
+  }
+
+  element.setAttribute("content", content);
+};
+
+const upsertMetaByProperty = (property: string, content: string) => {
+  const selector = `meta[property="${property}"]`;
+  const element =
+    document.head.querySelector<HTMLMetaElement>(selector) ??
+    document.createElement("meta");
+
+  if (!element.parentNode) {
+    element.setAttribute("property", property);
+    document.head.appendChild(element);
+  }
+
+  element.setAttribute("content", content);
+};
+
+const upsertLink = (rel: string, href: string) => {
+  const selector = `link[rel="${rel}"]`;
+  const element =
+    document.head.querySelector<HTMLLinkElement>(selector) ??
+    document.createElement("link");
+
+  if (!element.parentNode) {
+    element.setAttribute("rel", rel);
+    document.head.appendChild(element);
+  }
+
+  element.setAttribute("href", href);
+};
+
+const upsertJsonLd = (json: string) => {
+  const selector = 'script[type="application/ld+json"][data-seo-schema="true"]';
+  const element =
+    document.head.querySelector<HTMLScriptElement>(selector) ??
+    document.createElement("script");
+
+  if (!element.parentNode) {
+    element.setAttribute("type", "application/ld+json");
+    element.setAttribute("data-seo-schema", "true");
+    document.head.appendChild(element);
+  }
+
+  element.textContent = json;
+};
+
+export function SEO({ page }: SEOProps) {
+  useEffect(() => {
+    const seo = resolveSEOForPage(page);
+    const structuredData = buildStructuredDataJson(page);
+    const robotsValue = seo.noIndex
+      ? "noindex,nofollow,noarchive"
+      : "index,follow,max-snippet:-1,max-image-preview:large,max-video-preview:-1";
+
+    document.title = seo.title;
+    document.documentElement.lang = "en";
+
+    upsertMetaByName("description", seo.description);
+    upsertMetaByName("robots", robotsValue);
+    upsertMetaByName("googlebot", robotsValue);
+    upsertMetaByName("bingbot", robotsValue);
+    upsertMetaByName("application-name", siteName);
+    upsertMetaByName("apple-mobile-web-app-title", siteName);
+    upsertMetaByName("theme-color", "#050505");
+    upsertMetaByName("format-detection", "telephone=no");
+    upsertMetaByName("twitter:card", "summary_large_image");
+    upsertMetaByName("twitter:title", seo.title);
+    upsertMetaByName("twitter:description", seo.description);
+    upsertMetaByName("twitter:image", seo.ogImageUrl);
+    upsertMetaByName("twitter:image:alt", seo.imageAlt);
+    upsertMetaByProperty("og:type", "website");
+    upsertMetaByProperty("og:site_name", siteName);
+    upsertMetaByProperty("og:title", seo.title);
+    upsertMetaByProperty("og:description", seo.description);
+    upsertMetaByProperty("og:url", seo.canonicalUrl);
+    upsertMetaByProperty("og:image", seo.ogImageUrl);
+    upsertMetaByProperty("og:image:alt", seo.imageAlt);
+    upsertMetaByProperty("og:locale", "en_US");
+
+    upsertLink("canonical", seo.canonicalUrl);
+    upsertJsonLd(structuredData);
+  }, [page]);
+
+  return null;
 }

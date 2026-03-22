@@ -55,6 +55,10 @@ export const runtimeConfig = {
     port: readIntegerEnv("PORT", 8080, 1),
     trustProxy: readTrustProxyEnv("TRUST_PROXY", 1),
   },
+  seo: {
+    indexNowKey: process.env.INDEXNOW_KEY?.trim() || "",
+    siteUrl: process.env.VITE_SITE_URL?.trim() || "https://netlab.tools",
+  },
   rateLimits: {
     api: {
       windowMs: readIntegerEnv("API_RATE_LIMIT_WINDOW_MS", FIFTEEN_MINUTES, 1000),

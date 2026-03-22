@@ -1,92 +1,450 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;700&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 240 5.9% 10%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
-    --destructive: 0 84.2% 60.2%;
+    --background: 224 24% 7%;
+    --foreground: 210 40% 98%;
+    --card: 223 18% 10%;
+    --card-foreground: 210 40% 98%;
+    --popover: 223 18% 9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 0 0% 100%;
+    --primary-foreground: 224 33% 6%;
+    --secondary: 223 16% 14%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 222 15% 12%;
+    --muted-foreground: 217 10% 70%;
+    --accent: 219 15% 15%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 72% 52%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 5.9% 10%;
-    --radius: 0.5rem;
-  }
-
-  .dark {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 240 5.9% 10%;
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 240 4.9% 83.9%;
+    --border: 220 16% 18%;
+    --input: 220 16% 18%;
+    --ring: 194 72% 62%;
+    --radius: 1.4rem;
+    --netlab-glow: 194 72% 62%;
   }
 
   html {
     scroll-behavior: smooth;
+    color-scheme: dark;
   }
 
   body {
-    @apply antialiased;
+    @apply min-h-screen bg-background text-foreground antialiased;
+    font-family: "Space Grotesk", ui-sans-serif, sans-serif;
+    background:
+      radial-gradient(circle at 14% -8%, rgb(91 170 214 / 0.14), transparent 26%),
+      radial-gradient(circle at 82% 12%, rgb(111 118 184 / 0.1), transparent 24%),
+      linear-gradient(180deg, hsl(224 23% 9%) 0%, hsl(224 22% 6%) 56%, hsl(224 24% 5%) 100%);
   }
 
-  /* Improve focus styles */
   :focus-visible {
-    @apply outline-2 outline-offset-2 outline-primary;
+    @apply outline-2 outline-offset-2 outline-ring;
   }
 
-  /* Custom scrollbar */
   ::-webkit-scrollbar {
     @apply w-2;
   }
 
   ::-webkit-scrollbar-track {
-    @apply bg-muted/50;
+    @apply bg-transparent;
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-muted-foreground/20 rounded-full hover:bg-muted-foreground/30 transition-colors;
+    @apply rounded-full bg-foreground/15 hover:bg-foreground/25 transition-colors;
+  }
+}
+
+.netlab-ambient {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.netlab-ambient::before,
+.netlab-ambient::after {
+  content: "";
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(90px);
+}
+
+.netlab-ambient::before {
+  top: -12rem;
+  left: 12%;
+  width: 36rem;
+  height: 24rem;
+  background: radial-gradient(circle, rgb(96 173 214 / 0.13), transparent 70%);
+}
+
+.netlab-ambient::after {
+  right: 8%;
+  top: 18rem;
+  width: 26rem;
+  height: 26rem;
+  background: radial-gradient(circle, rgb(103 111 170 / 0.1), transparent 72%);
+}
+
+.netlab-grid {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgb(255 255 255 / 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 0.035) 1px, transparent 1px);
+  background-size: 120px 120px;
+  mask-image: linear-gradient(180deg, rgb(0 0 0 / 0.32), transparent 100%);
+  opacity: 0.18;
+  opacity: 0.1;
+  z-index: 0;
+}
+
+@layer utilities {
+  .glass-panel {
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / 0.06), rgb(255 255 255 / 0.018));
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.06),
+      0 20px 56px rgb(3 6 18 / 0.32);
+    backdrop-filter: blur(24px);
   }
 
-  /* Animation utilities */
-  .animate-in {
-    animation: animate-in 0.5s ease-out;
+  .floating-nav {
+    border: 1px solid rgb(255 255 255 / 0.08);
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / 0.055), rgb(255 255 255 / 0.022));
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.06),
+      0 16px 48px rgb(0 0 0 / 0.24);
+    backdrop-filter: blur(22px);
   }
 
-  @keyframes animate-in {
-    from {
-      opacity: 0;
-      transform: translateY(10px);
+  .hero-panel {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgb(255 255 255 / 0.08);
+    background:
+      radial-gradient(circle at top right, rgb(108 176 214 / 0.1), transparent 24%),
+      linear-gradient(180deg, rgb(255 255 255 / 0.055), rgb(255 255 255 / 0.02));
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.06),
+      0 24px 70px rgb(2 6 20 / 0.34);
+    backdrop-filter: blur(20px);
+  }
+
+  .hero-panel::after {
+    content: "";
+    position: absolute;
+    inset: auto -18% -30% auto;
+    width: 22rem;
+    height: 22rem;
+    border-radius: 999px;
+    background: radial-gradient(circle, rgb(104 114 170 / 0.09), transparent 68%);
+    filter: blur(24px);
+    pointer-events: none;
+  }
+
+  .home-hero {
+    border-top: 1px solid rgb(255 255 255 / 0.05);
+    border-bottom: 1px solid rgb(255 255 255 / 0.05);
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / 0.018), rgb(255 255 255 / 0.01)),
+      linear-gradient(180deg, rgb(9 12 20 / 0.72), rgb(7 10 17 / 0.5));
+  }
+
+  .home-hero-plane {
+    border: 1px solid rgb(255 255 255 / 0.08);
+    border-radius: calc(var(--radius) * 1.35);
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / 0.04), rgb(255 255 255 / 0.015));
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.05),
+      0 22px 54px rgb(3 6 18 / 0.2);
+    backdrop-filter: blur(18px);
+    padding: 1.5rem;
+  }
+
+  .home-search-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    border: 1px solid rgb(255 255 255 / 0.08);
+    border-radius: 999px;
+    background: rgb(255 255 255 / 0.03);
+    padding: 0.95rem 1rem;
+  }
+
+  .home-list-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    border: 1px solid rgb(255 255 255 / 0.06);
+    border-radius: calc(var(--radius) * 0.9);
+    background: rgb(255 255 255 / 0.02);
+    color: rgb(255 255 255 / 0.78);
+    padding: 1rem 1.1rem;
+    transition:
+      border-color 180ms ease,
+      background-color 180ms ease,
+      color 180ms ease,
+      transform 180ms ease;
+  }
+
+  .home-list-row:hover {
+    border-color: rgb(255 255 255 / 0.12);
+    background: rgb(255 255 255 / 0.04);
+    color: rgb(255 255 255 / 0.96);
+    transform: translateY(-1px);
+  }
+
+  .home-list-row-active {
+    background: rgb(255 255 255 / 0.92);
+    border-color: rgb(255 255 255 / 0.18);
+    color: rgb(18 22 33 / 0.96);
+  }
+
+  .home-list-icon,
+  .home-tool-icon {
+    display: flex;
+    height: 2.75rem;
+    width: 2.75rem;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgb(255 255 255 / 0.08);
+    border-radius: 1rem;
+    background: rgb(8 11 18 / 0.4);
+    color: rgb(181 219 235 / 0.92);
+    flex-shrink: 0;
+  }
+
+  .home-list-row-active .home-list-icon {
+    background: rgb(18 22 33 / 0.96);
+    color: white;
+    border-color: transparent;
+  }
+
+  .home-detail-panel {
+    border-left: 1px solid rgb(255 255 255 / 0.06);
+    padding-left: 1.75rem;
+  }
+
+  .home-tool-row {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+    border-bottom: 1px solid rgb(255 255 255 / 0.08);
+    padding: 1.3rem 0;
+    text-align: left;
+    transition:
+      color 180ms ease,
+      transform 180ms ease;
+  }
+
+  .home-tool-row:hover {
+    transform: translateX(4px);
+  }
+
+  .tool-card {
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.06),
+      0 16px 40px rgb(3 6 18 / 0.24);
+  }
+
+  .tool-grid {
+    display: grid;
+    gap: 1rem;
+    align-items: start;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tool-surface {
+    border: 1px solid rgb(255 255 255 / 0.08);
+    border-radius: calc(var(--radius) * 1.08);
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / 0.04), rgb(255 255 255 / 0.015));
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.05),
+      0 18px 42px rgb(3 6 18 / 0.2);
+    padding: 1.25rem;
+    min-width: 0;
+  }
+
+  @media (min-width: 640px) {
+    .tool-surface {
+      padding: 1.5rem;
     }
-    to {
-      opacity: 1;
-      transform: translateY(0);
+  }
+
+  .tool-surface-muted {
+    border: 1px solid rgb(255 255 255 / 0.06);
+    border-radius: calc(var(--radius) * 0.92);
+    background: rgb(255 255 255 / 0.025);
+    padding: 1rem;
+  }
+
+  .tool-eyebrow {
+    color: rgb(255 255 255 / 0.42);
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+  }
+
+  .tool-heading {
+    color: white;
+    font-size: 1.05rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+
+  .tool-copy {
+    color: rgb(255 255 255 / 0.62);
+    line-height: 1.75;
+  }
+
+  .tool-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    border: 1px solid rgb(255 255 255 / 0.08);
+    border-radius: 999px;
+    background: rgb(255 255 255 / 0.03);
+    color: rgb(255 255 255 / 0.6);
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.16em;
+    padding: 0.7rem 0.95rem;
+    text-transform: uppercase;
+  }
+
+  .tool-metric {
+    border: 1px solid rgb(255 255 255 / 0.08);
+    border-radius: calc(var(--radius) * 0.82);
+    background: rgb(255 255 255 / 0.025);
+    padding: 1rem;
+  }
+
+  .tool-metric-label {
+    color: rgb(255 255 255 / 0.42);
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  .tool-metric-value {
+    color: white;
+    font-size: 1.7rem;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+  }
+
+  .tool-divider {
+    border-top: 1px solid rgb(255 255 255 / 0.08);
+    margin-top: 1rem;
+    padding-top: 1rem;
+  }
+
+  .tool-list {
+    border: 1px solid rgb(255 255 255 / 0.08);
+    border-radius: calc(var(--radius) * 0.9);
+    background: rgb(255 255 255 / 0.02);
+    overflow: hidden;
+  }
+
+  .tool-list-row {
+    align-items: center;
+    border-top: 1px solid rgb(255 255 255 / 0.06);
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 0.95rem 1rem;
+  }
+
+  .tool-list-row:first-child {
+    border-top: none;
+  }
+
+  .tool-inline-guidance {
+    display: grid;
+    gap: 0.85rem;
+  }
+
+  @media (min-width: 768px) {
+    .tool-inline-guidance {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
+  }
+
+  @media (min-width: 1280px) {
+    .tool-inline-guidance {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  .workbench-header {
+    border: 1px solid rgb(255 255 255 / 0.08);
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / 0.045), rgb(255 255 255 / 0.018));
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.05),
+      0 16px 36px rgb(3 6 18 / 0.18);
+    backdrop-filter: blur(18px);
+  }
+
+  .workbench-route-chip {
+    align-items: center;
+    border: 1px solid rgb(255 255 255 / 0.08);
+    border-radius: 1rem;
+    background: rgb(255 255 255 / 0.025);
+    display: inline-flex;
+    gap: 0.9rem;
+    justify-content: space-between;
+    min-width: 10.5rem;
+    padding: 0.72rem 0.9rem;
+    transition:
+      border-color 180ms ease,
+      background-color 180ms ease,
+      transform 180ms ease;
+  }
+
+  .workbench-route-chip:hover {
+    background: rgb(255 255 255 / 0.04);
+    border-color: rgb(255 255 255 / 0.14);
+    transform: translateY(-1px);
+  }
+
+  .command-trigger {
+    border: 1px solid rgb(255 255 255 / 0.08);
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / 0.05), rgb(255 255 255 / 0.02));
+  }
+
+  .netlab-content {
+    @apply relative z-10;
+  }
+}
+
+@media (max-width: 1023px) {
+  .home-detail-panel {
+    border-left: none;
+    border-top: 1px solid rgb(255 255 255 / 0.06);
+    padding-left: 0;
+    padding-top: 1.5rem;
+  }
+
+  .home-tool-row {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }

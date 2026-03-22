@@ -121,6 +121,23 @@ docker compose down
 
 Compose uses `compose.yaml`, exposes the app on port `8080` by default, mounts `logs/` into the container, and includes a `/healthz` health check. If you want custom limits or a different port, copy `.env.example` to `.env` and adjust the values before starting the stack.
 
+## Search and AI Discovery
+
+Netlab now exposes discovery signals for both traditional search and AI-assisted search surfaces:
+
+- route-specific title, description, canonical URL, and JSON-LD in the initial HTML response
+- `robots.txt`, `sitemap.xml`, `llms.txt`, and `llms-full.txt` at the site root
+- `favicon.ico` plus PNG/SVG variants
+- optional IndexNow support for faster URL refresh on participating engines
+
+If you want freshness signals for Bing/Copilot-compatible crawlers, set `INDEXNOW_KEY` in `.env` and submit current sitemap URLs with:
+
+```bash
+pnpm run indexnow:submit
+```
+
+When `INDEXNOW_KEY` is configured, the server exposes the required key file at `/indexnow-key.txt`.
+
 ## API Versioning
 
 - Legacy endpoints remain available under `/api/*` for compatibility.

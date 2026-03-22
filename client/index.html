@@ -1,18 +1,26 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem("theme");
+          document.documentElement.classList.toggle("dark", t !== "light");
+        } catch (e) {
+          document.documentElement.classList.add("dark");
+        }
+      })();
+    </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Netlab provides fast online network tools for IP lookup, DNS records, DNS propagation, ping, subnet calculation, WHOIS, and safe public port checks." />
-    <meta name="keywords" content="network tools, DNS lookup, DNS propagation checker, IP lookup, subnet calculator, ping tool, WHOIS lookup, port scanner" />
-    <meta name="author" content="Netlab" />
-    <meta name="robots" content="index, follow" />
-    <meta name="theme-color" content="#0f172a" />
+    <meta name="description" content="__SEO_DESCRIPTION__" />
+    <meta name="robots" content="__SEO_ROBOTS__" />
+    <meta name="googlebot" content="__SEO_ROBOTS__" />
+    <meta name="bingbot" content="__SEO_ROBOTS__" />
+    <meta name="theme-color" content="#050505" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: 'unsafe-inline' 'unsafe-eval'; img-src 'self' https: data:;" />
     <meta http-equiv="X-Content-Type-Options" content="nosniff" />
-    <meta http-equiv="X-Frame-Options" content="SAMEORIGIN" />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
-    <meta http-equiv="content-language" content="en" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Netlab" />
@@ -20,75 +28,43 @@
     <meta name="format-detection" content="telephone=no" />
 
     <link rel="icon" type="image/svg+xml" sizes="any" href="/favicon.svg" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
     <link rel="manifest" href="/site.webmanifest" />
-    <meta name="msapplication-TileColor" content="#0f172a" />
+    <meta name="msapplication-TileColor" content="#050505" />
 
-    <link rel="canonical" href="https://netlab.tools/" />
+    <link rel="canonical" href="__SEO_CANONICAL__" />
 
-    <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://netlab.tools/" />
-    <meta property="og:title" content="Netlab | Online Network Diagnostics Toolkit" />
-    <meta property="og:description" content="Run IP, DNS, propagation, subnet, WHOIS, ping, and public port diagnostics from one focused toolkit." />
+    <meta property="og:type" content="__SEO_OG_TYPE__" />
+    <meta property="og:url" content="__SEO_CANONICAL__" />
+    <meta property="og:title" content="__SEO_TITLE__" />
+    <meta property="og:description" content="__SEO_DESCRIPTION__" />
     <meta property="og:site_name" content="Netlab" />
-    <meta property="og:image" content="https://netlab.tools/og-image.jpg" />
+    <meta property="og:image" content="__SEO_OG_IMAGE__" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="Netlab network diagnostics toolkit preview" />
+    <meta property="og:image:alt" content="__SEO_IMAGE_ALT__" />
+    <meta property="og:locale" content="en_US" />
 
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:url" content="https://netlab.tools/" />
-    <meta name="twitter:title" content="Netlab | Online Network Diagnostics Toolkit" />
-    <meta name="twitter:description" content="Fast network diagnostics for IP, DNS, propagation, ping, WHOIS, subnets, and public ports." />
-    <meta name="twitter:image" content="https://netlab.tools/og-image.jpg" />
-    <meta name="twitter:image:alt" content="Netlab network diagnostics toolkit preview" />
+    <meta name="twitter:url" content="__SEO_CANONICAL__" />
+    <meta name="twitter:title" content="__SEO_TITLE__" />
+    <meta name="twitter:description" content="__SEO_DESCRIPTION__" />
+    <meta name="twitter:image" content="__SEO_OG_IMAGE__" />
+    <meta name="twitter:image:alt" content="__SEO_IMAGE_ALT__" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,500&display=swap"
+      rel="stylesheet"
+    />
 
-    <title>Netlab | Online Network Diagnostics Toolkit</title>
+    <title>__SEO_TITLE__</title>
 
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@graph": [
-        {
-          "@type": "WebSite",
-          "@id": "https://netlab.tools/#website",
-          "url": "https://netlab.tools/",
-          "name": "Netlab",
-          "description": "Online network diagnostics toolkit for DNS, IP, subnet, ping, WHOIS, and public port checks.",
-          "inLanguage": "en"
-        },
-        {
-          "@type": "WebApplication",
-          "@id": "https://netlab.tools/#app",
-          "name": "Netlab",
-          "url": "https://netlab.tools/",
-          "applicationCategory": "NetworkingApplication",
-          "operatingSystem": "Any",
-          "browserRequirements": "Requires JavaScript",
-          "offers": {
-            "@type": "Offer",
-            "price": "0",
-            "priceCurrency": "USD"
-          },
-          "featureList": [
-            "IP lookup",
-            "DNS lookup",
-            "DNS propagation checker",
-            "Subnet calculator",
-            "Ping tool",
-            "WHOIS lookup",
-            "Public port scanner"
-          ]
-        }
-      ]
-    }
-    </script>
+    <script type="application/ld+json" data-seo-schema="true">__SEO_SCHEMA__</script>
   </head>
   <body>
     <div id="root"></div>

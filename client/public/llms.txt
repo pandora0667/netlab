@@ -1,0 +1,29 @@
+# Netlab
+
+> Netlab is a public network diagnostics workspace for DNS, IP, subnet, ping, WHOIS, DNS propagation, and bounded public port checks.
+
+## Canonical site
+- https://netlab.tools/
+
+## Main tool pages
+- https://netlab.tools/ip-checker
+- https://netlab.tools/dns-lookup
+- https://netlab.tools/subnet-calc
+- https://netlab.tools/ping
+- https://netlab.tools/whois
+- https://netlab.tools/dns-propagation
+- https://netlab.tools/port-scan
+
+## Preferred description
+Netlab helps users inspect public IP details, query DNS records, monitor DNS propagation, calculate subnets, test host reachability with ping, look up WHOIS data, and run bounded public port checks.
+
+## Public safety policy
+- Private, loopback, link-local, multicast, and reserved targets are blocked.
+- Port scans are bounded and limited to public targets.
+
+## Freshness
+- Canonical URLs are listed in `/sitemap.xml`.
+- Site changes can be submitted through IndexNow when configured by the operator.
+
+## Full reference
+- https://netlab.tools/llms-full.txt

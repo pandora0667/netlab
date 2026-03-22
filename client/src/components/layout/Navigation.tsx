@@ -1,253 +1,220 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import {
-  NavigationMenu,
-  NavigationMenuItem,
-  NavigationMenuList,
-  NavigationMenuContent,
-  NavigationMenuTrigger,
-} from "@/components/ui/navigation-menu";
 import { Button } from "@/components/ui/button";
-import { Menu, X } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useCommandPalette } from "@/components/layout/command-palette";
+import { useModKeyLabel } from "@/hooks/use-mod-key-label";
+import { commandPaletteGroups } from "@/lib/command-palette-items";
+import { ArrowUpRight, Command, Menu, Search, X } from "lucide-react";
 
-interface Tool {
-  href: string;
-  label: string;
-}
-
-const networkTools: Tool[] = [
-  { href: "/ip-checker", label: "IP Checker" },
-  { href: "/dns-lookup", label: "DNS Lookup" },
-  { href: "/subnet-calc", label: "Subnet Calculator" },
-  { href: "/ping", label: "Ping Tool" },
-  { href: "/whois", label: "WHOIS Lookup" },
-];
-
-const utilities: Tool[] = [
-  { href: "/dns-propagation", label: "DNS Propagation Checker" },
-  { href: "/port-scan", label: "Port Scanner" },
+const primaryNavItems = [
+  { href: "/", label: "Overview" },
+  { href: "/ip-checker", label: "IP" },
+  { href: "/dns-lookup", label: "DNS" },
+  { href: "/ping", label: "Ping" },
+  { href: "/http-inspector", label: "HTTP/TLS" },
+  { href: "/port-scan", label: "Ports" },
 ];
 
 export default function Navigation() {
   const [isOpen, setIsOpen] = useState(false);
   const [location] = useLocation();
+  const { setOpen: openCommandPalette } = useCommandPalette();
+  const mod = useModKeyLabel();
 
+  const allTools = commandPaletteGroups.flatMap((g) => g.items);
+  const desktopToolGroups = commandPaletteGroups.filter(
+    (group) => group.heading !== "General",
+  );
   const isActive = (href: string): boolean => location === href;
 
-  const handleMenuToggle = (): void => {
-    setIsOpen(!isOpen);
-  };
-
-  const handleNavigation = (): void => {
-    setIsOpen(false);
-  };
-
   return (
-    <header className="sticky top-0 z-50 border-b bg-gradient-to-r from-background to-muted backdrop-blur-sm" role="banner">
-      <div className="container mx-auto px-4">
-        <div className="flex items-center justify-between py-4">
-          <Link href="/" onClick={handleNavigation} className="text-2xl font-bold hover:text-primary transition-all duration-200">
-            <span aria-label="Netlab Home">Netlab</span>
+    <header
+      className="sticky top-0 z-50 px-4 pt-5 sm:px-6"
+      role="banner"
+    >
+      <div className="mx-auto flex max-w-7xl flex-col gap-3">
+        <div className="floating-nav flex items-center gap-2 rounded-full px-2 py-2">
+          <Link
+            href="/"
+            onClick={() => setIsOpen(false)}
+            className="nav-brand flex shrink-0 items-center gap-3 rounded-full px-4 py-2 text-sm font-semibold tracking-[0.02em] text-foreground transition-transform duration-200 hover:scale-[0.99]"
+          >
+            <span
+              className="flex h-9 w-9 items-center justify-center rounded-2xl border border-white/10 bg-white/10 text-[11px] font-semibold uppercase tracking-[0.28em] text-white shadow-[0_10px_30px_rgba(6,12,28,0.45)]"
+              aria-hidden
+            >
+              NL
+            </span>
+            <span className="flex flex-col leading-none" aria-label="Netlab Home">
+              <span className="font-['Space_Grotesk'] text-[0.95rem] font-bold tracking-[0.08em]">
+                NETLAB
+              </span>
+              <span className="text-[0.62rem] uppercase tracking-[0.26em] text-white/45">
+                command surface
+              </span>
+            </span>
           </Link>
 
-          {/* Mobile Menu Button */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="md:hidden"
-            onClick={handleMenuToggle}
-            aria-expanded={isOpen}
-            aria-label={isOpen ? "Close menu" : "Open menu"}
+          <nav
+            className="hidden flex-1 items-center justify-center gap-1 lg:flex"
+            aria-label="Primary"
           >
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={isOpen ? "close" : "menu"}
-                initial={{ rotate: -90, opacity: 0 }}
-                animate={{ rotate: 0, opacity: 1 }}
-                exit={{ rotate: 90, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-              >
-                {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-              </motion.div>
-            </AnimatePresence>
-          </Button>
-
-          {/* Desktop Navigation */}
-          <NavigationMenu className="hidden md:block">
-            <NavigationMenuList className="flex space-x-4">
-              <NavigationMenuItem>
-                <Link 
-                  href="/" 
-                  onClick={handleNavigation}
-                  className={`
-                    px-4 py-2 rounded-md text-sm font-medium transition-all duration-200
-                    hover:bg-accent hover:text-accent-foreground
-                    ${location === "/" ? 'bg-accent/50 text-accent-foreground' : ''}
-                  `}
-                  aria-current={location === "/" ? "page" : undefined}
+            {primaryNavItems.map((item) => {
+              const active = isActive(item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`rounded-full px-4 py-2 text-[0.78rem] font-medium tracking-[0.18em] uppercase transition-all duration-200 ${
+                    active
+                      ? "bg-white text-neutral-950 shadow-[0_12px_40px_rgba(255,255,255,0.16)]"
+                      : "text-white/62 hover:bg-white/6 hover:text-white"
+                  }`}
+                  aria-current={active ? "page" : undefined}
                 >
-                  Home
+                  {item.label}
                 </Link>
-              </NavigationMenuItem>
-              
-              <NavigationMenuItem>
-                <NavigationMenuTrigger aria-label="Network Tools">
-                  Network Tools
-                </NavigationMenuTrigger>
-                <NavigationMenuContent>
-                  <ul className="grid w-[300px] gap-2 p-4" role="menu">
-                    {networkTools.map((tool) => (
-                      <li key={tool.href} role="menuitem">
-                        <Link
-                          href={tool.href}
-                          onClick={handleNavigation}
-                          className={`
-                            block px-4 py-2 rounded-md text-sm font-medium transition-all duration-200
-                            hover:bg-accent hover:text-accent-foreground
-                            ${isActive(tool.href) ? 'bg-accent/50 text-accent-foreground' : ''}
-                          `}
-                          aria-current={isActive(tool.href) ? "page" : undefined}
-                        >
-                          {tool.label}
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                </NavigationMenuContent>
-              </NavigationMenuItem>
+              );
+            })}
+          </nav>
 
-              <NavigationMenuItem>
-                <NavigationMenuTrigger aria-label="Utilities">
-                  Utilities
-                </NavigationMenuTrigger>
-                <NavigationMenuContent>
-                  <ul className="grid w-[300px] gap-2 p-4" role="menu">
-                    {utilities.map((tool) => (
-                      <li key={tool.href} role="menuitem">
-                        <Link
-                          href={tool.href}
-                          onClick={handleNavigation}
-                          className={`
-                            block px-4 py-2 rounded-md text-sm font-medium transition-all duration-200
-                            hover:bg-accent hover:text-accent-foreground
-                            ${isActive(tool.href) ? 'bg-accent/50 text-accent-foreground' : ''}
-                          `}
-                          aria-current={isActive(tool.href) ? "page" : undefined}
-                        >
-                          {tool.label}
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                </NavigationMenuContent>
-              </NavigationMenuItem>
-            </NavigationMenuList>
-          </NavigationMenu>
+          <button
+            type="button"
+            onClick={() => openCommandPalette(true)}
+            className="command-trigger hidden min-h-11 min-w-[15rem] items-center gap-3 rounded-full px-4 py-2 text-left text-sm text-white/64 transition-colors hover:text-white xl:flex"
+            aria-label="Open command palette"
+          >
+            <Search className="h-4 w-4 shrink-0 opacity-80" aria-hidden />
+            <span className="truncate">Jump to a command, route, or tool</span>
+            <span className="ml-auto flex shrink-0 items-center gap-1">
+              <kbd className="rounded-md border border-white/10 bg-white/6 px-1.5 py-0.5 font-mono text-[10px] font-medium text-white/58">
+                {mod}
+              </kbd>
+              <kbd className="rounded-md border border-white/10 bg-white/6 px-1.5 py-0.5 font-mono text-[10px] font-medium text-white/58">
+                K
+              </kbd>
+            </span>
+          </button>
+
+          <div className="ml-auto flex items-center gap-1.5">
+            <a
+              href="https://github.com/pandora0667/netlab"
+              target="_blank"
+              rel="noreferrer"
+              className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/6 px-4 py-2 text-[0.72rem] font-semibold uppercase tracking-[0.22em] text-white/72 transition-colors hover:border-white/16 hover:bg-white/10 hover:text-white md:flex"
+            >
+              Source
+              <ArrowUpRight className="h-3.5 w-3.5" />
+            </a>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="rounded-full border border-white/10 bg-white/6 text-white hover:bg-white/10 md:hidden"
+              onClick={() => openCommandPalette(true)}
+              aria-label="Open command palette"
+            >
+              <Search className="h-5 w-5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="rounded-full border border-white/10 bg-white/6 text-white hover:bg-white/10 lg:hidden"
+              onClick={() => setIsOpen((o) => !o)}
+              aria-expanded={isOpen}
+              aria-label={isOpen ? "Close menu" : "Open menu"}
+            >
+              {isOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </Button>
+          </div>
         </div>
 
-        {/* Mobile Navigation */}
-        <AnimatePresence>
-          {isOpen && (
-            <motion.nav
-              className="md:hidden border-t"
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              role="navigation"
-              aria-label="Mobile navigation"
-            >
-              <div className="py-4">
-                <motion.div
-                  className="flex flex-col space-y-2"
-                  initial="closed"
-                  animate="open"
-                  variants={{
-                    open: {
-                      transition: { staggerChildren: 0.05 }
-                    },
-                    closed: {
-                      transition: { staggerChildren: 0.05, staggerDirection: -1 }
-                    }
-                  }}
-                >
-                  <motion.div
-                    variants={{
-                      open: { opacity: 1, y: 0 },
-                      closed: { opacity: 0, y: -10 }
-                    }}
-                  >
-                    <Link
-                      href="/"
-                      onClick={handleNavigation}
-                      className={`
-                        block px-4 py-2 rounded-md text-sm font-medium transition-all duration-200
-                        hover:bg-accent hover:text-accent-foreground
-                        ${location === "/" ? 'bg-accent/50 text-accent-foreground' : ''}
-                      `}
-                      aria-current={location === "/" ? "page" : undefined}
-                    >
-                      Home
-                    </Link>
-                  </motion.div>
+        <div className="hidden rounded-[1.6rem] border border-white/8 bg-white/[0.03] px-4 py-3 shadow-[0_24px_60px_rgba(0,0,0,0.25)] backdrop-blur-xl lg:block">
+          <div className="grid gap-4 xl:grid-cols-3">
+            {desktopToolGroups.map((group) => (
+              <div key={group.heading} className="space-y-2">
+                <p className="px-1 text-[0.66rem] uppercase tracking-[0.24em] text-white/38">
+                  {group.heading}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {group.items.map((tool) => {
+                    const active = isActive(tool.href);
 
-                  <div className="px-4 py-2">
-                    <h3 className="text-sm font-semibold text-muted-foreground mb-2">Network Tools</h3>
-                    {networkTools.map((tool) => (
-                      <motion.div
-                        key={tool.href}
-                        variants={{
-                          open: { opacity: 1, y: 0 },
-                          closed: { opacity: 0, y: -10 }
-                        }}
+                    return (
+                      <Link
+                        key={tool.id}
+                        href={tool.href}
+                        className={`group inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition-all ${
+                          active
+                            ? "border-white/18 bg-white text-neutral-950 shadow-[0_16px_35px_rgba(255,255,255,0.12)]"
+                            : "border-white/10 bg-black/20 text-white/70 hover:border-white/18 hover:bg-white/[0.06] hover:text-white"
+                        }`}
+                        aria-current={active ? "page" : undefined}
                       >
-                        <Link
-                          href={tool.href}
-                          onClick={handleNavigation}
-                          className={`
-                            block px-4 py-2 rounded-md text-sm font-medium transition-all duration-200
-                            hover:bg-accent hover:text-accent-foreground
-                            ${isActive(tool.href) ? 'bg-accent/50 text-accent-foreground' : ''}
-                          `}
-                          aria-current={isActive(tool.href) ? "page" : undefined}
-                        >
-                          {tool.label}
-                        </Link>
-                      </motion.div>
-                    ))}
-                  </div>
-
-                  <div className="px-4 py-2">
-                    <h3 className="text-sm font-semibold text-muted-foreground mb-2">Utilities</h3>
-                    {utilities.map((tool) => (
-                      <motion.div
-                        key={tool.href}
-                        variants={{
-                          open: { opacity: 1, y: 0 },
-                          closed: { opacity: 0, y: -10 }
-                        }}
-                      >
-                        <Link
-                          href={tool.href}
-                          onClick={handleNavigation}
-                          className={`
-                            block px-4 py-2 rounded-md text-sm font-medium transition-all duration-200
-                            hover:bg-accent hover:text-accent-foreground
-                            ${isActive(tool.href) ? 'bg-accent/50 text-accent-foreground' : ''}
-                          `}
-                          aria-current={isActive(tool.href) ? "page" : undefined}
-                        >
-                          {tool.label}
-                        </Link>
-                      </motion.div>
-                    ))}
-                  </div>
-                </motion.div>
+                        <span className="text-[0.64rem] uppercase tracking-[0.18em] text-current/55">
+                          {tool.category}
+                        </span>
+                        <span className="font-medium text-current">{tool.label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
               </div>
-            </motion.nav>
-          )}
-        </AnimatePresence>
+            ))}
+          </div>
+        </div>
+
+        {isOpen && (
+          <nav
+            className="glass-panel rounded-[2rem] border border-white/10 p-3 shadow-[0_30px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl lg:hidden"
+            role="navigation"
+            aria-label="Mobile navigation"
+          >
+            <div className="mb-3 flex items-center justify-between rounded-2xl border border-white/8 bg-white/5 px-4 py-3">
+              <div>
+                <p className="text-[0.68rem] uppercase tracking-[0.24em] text-white/45">
+                  Launcher
+                </p>
+                <p className="mt-1 text-sm font-medium text-white/88">
+                  Open any network command fast
+                </p>
+              </div>
+              <div className="flex items-center gap-1 rounded-full border border-white/10 bg-black/30 px-3 py-1.5 text-[0.68rem] uppercase tracking-[0.22em] text-white/58">
+                <Command className="h-3.5 w-3.5" />
+                {mod}
+              </div>
+            </div>
+            <ul className="flex max-h-[min(70vh,28rem)] flex-col gap-1 overflow-y-auto">
+              {allTools.map((tool) => (
+                <li key={tool.id}>
+                  <Link
+                    href={tool.href}
+                    onClick={() => setIsOpen(false)}
+                    className={`block rounded-[1.35rem] border px-4 py-3 text-sm font-medium transition-all ${
+                      isActive(tool.href)
+                        ? "border-white/16 bg-white text-neutral-950 shadow-[0_18px_45px_rgba(255,255,255,0.16)]"
+                        : "border-white/8 bg-white/[0.03] text-white/74 hover:border-white/14 hover:bg-white/[0.06] hover:text-white"
+                    }`}
+                    aria-current={isActive(tool.href) ? "page" : undefined}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-[0.68rem] uppercase tracking-[0.24em] text-current/55">
+                          {tool.category}
+                        </p>
+                        <p className="mt-1 text-sm font-medium text-current">
+                          {tool.label}
+                        </p>
+                      </div>
+                      <span className="rounded-full border border-current/10 bg-black/20 px-3 py-1 font-mono text-[0.68rem] text-current/72">
+                        {tool.commandHint}
+                      </span>
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        )}
       </div>
     </header>
   );

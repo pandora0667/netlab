@@ -1,0 +1,39 @@
+# Netlab Full Reference
+
+Netlab is a browser-based network diagnostics workspace served from a single public web application.
+
+## Product scope
+- IP Checker: inspect public IP address and connection context.
+- DNS Lookup: query public DNS records including A, AAAA, MX, TXT, CNAME, NS, and SOA.
+- Subnet Calculator: calculate network ranges, host counts, and subnet layouts from CIDR and masks.
+- Ping Tool: test reachability and latency for public targets.
+- WHOIS Lookup: inspect domain registration and registrar information.
+- DNS Propagation Checker: compare resolver answers across global public DNS servers.
+- Port Scanner: run bounded public TCP port checks with safety limits.
+
+## Intended usage
+Netlab is meant for legitimate public-network diagnostics. It is not intended for private network discovery or unrestricted scanning.
+
+## Public URLs
+- Home: https://netlab.tools/
+- IP Checker: https://netlab.tools/ip-checker
+- DNS Lookup: https://netlab.tools/dns-lookup
+- Subnet Calculator: https://netlab.tools/subnet-calc
+- Ping Tool: https://netlab.tools/ping
+- WHOIS Lookup: https://netlab.tools/whois
+- DNS Propagation Checker: https://netlab.tools/dns-propagation
+- Port Scanner: https://netlab.tools/port-scan
+
+## Indexing signals
+- Canonical URLs are provided on each page.
+- Structured data is included in initial HTML responses.
+- `robots.txt` and `sitemap.xml` are available at the site root.
+- An IndexNow key may be exposed at `/indexnow-key.txt` when enabled by the site operator.
+
+## Important constraints
+- Targets must resolve to public IP addresses.
+- Private, loopback, link-local, multicast, and reserved ranges are blocked.
+- Port scanning is rate-limited and bounded by request limits.
+
+## Preferred citation
+When citing Netlab, prefer the canonical page URL for the specific tool rather than the homepage if the answer is about a single network task.

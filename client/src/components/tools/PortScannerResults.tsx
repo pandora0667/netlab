@@ -16,7 +16,8 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { ScanResult, ScanSummary } from '@/domains/port-scan/model';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import type { ScanSummary } from '@/domains/port-scan/model';
 import { XCircle, CheckCircle, AlertCircle } from 'lucide-react';
 
 interface PortScannerResultsProps {
@@ -57,7 +58,7 @@ export function PortScannerResults({ summary, onClear, onExport }: PortScannerRe
       case 'Open':
         return <CheckCircle className="h-4 w-4 text-green-500" />;
       case 'Closed':
-        return <XCircle className="h-4 w-4 text-gray-500" />;
+        return <XCircle className="h-4 w-4 text-muted-foreground" />;
       case 'Filtered':
         return <AlertCircle className="h-4 w-4 text-red-500" />;
       case 'Open|Filtered':
@@ -70,22 +71,28 @@ export function PortScannerResults({ summary, onClear, onExport }: PortScannerRe
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Open':
-        return 'bg-green-100 text-green-800';
+        return 'border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200';
       case 'Closed':
-        return 'bg-gray-100 text-gray-800';
+        return 'border-border bg-muted/50 text-muted-foreground';
       case 'Filtered':
-        return 'bg-red-100 text-red-800';
+        return 'border-destructive/30 bg-destructive/10 text-destructive';
       case 'Open|Filtered':
-        return 'bg-amber-100 text-amber-800';
+        return 'border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200';
       default:
         return '';
     }
   };
 
+  const activeFilterTokens = [
+    showAllPorts ? "All ports" : "Open only",
+    portFilter ? `Port contains ${portFilter}` : null,
+    statusFilter !== 'All' ? `Status: ${statusFilter}` : null,
+  ].filter(Boolean) as string[];
+
   return (
-    <Card className="mt-4">
-      <CardHeader>
-        <CardTitle className="flex justify-between items-center">
+    <Card className="mt-4 border-border/60">
+      <CardHeader className="space-y-2 pb-4">
+        <CardTitle className="flex flex-col gap-3 text-base sm:flex-row sm:items-center sm:justify-between">
           <span>Scan Results</span>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => onExport('CSV')}>
@@ -99,13 +106,28 @@ export function PortScannerResults({ summary, onClear, onExport }: PortScannerRe
             </Button>
           </div>
         </CardTitle>
-        <div className="text-sm text-gray-500">
-          Summary: {summary.openPorts} open, {summary.uncertainPorts} uncertain, out of {summary.totalScanned} scanned
-        </div>
+        <p className="text-xs text-muted-foreground sm:text-sm">
+          {summary.openPorts} open · {summary.uncertainPorts} uncertain · {summary.totalScanned} scanned
+        </p>
       </CardHeader>
-      <CardContent>
+      <CardContent className="pt-0">
         <div className="space-y-4">
-          <div className="flex items-center space-x-4">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="tool-metric">
+              <p className="tool-metric-label">Open</p>
+              <p className="tool-metric-value">{summary.openPorts}</p>
+            </div>
+            <div className="tool-metric">
+              <p className="tool-metric-label">Uncertain</p>
+              <p className="tool-metric-value">{summary.uncertainPorts}</p>
+            </div>
+            <div className="tool-metric">
+              <p className="tool-metric-label">Scanned</p>
+              <p className="tool-metric-value">{summary.totalScanned}</p>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
             <div className="flex items-center space-x-2">
               <Switch
                 checked={showAllPorts}
@@ -121,9 +143,9 @@ export function PortScannerResults({ summary, onClear, onExport }: PortScannerRe
               className="w-48"
             />
             <select
-              className="border rounded p-2"
+              className="h-9 rounded-md border border-input bg-background px-2 text-sm shadow-sm"
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as any)}
+              onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
             >
               <option value="All">All Status</option>
               <option value="Open">Open</option>
@@ -133,30 +155,46 @@ export function PortScannerResults({ summary, onClear, onExport }: PortScannerRe
             </select>
           </div>
 
-          <div className="space-y-2">
-            {filteredResults.map((result) => (
-              <TooltipProvider key={`${result.port}-${result.protocol}`}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="flex items-center space-x-2 p-2 border rounded hover:bg-gray-50">
-                      {getStatusIcon(result.status)}
-                      <span className="font-mono">Port {result.port}</span>
-                      <Badge variant="secondary">{result.protocol}</Badge>
-                      <Badge className={getStatusColor(result.status)}>
-                        {result.status}
-                      </Badge>
-                      {result.service && (
-                        <span className="text-gray-600">{result.service}</span>
-                      )}
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>{result.description || `Port ${result.port} (${result.protocol})`}</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+          <div className="flex flex-wrap gap-2">
+            {activeFilterTokens.map((token) => (
+              <span
+                key={token}
+                className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[0.72rem] font-mono uppercase tracking-[0.16em] text-white/58"
+              >
+                {token}
+              </span>
             ))}
+            <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[0.72rem] font-mono uppercase tracking-[0.16em] text-white/58">
+              Showing {filteredResults.length}
+            </span>
           </div>
+
+          <ScrollArea className="h-[min(34rem,66vh)] rounded-[1.1rem] border border-white/8 bg-black/10">
+            <div className="space-y-2 p-3">
+              {filteredResults.map((result) => (
+                <TooltipProvider key={`${result.port}-${result.protocol}`}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex items-center space-x-2 rounded-lg border border-border/60 p-2 transition-colors hover:bg-muted/40">
+                        {getStatusIcon(result.status)}
+                        <span className="font-mono">Port {result.port}</span>
+                        <Badge variant="secondary">{result.protocol}</Badge>
+                        <Badge variant="outline" className={getStatusColor(result.status)}>
+                          {result.status}
+                        </Badge>
+                        {result.service && (
+                          <span className="text-muted-foreground">{result.service}</span>
+                        )}
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{result.description || `Port ${result.port} (${result.protocol})`}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ))}
+            </div>
+          </ScrollArea>
         </div>
       </CardContent>
     </Card>

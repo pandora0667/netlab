@@ -12,11 +12,13 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
-import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { lookupWhois } from "@/domains/network/api";
 import type { WhoisLookupResult } from "@/domains/network/types";
+import { SEO } from "../SEO";
+import { ToolPageShell } from "@/components/layout/ToolPageShell";
+import { Database, FileSearch } from "lucide-react";
 
 export default function WhoisLookup() {
   const [results, setResults] = useState<WhoisLookupResult | null>(null);
@@ -59,57 +61,96 @@ export default function WhoisLookup() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="text-center">
-        <h2 className="text-2xl font-semibold">WHOIS Lookup</h2>
-        <p className="text-muted-foreground">
-          Get registration information for domains and IP addresses
-        </p>
-      </div>
-
-      <Card className="p-6">
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="domain"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Domain or IP Address</FormLabel>
-                  <FormControl>
-                    <Input 
-                      placeholder="example.com or IP address" 
-                      {...field} 
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? "Looking up..." : "Lookup"}
-            </Button>
-          </form>
-        </Form>
-
-        {error && (
-          <Alert variant="destructive" className="mt-4">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
-        {results && (
-          <div className="mt-4">
-            <h3 className="font-medium mb-2">WHOIS Information:</h3>
-            <ScrollArea className="h-[400px] rounded border p-4">
-              <div className="font-mono text-sm">
-                {formatWhoisData(results.data)}
+    <>
+      <SEO page="whoisLookup" />
+      <ToolPageShell
+        title="WHOIS"
+        description="Inspect registration and contact metadata for a domain or IP address."
+      >
+        <div className="tool-grid">
+          <section className="tool-surface space-y-6">
+            <div className="space-y-3">
+              <span className="tool-kicker">
+                <Database className="h-3.5 w-3.5" />
+                Registration context
+              </span>
+              <div className="space-y-2">
+                <p className="tool-heading">Pull the raw ownership and registrar record for a domain or IP.</p>
+                <p className="tool-copy">
+                  WHOIS is best when you need the unfiltered response: registrar,
+                  name servers, status codes, and registration timestamps in one place.
+                </p>
               </div>
-            </ScrollArea>
-          </div>
-        )}
-      </Card>
-    </div>
+            </div>
+
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="domain"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Domain or IP address</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="example.com or 8.8.8.8"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className="flex flex-wrap gap-3">
+                  <Button type="submit" disabled={isLoading}>
+                    {isLoading ? "Looking up..." : "Run WHOIS"}
+                  </Button>
+                  <div className="tool-kicker">Examples: openai.com, 1.1.1.1</div>
+                </div>
+              </form>
+            </Form>
+
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            {results ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <FileSearch className="h-4 w-4 text-white/56" />
+                  <p className="tool-eyebrow">Raw WHOIS response</p>
+                </div>
+                <ScrollArea className="h-[min(28rem,52vh)] rounded-[1.2rem] border border-white/8 bg-black/20 p-3 sm:p-4">
+                  <div className="font-mono text-xs leading-relaxed text-white/78 sm:text-sm">
+                    {formatWhoisData(results.data)}
+                  </div>
+                </ScrollArea>
+              </div>
+            ) : null}
+          </section>
+
+          <aside className="tool-surface space-y-4">
+            <div className="space-y-2">
+              <p className="tool-eyebrow">When to use it</p>
+              <p className="tool-heading">Treat WHOIS as source material, not a polished summary.</p>
+            </div>
+            <div className="space-y-3 text-sm text-white/66">
+              <div className="tool-surface-muted">
+                Use it to confirm registrar, status locks, and delegation history.
+              </div>
+              <div className="tool-surface-muted">
+                Expect raw formatting and registry-specific differences across TLDs.
+              </div>
+              <div className="tool-surface-muted">
+                Pair it with DNS Lookup when you need record state plus registration context.
+              </div>
+            </div>
+          </aside>
+        </div>
+      </ToolPageShell>
+    </>
   );
 }

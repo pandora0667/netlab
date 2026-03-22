@@ -327,4 +327,43 @@ describe("API routes", () => {
     assertErrorEnvelope(payload);
     assert.equal(payload.error.code, "INVALID_DNS_PROPAGATION_REQUEST");
   });
+
+  it("returns a standardized error for non-public v1 trace targets", async () => {
+    const response = await request("/api/v1/network/traces", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        host: "127.0.0.1",
+        maxHops: 6,
+        timeoutMs: 2000,
+      }),
+    });
+
+    assert.equal(response.status, 400);
+    const payload = await response.json();
+
+    assertErrorEnvelope(payload);
+    assert.equal(payload.error.code, "PUBLIC_TARGET_REQUIRED");
+  });
+
+  it("returns a standardized error for non-public v1 HTTP inspection targets", async () => {
+    const response = await request("/api/v1/network/http-inspections", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        input: "http://127.0.0.1",
+        timeoutMs: 2000,
+      }),
+    });
+
+    assert.equal(response.status, 400);
+    const payload = await response.json();
+
+    assertErrorEnvelope(payload);
+    assert.equal(payload.error.code, "PUBLIC_TARGET_REQUIRED");
+  });
 });

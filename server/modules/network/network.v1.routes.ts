@@ -10,7 +10,9 @@ import {
 import { PublicTargetError } from "../../src/lib/public-targets.js";
 import { sendError, sendSuccess } from "../../common/http/api-response.js";
 import {
+  httpInspectionRequestSchema,
   subnetRequestSchema,
+  traceRequestSchema,
   whoisLookupSchema,
 } from "./network.contract.js";
 
@@ -118,6 +120,85 @@ router.post("/whois-lookups", async (req, res) => {
     return sendError(res, 500, {
       code: "WHOIS_LOOKUP_FAILED",
       message: error instanceof Error ? error.message : "WHOIS lookup failed",
+    });
+  }
+});
+
+router.post("/traces", async (req, res) => {
+  try {
+    const request = traceRequestSchema.parse(req.body);
+    const trace = await networkService.trace(request.host, {
+      maxHops: request.maxHops,
+      timeoutMs: request.timeoutMs,
+    });
+    return sendSuccess(res, trace);
+  } catch (error) {
+    if (error instanceof PublicTargetError) {
+      abuseLogger.warn("Blocked trace target", {
+        feature: "trace-v1",
+        ip: req.ip,
+        requestId: res.locals.requestId,
+        host: typeof req.body?.host === "string" ? req.body.host : undefined,
+        reason: error.message,
+      });
+
+      return sendError(res, error.statusCode, {
+        code: "PUBLIC_TARGET_REQUIRED",
+        message: error.message,
+      });
+    }
+
+    if (error instanceof z.ZodError) {
+      return sendError(res, 400, {
+        code: "INVALID_TRACE_REQUEST",
+        message: "Invalid trace request",
+        details: error.errors,
+      });
+    }
+
+    return sendError(res, 500, {
+      code: "TRACE_FAILED",
+      message: error instanceof Error ? error.message : "Trace failed",
+    });
+  }
+});
+
+router.post("/http-inspections", async (req, res) => {
+  try {
+    const request = httpInspectionRequestSchema.parse(req.body);
+    const inspection = await networkService.inspectHttp(request.input, {
+      timeoutMs: request.timeoutMs,
+    });
+    return sendSuccess(res, inspection);
+  } catch (error) {
+    if (error instanceof PublicTargetError) {
+      abuseLogger.warn("Blocked HTTP inspection target", {
+        feature: "http-inspection-v1",
+        ip: req.ip,
+        requestId: res.locals.requestId,
+        input: typeof req.body?.input === "string" ? req.body.input : undefined,
+        reason: error.message,
+      });
+
+      return sendError(res, error.statusCode, {
+        code: "PUBLIC_TARGET_REQUIRED",
+        message: error.message,
+      });
+    }
+
+    if (error instanceof z.ZodError) {
+      return sendError(res, 400, {
+        code: "INVALID_HTTP_INSPECTION_REQUEST",
+        message: "Invalid HTTP inspection request",
+        details: error.errors,
+      });
+    }
+
+    return sendError(res, 500, {
+      code: "HTTP_INSPECTION_FAILED",
+      message: error instanceof Error
+        ? error.message
+        : "HTTP inspection failed",
     });
   }
 });
