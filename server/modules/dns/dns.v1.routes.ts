@@ -4,9 +4,11 @@ import { abuseLogger } from "../../lib/logger.js";
 import { dnsLimiter } from "../../middleware/rateLimit.js";
 import { sendError, sendSuccess } from "../../common/http/api-response.js";
 import { isPublicIPAddress } from "../../../shared/network/ip.js";
+import { ConcurrencyLimitError } from "../../src/lib/concurrency-gate.js";
 import { dnsServerValidationService } from "./dns-server-validation.service.js";
 import { dnsLookupService } from "./dns-lookup.service.js";
 import { DNSError } from "./dns-resolver.service.js";
+import { dnsLookupGate } from "./dns-lookup.gate.js";
 import {
   dnsLookupRequestSchema,
   dnsServerValidationSchema,
@@ -16,8 +18,11 @@ const router = Router();
 router.use(dnsLimiter);
 
 router.post("/lookups", async (req, res) => {
+  let releaseLookup = () => {};
+
   try {
     const request = dnsLookupRequestSchema.parse(req.body);
+    releaseLookup = dnsLookupGate.acquire(req.ip || "unknown");
     const response = await dnsLookupService.lookup(request.domain, request.servers);
 
     return sendSuccess(res, {
@@ -56,10 +61,19 @@ router.post("/lookups", async (req, res) => {
       });
     }
 
+    if (error instanceof ConcurrencyLimitError) {
+      return sendError(res, error.statusCode, {
+        code: "DNS_LOOKUP_LIMIT_REACHED",
+        message: error.message,
+      });
+    }
+
     return sendError(res, 500, {
       code: "DNS_LOOKUP_FAILED",
       message: error instanceof Error ? error.message : "DNS lookup failed",
     });
+  } finally {
+    releaseLookup();
   }
 });
 

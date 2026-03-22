@@ -10,6 +10,7 @@ import {
   DNS_RESOLVER_TIMEOUT_MS,
 } from "./dns.contract.js";
 import type { DNSQueryOptions, DNSResult } from "./dns.types.js";
+import { withTimeout } from "../../src/lib/async-utils.js";
 
 export class DNSError extends Error {
   constructor(
@@ -23,19 +24,13 @@ export class DNSError extends Error {
 }
 
 export class DNSResolver extends EventEmitter {
-  private readonly resolver: dns.Resolver;
   private readonly timeout: number;
   private readonly maxRetries: number;
 
   constructor(options: DNSQueryOptions = {}) {
     super();
-    this.resolver = new dns.Resolver();
     this.timeout = options.timeout ?? DNS_RESOLVER_TIMEOUT_MS;
     this.maxRetries = options.retries ?? DNS_RESOLVER_RETRIES;
-
-    if (options.servers) {
-      this.resolver.setServers(options.servers);
-    }
   }
 
   async validateDNSServerConnection(serverIP: string): Promise<void> {
@@ -63,18 +58,12 @@ export class DNSResolver extends EventEmitter {
       const resolver = new dns.Resolver();
       resolver.setServers([normalizedServerIP]);
 
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new DNSError(
-          `DNS server ${normalizedServerIP} did not respond within ${this.timeout}ms`,
-          "TIMEOUT",
-          408,
-        )), this.timeout);
-      });
-
-      await Promise.race([
+      await withTimeout(
         resolver.resolve("google.com", "A"),
-        timeoutPromise,
-      ]);
+        this.timeout,
+        `DNS server ${normalizedServerIP} did not respond within ${this.timeout}ms`,
+        () => resolver.cancel(),
+      );
 
       this.emit("serverValidated", {
         server: normalizedServerIP,
@@ -114,12 +103,7 @@ export class DNSResolver extends EventEmitter {
     try {
       this.emit("queryStart", { domain, recordType, server, attempt });
 
-      const records = await Promise.race([
-        this.performQuery(domain, recordType),
-        new Promise((_, reject) => {
-          setTimeout(() => reject(new Error("Query timeout")), this.timeout);
-        }),
-      ]) as unknown[];
+      const records = await this.performQuery(domain, recordType, server);
 
       return {
         recordType,
@@ -138,24 +122,73 @@ export class DNSResolver extends EventEmitter {
     }
   }
 
-  private async performQuery(domain: string, recordType: string): Promise<unknown[]> {
+  private async performQuery(
+    domain: string,
+    recordType: string,
+    server: string,
+  ): Promise<unknown[]> {
+    const resolver = new dns.Resolver();
+    resolver.setServers([server]);
+
     switch (recordType) {
       case "A":
-        return this.resolver.resolve4(domain);
+        return withTimeout(
+          resolver.resolve4(domain),
+          this.timeout,
+          "Query timeout",
+          () => resolver.cancel(),
+        );
       case "AAAA":
-        return this.resolver.resolve6(domain);
+        return withTimeout(
+          resolver.resolve6(domain),
+          this.timeout,
+          "Query timeout",
+          () => resolver.cancel(),
+        );
       case "MX":
-        return this.resolver.resolveMx(domain);
+        return withTimeout(
+          resolver.resolveMx(domain),
+          this.timeout,
+          "Query timeout",
+          () => resolver.cancel(),
+        );
       case "NS":
-        return this.resolver.resolveNs(domain);
+        return withTimeout(
+          resolver.resolveNs(domain),
+          this.timeout,
+          "Query timeout",
+          () => resolver.cancel(),
+        );
       case "TXT":
-        return this.resolver.resolveTxt(domain);
+        return withTimeout(
+          resolver.resolveTxt(domain),
+          this.timeout,
+          "Query timeout",
+          () => resolver.cancel(),
+        );
       case "CNAME":
-        return this.resolver.resolveCname(domain);
+        return withTimeout(
+          resolver.resolveCname(domain),
+          this.timeout,
+          "Query timeout",
+          () => resolver.cancel(),
+        );
       case "SOA":
-        return [await this.resolver.resolveSoa(domain)];
+        return [
+          await withTimeout(
+            resolver.resolveSoa(domain),
+            this.timeout,
+            "Query timeout",
+            () => resolver.cancel(),
+          ),
+        ];
       case "PTR":
-        return this.resolver.resolvePtr(domain);
+        return withTimeout(
+          resolver.resolvePtr(domain),
+          this.timeout,
+          "Query timeout",
+          () => resolver.cancel(),
+        );
       default:
         throw new Error(`Unsupported record type: ${recordType}`);
     }
@@ -175,8 +208,6 @@ export class DNSResolver extends EventEmitter {
     }));
 
     for (const server of servers) {
-      this.resolver.setServers([server]);
-
       try {
         const serverResults = await Promise.all(recordTypes.map(async (recordType) => {
           try {

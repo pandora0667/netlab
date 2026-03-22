@@ -86,6 +86,8 @@ export interface HttpTlsInspectionResult {
   contentType: string | null;
   protocol: string | null;
   tlsVersion: string | null;
+  tlsAuthorized: boolean | null;
+  tlsAuthorizationError: string | null;
   certificate: HttpTlsCertificate | null;
   timestamp: number;
 }

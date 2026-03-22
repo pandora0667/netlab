@@ -7,6 +7,7 @@ import type { NetworkIpInfo } from "./network.types.js";
 const IP_INFO_REQUEST_TIMEOUT_MS = 5_000;
 const IP_INFO_USER_AGENT = "Netlab/1.0";
 const UNKNOWN_IP_INFO_VALUE = "Unknown";
+const IP_INFO_CACHE_TTL_MS = 5 * 60 * 1000;
 
 interface IpInfoProvider {
   name: string;
@@ -84,14 +85,47 @@ async function fetchProviderPayload(url: string): Promise<unknown> {
 }
 
 class IpInfoService {
+  private readonly cache = new Map<string, {
+    value: NetworkIpInfo;
+    expiresAt: number;
+  }>();
+
+  private getCached(ip: string): NetworkIpInfo | null {
+    const cached = this.cache.get(ip);
+    if (!cached) {
+      return null;
+    }
+
+    if (cached.expiresAt <= Date.now()) {
+      this.cache.delete(ip);
+      return null;
+    }
+
+    return cached.value;
+  }
+
+  private setCached(ip: string, value: NetworkIpInfo) {
+    this.cache.set(ip, {
+      value,
+      expiresAt: Date.now() + IP_INFO_CACHE_TTL_MS,
+    });
+  }
+
   async getIPInfo(ip: string): Promise<NetworkIpInfo> {
     const normalizedIP = normalizeIPAddress(ip);
+    const cached = this.getCached(normalizedIP);
+
+    if (cached) {
+      return cached;
+    }
 
     if (!isPublicIPAddress(normalizedIP)) {
-      return {
+      const privateResult = {
         ip: normalizedIP,
         ...PRIVATE_IP_INFO,
       };
+      this.setCached(normalizedIP, privateResult);
+      return privateResult;
     }
 
     for (const provider of IP_INFO_PROVIDERS) {
@@ -100,6 +134,7 @@ class IpInfoService {
         const transformedPayload = provider.transform(payload, normalizedIP);
 
         if (transformedPayload) {
+          this.setCached(normalizedIP, transformedPayload);
           return transformedPayload;
         }
       } catch {
@@ -107,7 +142,9 @@ class IpInfoService {
       }
     }
 
-    return createUnknownIpInfo(normalizedIP);
+    const fallbackValue = createUnknownIpInfo(normalizedIP);
+    this.setCached(normalizedIP, fallbackValue);
+    return fallbackValue;
   }
 }
 

@@ -11,6 +11,16 @@ import type {
 const DEFAULT_HTTP_TIMEOUT_MS = 5_000;
 const MAX_HTTP_TIMEOUT_MS = 10_000;
 const MAX_HTTP_REDIRECTS = 5;
+const HTTP_AGENT = new http.Agent({
+  keepAlive: true,
+  maxSockets: 50,
+  maxFreeSockets: 10,
+});
+const HTTPS_AGENT = new https.Agent({
+  keepAlive: true,
+  maxSockets: 50,
+  maxFreeSockets: 10,
+});
 
 function normalizeInspectorUrl(input: string): URL {
   const normalizedInput = input.startsWith("http://") || input.startsWith("https://")
@@ -63,7 +73,10 @@ function performRequest(url: URL, timeoutMs: number) {
     status: number;
     headers: Record<string, string>;
     location: string | null;
-    socket: TLSSocket | undefined;
+    tlsVersion: string | null;
+    tlsAuthorized: boolean | null;
+    tlsAuthorizationError: string | null;
+    certificate: HttpTlsCertificate | null;
   }>((resolve, reject) => {
     const client = url.protocol === "https:" ? https : http;
     const request = client.request(
@@ -71,19 +84,34 @@ function performRequest(url: URL, timeoutMs: number) {
       {
         method: "GET",
         timeout: timeoutMs,
+        agent: url.protocol === "https:" ? HTTPS_AGENT : HTTP_AGENT,
+        ...(url.protocol === "https:" ? { rejectUnauthorized: false } : {}),
         headers: {
           "user-agent": "Netlab HTTP Inspector",
           accept: "*/*",
         },
       },
       (response) => {
+        const tlsSocket = response.socket instanceof TLSSocket
+          ? response.socket
+          : undefined;
+        const tlsVersion = tlsSocket?.getProtocol() || null;
+        const tlsAuthorized = tlsSocket ? tlsSocket.authorized : null;
+        const tlsAuthorizationError = tlsSocket?.authorizationError
+          ? String(tlsSocket.authorizationError)
+          : null;
+        const certificate = parseCertificate(tlsSocket);
+
         response.resume();
         response.on("end", () => {
           resolve({
             status: response.statusCode || 0,
             headers: toHeaderRecord(response.headers),
             location: response.headers.location || null,
-            socket: response.socket instanceof TLSSocket ? response.socket : undefined,
+            tlsVersion,
+            tlsAuthorized,
+            tlsAuthorizationError,
+            certificate,
           });
         });
       },
@@ -117,7 +145,10 @@ class HttpInspectorService {
           status: number;
           headers: Record<string, string>;
           location: string | null;
-          socket: TLSSocket | undefined;
+          tlsVersion: string | null;
+          tlsAuthorized: boolean | null;
+          tlsAuthorizationError: string | null;
+          certificate: HttpTlsCertificate | null;
         }
       | undefined;
 
@@ -161,8 +192,10 @@ class HttpInspectorService {
       server: lastResponse.headers.server || null,
       contentType: lastResponse.headers["content-type"] || null,
       protocol: currentUrl.protocol,
-      tlsVersion: lastResponse.socket?.getProtocol() || null,
-      certificate: parseCertificate(lastResponse.socket),
+      tlsVersion: lastResponse.tlsVersion,
+      tlsAuthorized: lastResponse.tlsAuthorized,
+      tlsAuthorizationError: lastResponse.tlsAuthorizationError,
+      certificate: lastResponse.certificate,
       timestamp: Date.now(),
     };
   }

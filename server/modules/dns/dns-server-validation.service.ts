@@ -4,6 +4,7 @@ import {
   PublicTargetError,
 } from "../../src/lib/public-targets.js";
 import type { DnsServerValidationResult } from "./dns.types.js";
+import { withTimeout } from "../../src/lib/async-utils.js";
 
 const DNS_SERVER_VALIDATION_TIMEOUT_MS = 5_000;
 const DNS_SERVER_VALIDATION_DOMAINS = [
@@ -16,16 +17,12 @@ async function resolveWithTimeout(
   resolver: Resolver,
   domain: string,
 ): Promise<void> {
-  await Promise.race([
+  await withTimeout(
     resolver.resolve4(domain).then(() => undefined),
-    new Promise<never>((_, reject) => {
-      setTimeout(() => {
-        reject(new Error(
-          `DNS server validation timed out after ${DNS_SERVER_VALIDATION_TIMEOUT_MS}ms`,
-        ));
-      }, DNS_SERVER_VALIDATION_TIMEOUT_MS);
-    }),
-  ]);
+    DNS_SERVER_VALIDATION_TIMEOUT_MS,
+    `DNS server validation timed out after ${DNS_SERVER_VALIDATION_TIMEOUT_MS}ms`,
+    () => resolver.cancel(),
+  );
 }
 
 class DnsServerValidationService {

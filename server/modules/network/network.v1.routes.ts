@@ -8,6 +8,7 @@ import {
   normalizePingOptions,
 } from "../../src/lib/network-validation.js";
 import { PublicTargetError } from "../../src/lib/public-targets.js";
+import { ConcurrencyLimitError } from "../../src/lib/concurrency-gate.js";
 import { sendError, sendSuccess } from "../../common/http/api-response.js";
 import {
   httpInspectionRequestSchema,
@@ -15,6 +16,7 @@ import {
   traceRequestSchema,
   whoisLookupSchema,
 } from "./network.contract.js";
+import { httpInspectionGate, traceGate, whoisGate } from "./network.gates.js";
 
 const router = Router();
 
@@ -104,8 +106,11 @@ router.post("/pings", pingLimiter, async (req, res) => {
 });
 
 router.post("/whois-lookups", async (req, res) => {
+  let releaseLookup = () => {};
+
   try {
     const request = whoisLookupSchema.parse(req.body);
+    releaseLookup = whoisGate.acquire(req.ip || "unknown");
     const whoisData = await networkService.whoisLookup(request.domain);
     return sendSuccess(res, whoisData);
   } catch (error) {
@@ -117,16 +122,28 @@ router.post("/whois-lookups", async (req, res) => {
       });
     }
 
+    if (error instanceof ConcurrencyLimitError) {
+      return sendError(res, error.statusCode, {
+        code: "WHOIS_LOOKUP_LIMIT_REACHED",
+        message: error.message,
+      });
+    }
+
     return sendError(res, 500, {
       code: "WHOIS_LOOKUP_FAILED",
       message: error instanceof Error ? error.message : "WHOIS lookup failed",
     });
+  } finally {
+    releaseLookup();
   }
 });
 
 router.post("/traces", async (req, res) => {
+  let releaseTrace = () => {};
+
   try {
     const request = traceRequestSchema.parse(req.body);
+    releaseTrace = traceGate.acquire(req.ip || "unknown");
     const trace = await networkService.trace(request.host, {
       maxHops: request.maxHops,
       timeoutMs: request.timeoutMs,
@@ -156,16 +173,28 @@ router.post("/traces", async (req, res) => {
       });
     }
 
+    if (error instanceof ConcurrencyLimitError) {
+      return sendError(res, error.statusCode, {
+        code: "TRACE_LIMIT_REACHED",
+        message: error.message,
+      });
+    }
+
     return sendError(res, 500, {
       code: "TRACE_FAILED",
       message: error instanceof Error ? error.message : "Trace failed",
     });
+  } finally {
+    releaseTrace();
   }
 });
 
 router.post("/http-inspections", async (req, res) => {
+  let releaseInspection = () => {};
+
   try {
     const request = httpInspectionRequestSchema.parse(req.body);
+    releaseInspection = httpInspectionGate.acquire(req.ip || "unknown");
     const inspection = await networkService.inspectHttp(request.input, {
       timeoutMs: request.timeoutMs,
     });
@@ -194,12 +223,21 @@ router.post("/http-inspections", async (req, res) => {
       });
     }
 
+    if (error instanceof ConcurrencyLimitError) {
+      return sendError(res, error.statusCode, {
+        code: "HTTP_INSPECTION_LIMIT_REACHED",
+        message: error.message,
+      });
+    }
+
     return sendError(res, 500, {
       code: "HTTP_INSPECTION_FAILED",
       message: error instanceof Error
         ? error.message
         : "HTTP inspection failed",
     });
+  } finally {
+    releaseInspection();
   }
 });
 

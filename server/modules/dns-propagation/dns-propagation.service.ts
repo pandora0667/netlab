@@ -4,6 +4,8 @@ import { Resolver } from "node:dns/promises";
 import path from "node:path";
 import { parse } from "csv-parse/sync";
 import logger from "../../lib/logger.js";
+import { runtimeConfig } from "../../config/runtime.js";
+import { mapWithConcurrency, withTimeout } from "../../src/lib/async-utils.js";
 
 interface DNSServer {
   country_code: string;
@@ -49,6 +51,8 @@ const DNS_SERVER_DATA_PATHS = [
   path.resolve(process.cwd(), "server/data", DNS_SERVERS_FILE_NAME),
   path.resolve(process.cwd(), "data", DNS_SERVERS_FILE_NAME),
 ];
+const DNS_PROPAGATION_QUERY_TIMEOUT_MS = runtimeConfig.limits.dnsPropagationQueryTimeoutMs;
+const DNS_PROPAGATION_QUERY_CONCURRENCY = runtimeConfig.limits.dnsPropagationQueryConcurrency;
 
 const REGIONS: RegionMapping = {
   "All Regions": ["*"],
@@ -126,16 +130,47 @@ export class DNSPropagationService extends EventEmitter {
 
     try {
       const [ipv4Records, ipv6Records] = await Promise.allSettled([
-        resolver.resolve4(domain, { ttl: true }),
-        resolver.resolve6(domain, { ttl: true }),
+        withTimeout(
+          resolver.resolve4(domain, { ttl: true }),
+          DNS_PROPAGATION_QUERY_TIMEOUT_MS,
+          `DNS propagation query timed out after ${DNS_PROPAGATION_QUERY_TIMEOUT_MS}ms`,
+          () => resolver.cancel(),
+        ),
+        withTimeout(
+          resolver.resolve6(domain, { ttl: true }),
+          DNS_PROPAGATION_QUERY_TIMEOUT_MS,
+          `DNS propagation query timed out after ${DNS_PROPAGATION_QUERY_TIMEOUT_MS}ms`,
+          () => resolver.cancel(),
+        ),
       ]);
 
       const records = [
         ...(ipv4Records.status === 'fulfilled' ? ipv4Records.value : []),
         ...(ipv6Records.status === 'fulfilled' ? ipv6Records.value : []),
       ];
+      const errors = [
+        ipv4Records.status === "rejected" ? ipv4Records.reason : null,
+        ipv6Records.status === "rejected" ? ipv6Records.reason : null,
+      ].filter(Boolean);
 
       const latency = Date.now() - startTime;
+      if (records.length === 0) {
+        const result = {
+          requestId,
+          server,
+          response: "",
+          error: errors[0] instanceof Error
+            ? errors[0].message
+            : "No DNS records returned",
+          latency,
+          status: "error" as const,
+          timestamp: Date.now(),
+        };
+
+        this.emit('queryResult', result);
+        return result;
+      }
+
       const response = records.map((record) => {
         if ("address" in record) {
           return `${record.address} (TTL: ${record.ttl})`;
@@ -168,6 +203,8 @@ export class DNSPropagationService extends EventEmitter {
 
       this.emit('queryResult', result);
       return result;
+    } finally {
+      resolver.cancel();
     }
   }
 
@@ -190,8 +227,10 @@ export class DNSPropagationService extends EventEmitter {
     const totalQueries = filteredServers.length;
     let completedQueries = 0;
 
-    const results = await Promise.all(
-      filteredServers.map(async (server) => {
+    const results = await mapWithConcurrency(
+      filteredServers,
+      DNS_PROPAGATION_QUERY_CONCURRENCY,
+      async (server) => {
         const result = await this.queryDNS(server, domain, requestId);
         completedQueries += 1;
 
@@ -203,7 +242,7 @@ export class DNSPropagationService extends EventEmitter {
         } satisfies DNSQueryProgress);
 
         return result;
-      })
+      },
     );
 
     this.emit('queryComplete', {

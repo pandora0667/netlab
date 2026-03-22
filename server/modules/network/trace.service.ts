@@ -7,67 +7,64 @@ const DEFAULT_TRACE_MAX_HOPS = 8;
 const MAX_TRACE_TIMEOUT_MS = 5_000;
 const MAX_TRACE_HOPS = 16;
 
-function resolveTraceTtlFlag() {
-  return process.platform === "darwin" ? "-m" : "-t";
-}
-
-function parseResponder(output: string): string | null {
-  const destinationMatch = output.match(/bytes from\s+([^\s:]+)/i);
-  if (destinationMatch) {
-    return destinationMatch[1];
+function parseTracerouteLine(line: string, targetIp: string): TraceHop | null {
+  const trimmedLine = line.trim();
+  if (!trimmedLine) {
+    return null;
   }
 
-  const ttlExceededMatch = output.match(/from\s+([^\s:]+).*time to live exceeded/i);
-  if (ttlExceededMatch) {
-    return ttlExceededMatch[1];
+  const hopMatch = trimmedLine.match(/^(\d+)\s+(.*)$/);
+  if (!hopMatch) {
+    return null;
   }
 
-  return null;
-}
+  const hop = Number.parseInt(hopMatch[1], 10);
+  const rest = hopMatch[2].trim();
 
-function parseLatency(output: string): number | null {
-  const latencyMatch = output.match(/time[=<]?\s*([0-9.]+)\s*ms/i);
-  return latencyMatch ? Number.parseFloat(latencyMatch[1]) : null;
-}
-
-function buildHop(hop: number, output: string): TraceHop {
-  const responder = parseResponder(output);
-  const latencyMs = parseLatency(output);
-  const reachedTarget = /bytes from/i.test(output) && !/time to live exceeded/i.test(output);
-
-  if (responder) {
+  if (!rest || rest === "*") {
     return {
       hop,
-      responder,
-      latencyMs,
-      status: reachedTarget ? "destination" : "hop",
-      reachedTarget,
+      responder: null,
+      latencyMs: null,
+      status: "timeout",
+      reachedTarget: false,
     };
   }
 
+  const responderMatch = rest.match(/([^\s(]+)(?:\s+\(([^)]+)\))?/);
+  const latencyMatch = rest.match(/([0-9.]+)\s*ms/i);
+  const responder = responderMatch?.[2] || responderMatch?.[1] || null;
+  const latencyMs = latencyMatch ? Number.parseFloat(latencyMatch[1]) : null;
+  const reachedTarget = responder === targetIp;
+
   return {
     hop,
-    responder: null,
-    latencyMs: null,
-    status: "timeout",
-    reachedTarget: false,
+    responder,
+    latencyMs,
+    status: reachedTarget ? "destination" : "hop",
+    reachedTarget,
   };
 }
 
-async function runSingleHopProbe(
+async function runTracerouteCommand(
   target: string,
   timeoutMs: number,
-  ttl: number,
+  maxHops: number,
 ): Promise<string> {
-  const ttlFlag = resolveTraceTtlFlag();
   const timeoutSeconds = Math.max(1, Math.ceil(timeoutMs / 1000));
-  const args =
-    process.platform === "darwin"
-      ? ["-c", "1", ttlFlag, String(ttl), "-W", String(timeoutMs), target]
-      : ["-c", "1", ttlFlag, String(ttl), "-W", String(timeoutSeconds), target];
+  const args = [
+    "-n",
+    "-m",
+    String(maxHops),
+    "-w",
+    String(timeoutSeconds),
+    "-q",
+    "1",
+    target,
+  ];
 
   return new Promise((resolve, reject) => {
-    const pingProcess = spawn("ping", args, { shell: false });
+    const traceProcess = spawn("traceroute", args, { shell: false });
     let stdout = "";
     let stderr = "";
     let settled = false;
@@ -78,19 +75,19 @@ async function runSingleHopProbe(
       }
 
       settled = true;
-      pingProcess.kill("SIGTERM");
-      resolve("");
-    }, timeoutMs + 1_000);
+      traceProcess.kill("SIGTERM");
+      reject(new Error(`Trace timed out after ${timeoutMs}ms`));
+    }, timeoutSeconds * 1000 * Math.max(1, maxHops) + 1_000);
 
-    pingProcess.stdout.on("data", (chunk) => {
+    traceProcess.stdout.on("data", (chunk) => {
       stdout += chunk.toString();
     });
 
-    pingProcess.stderr.on("data", (chunk) => {
+    traceProcess.stderr.on("data", (chunk) => {
       stderr += chunk.toString();
     });
 
-    pingProcess.on("error", (error) => {
+    traceProcess.on("error", (error) => {
       if (settled) {
         return;
       }
@@ -100,7 +97,7 @@ async function runSingleHopProbe(
       reject(error);
     });
 
-    pingProcess.on("close", () => {
+    traceProcess.on("close", () => {
       if (settled) {
         return;
       }
@@ -126,17 +123,11 @@ class TraceService {
       Math.max(1, options?.maxHops ?? DEFAULT_TRACE_MAX_HOPS),
     );
     const { resolvedTarget } = await resolvePublicTarget(host, "Trace target");
-    const hops: TraceHop[] = [];
-
-    for (let hop = 1; hop <= maxHops; hop += 1) {
-      const output = await runSingleHopProbe(resolvedTarget, timeoutMs, hop);
-      const parsedHop = buildHop(hop, output);
-      hops.push(parsedHop);
-
-      if (parsedHop.reachedTarget) {
-        break;
-      }
-    }
+    const output = await runTracerouteCommand(resolvedTarget, timeoutMs, maxHops);
+    const hops = output
+      .split("\n")
+      .map((line) => parseTracerouteLine(line, resolvedTarget))
+      .filter((hop): hop is TraceHop => Boolean(hop));
 
     return {
       host,

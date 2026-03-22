@@ -1,3 +1,4 @@
+import net from "node:net";
 import { z } from "zod";
 
 const NETWORK_ADDRESS_REQUIRED_MESSAGE = "networkAddress is required";
@@ -25,7 +26,13 @@ const legacySubnetRequestSchema = z.object({
 });
 
 export const whoisLookupSchema = z.object({
-  domain: z.string().trim().min(1, DOMAIN_REQUIRED_MESSAGE),
+  domain: z.string()
+    .trim()
+    .min(1, DOMAIN_REQUIRED_MESSAGE)
+    .refine(
+      (value) => net.isIP(value) !== 0 || /^([a-zA-Z0-9-]+\.)*[a-zA-Z0-9-]+\.[a-zA-Z]{2,}$/.test(value),
+      "WHOIS target must be a valid public IP address or hostname",
+    ),
 });
 
 export const traceRequestSchema = z.object({

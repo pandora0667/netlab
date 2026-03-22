@@ -53,6 +53,19 @@ function buildInspectorGuidance(
     });
   }
 
+  if (result.protocol === "https:" && result.tlsAuthorized === false) {
+    items.push({
+      title: "The TLS certificate chain did not verify cleanly.",
+      detail:
+        result.tlsAuthorizationError
+          ? `The connection negotiated TLS, but verification reported: ${result.tlsAuthorizationError}.`
+          : "The connection negotiated TLS, but the certificate chain did not verify cleanly.",
+      nextStep:
+        "Check the served certificate chain and intermediate certificates on the public edge.",
+      tone: "warn",
+    });
+  }
+
   if (typeof expiresInDays === "number" && expiresInDays >= 0 && expiresInDays <= 30) {
     items.push({
       title: "The TLS certificate is approaching expiry.",
@@ -213,6 +226,11 @@ export default function HttpTlsInspector() {
                       <p className="mt-3 text-xl font-semibold text-white">
                         {result.tlsVersion ?? "Unavailable"}
                       </p>
+                      {result.tlsAuthorized === false ? (
+                        <p className="mt-2 text-sm text-amber-200">
+                          Verification warning
+                        </p>
+                      ) : null}
                     </div>
                     <div className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] p-4">
                       <p className="text-[0.68rem] uppercase tracking-[0.22em] text-white/38">
@@ -234,6 +252,14 @@ export default function HttpTlsInspector() {
                         <p><span className="text-white/42">Issuer:</span> {result.certificate?.issuer ?? "n/a"}</p>
                         <p><span className="text-white/42">Valid to:</span> {result.certificate?.validTo ?? "n/a"}</p>
                         <p><span className="text-white/42">Days left:</span> {result.certificate?.expiresInDays ?? "n/a"}</p>
+                        <p>
+                          <span className="text-white/42">Verification:</span>{" "}
+                          {result.tlsAuthorized == null
+                            ? "n/a"
+                            : result.tlsAuthorized
+                              ? "Trusted"
+                              : result.tlsAuthorizationError ?? "Verification failed"}
+                        </p>
                       </div>
                     </div>
 
