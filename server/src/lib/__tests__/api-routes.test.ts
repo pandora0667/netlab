@@ -61,6 +61,9 @@ describe("API routes", () => {
 
     assert.equal(payload.status, "ok");
     assert.equal(typeof payload.uptime, "number");
+    assert.equal(typeof payload.buildSha, "string");
+    assert.equal(typeof payload.buildRef, "string");
+    assert.equal(typeof payload.builtAt, "string");
     assert.equal(typeof payload.requestId, "string");
   });
 

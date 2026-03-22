@@ -29,6 +29,8 @@ pipeline {
 
         WATCHTOWER_URL = 'http://192.168.11.134:18081'
         WATCHTOWER_TOKEN = credentials('nangman-netlab-watchtower-token')
+        APP_HEALTH_URL = 'http://192.168.11.134:8080/healthz'
+        DEPLOY_TIMEOUT_SECONDS = '180'
 
         DOCKER_BUILDKIT = '1'
         DOCKER_CLI_EXPERIMENTAL = 'enabled'
@@ -58,6 +60,11 @@ pipeline {
                         script: 'git fetch --tags --force >/dev/null 2>&1 || true; git tag --points-at HEAD | head -n 1',
                         returnStdout: true
                     ).trim()
+                    env.BUILD_TIMESTAMP = sh(
+                        script: 'date -u +%Y-%m-%dT%H:%M:%SZ',
+                        returnStdout: true
+                    ).trim()
+                    env.BUILD_REF = env.GIT_REF ?: 'refs/heads/main'
 
                     currentBuild.displayName = "#${env.BUILD_NUMBER} ${env.SHORT_SHA}"
                     currentBuild.description = env.EXACT_GIT_TAG
@@ -65,7 +72,7 @@ pipeline {
                         : "main -> sha-${env.SHORT_SHA}"
 
                     echo "Repository: ${env.REPO_URL ?: 'configured SCM'}"
-                    echo "Branch ref: ${env.GIT_REF ?: 'manual or SCM-triggered build'}"
+                    echo "Branch ref: ${env.BUILD_REF}"
                     echo "Image repository: ${env.IMAGE_REPO}"
                     echo "Image tags: latest, sha-${env.SHORT_SHA}${env.EXACT_GIT_TAG ? ", ${env.EXACT_GIT_TAG}" : ''}"
                 }
@@ -108,6 +115,9 @@ pipeline {
 
                             docker buildx build \\
                                 --platform ${env.PLATFORMS} \\
+                                --build-arg APP_BUILD_SHA=${env.SHORT_SHA} \\
+                                --build-arg APP_BUILD_REF=${env.BUILD_REF} \\
+                                --build-arg APP_BUILD_TIME=${env.BUILD_TIMESTAMP} \\
                                 ${tagArgs.join(' \\\n                                ')} \\
                                 --cache-from type=registry,ref=${env.IMAGE_CACHE} \\
                                 --cache-to type=registry,ref=${env.IMAGE_CACHE},mode=max \\
@@ -170,6 +180,32 @@ pipeline {
                         echo "Response: $body"
                         exit 1
                     fi
+                '''
+            }
+        }
+
+        stage('Verify Deployment') {
+            steps {
+                sh '''
+                    deadline=$(( $(date +%s) + $DEPLOY_TIMEOUT_SECONDS ))
+
+                    while [ "$(date +%s)" -lt "$deadline" ]; do
+                        body=$(curl -fsS "$APP_HEALTH_URL" || true)
+
+                        if [ -n "$body" ]; then
+                            echo "Health response: $body"
+
+                            if echo "$body" | grep -q "\"buildSha\":\"$SHORT_SHA\""; then
+                                echo "Deployment verified at $APP_HEALTH_URL"
+                                exit 0
+                            fi
+                        fi
+
+                        sleep 5
+                    done
+
+                    echo "Deployment verification timed out after ${DEPLOY_TIMEOUT_SECONDS}s"
+                    exit 1
                 '''
             }
         }

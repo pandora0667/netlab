@@ -27,7 +27,14 @@ RUN pnpm run build && pnpm prune --prod
 
 FROM base AS runtime
 
+ARG APP_BUILD_SHA=dev
+ARG APP_BUILD_REF=local
+ARG APP_BUILD_TIME=
+
 ENV NODE_ENV=production
+ENV APP_BUILD_SHA="${APP_BUILD_SHA}"
+ENV APP_BUILD_REF="${APP_BUILD_REF}"
+ENV APP_BUILD_TIME="${APP_BUILD_TIME}"
 
 COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/node_modules ./node_modules
@@ -36,6 +43,10 @@ COPY --from=build /app/server/data ./server/data
 COPY --from=build /app/.env.example ./.env.example
 
 RUN mkdir -p logs
+
+LABEL org.opencontainers.image.revision="${APP_BUILD_SHA}"
+LABEL org.opencontainers.image.ref.name="${APP_BUILD_REF}"
+LABEL org.opencontainers.image.created="${APP_BUILD_TIME}"
 
 EXPOSE 8080
 

@@ -14,6 +14,16 @@ function readIntegerEnv(name: string, fallback: number, minimum = 1): number {
   return parsedValue;
 }
 
+function readStringEnv(name: string, fallback = ""): string {
+  const rawValue = process.env[name];
+
+  if (!rawValue) {
+    return fallback;
+  }
+
+  return rawValue.trim() || fallback;
+}
+
 function readTrustProxyEnv(
   name: string,
   fallback: boolean | number | string | string[],
@@ -58,6 +68,11 @@ export const runtimeConfig = {
   seo: {
     indexNowKey: process.env.INDEXNOW_KEY?.trim() || "",
     siteUrl: process.env.VITE_SITE_URL?.trim() || "https://netlab.tools",
+  },
+  build: {
+    sha: readStringEnv("APP_BUILD_SHA", "dev"),
+    ref: readStringEnv("APP_BUILD_REF", "local"),
+    builtAt: readStringEnv("APP_BUILD_TIME", ""),
   },
   rateLimits: {
     api: {

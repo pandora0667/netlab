@@ -64,6 +64,9 @@ export function createApp(options: CreateAppOptions = {}) {
     res.json({
       status: "ok",
       uptime: process.uptime(),
+      buildSha: runtimeConfig.build.sha,
+      buildRef: runtimeConfig.build.ref,
+      builtAt: runtimeConfig.build.builtAt,
       timestamp: Date.now(),
       requestId: res.locals.requestId,
     });
@@ -75,6 +78,9 @@ export function createApp(options: CreateAppOptions = {}) {
       env: app.get("env"),
       port: runtimeConfig.server.port,
       trustProxy: runtimeConfig.server.trustProxy,
+      buildSha: runtimeConfig.build.sha,
+      buildRef: runtimeConfig.build.ref,
+      builtAt: runtimeConfig.build.builtAt,
       requestId: res.locals.requestId,
     });
   });

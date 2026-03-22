@@ -274,6 +274,7 @@ The root `Jenkinsfile` assumes:
 - Harbor registry: `harbor.nangman.cloud/library`
 - image name: `netlab`
 - Watchtower HTTP API: `http://192.168.11.134:18081/v1/update`
+- application health endpoint: `http://192.168.11.134:8080/healthz`
 - Watchtower Jenkins credential ID: `nangman-netlab-watchtower-token`
 - Generic Webhook Trigger token: `nangman-netlab-trigger`
 
@@ -292,6 +293,9 @@ The included `docker-compose.yaml` is now aligned with this deployment model:
 - `netlab` runs from `NETLAB_IMAGE` and defaults to `harbor.nangman.cloud/library/netlab:latest`
 - Watchtower only updates containers labeled for the `netlab` scope
 - the Watchtower API listens on `${WATCHTOWER_PORT:-18081}` to avoid clashing with the application on `8080`
+- the application container receives the runtime limit and logging env vars explicitly, so `.env` tuning is reflected in the running process
+
+The deployment pipeline now embeds build metadata in the image and verifies rollout by polling `/healthz` until the reported `buildSha` matches the freshly built image.
 
 The webhook filter only accepts pushes for the repository `pandora0667/netlab` on `refs/heads/main`.
 
