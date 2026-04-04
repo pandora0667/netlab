@@ -1,8 +1,25 @@
 export type SiteNavigationGroup = "Overview" | "Tools";
+export type TechnicalLayerKey =
+  | "overview"
+  | "identity"
+  | "addressing"
+  | "dns"
+  | "connectivity"
+  | "service"
+  | "controlPlane"
+  | "exposure";
+
+export interface TechnicalLayerDefinition {
+  key: TechnicalLayerKey;
+  label: string;
+  description: string;
+  shortLabel: string;
+}
 
 export interface SitePaletteDefinition {
   id: string;
   group: SiteNavigationGroup;
+  layer: TechnicalLayerKey;
   label: string;
   description: string;
   keywords?: string[];
@@ -24,6 +41,57 @@ export interface SitePageCatalogDefinition {
   palette?: SitePaletteDefinition;
 }
 
+export const technicalLayerCatalog = [
+  {
+    key: "overview",
+    label: "Overview",
+    shortLabel: "Overview",
+    description: "Start at the launchpad, switch layers quickly, and move into the right diagnostic surface.",
+  },
+  {
+    key: "identity",
+    label: "Identity",
+    shortLabel: "Identity",
+    description: "Confirm public identity, ownership, and registration context before deeper diagnostics.",
+  },
+  {
+    key: "addressing",
+    label: "Addressing",
+    shortLabel: "Addressing",
+    description: "Plan networks, verify masks, and reason about address boundaries and host capacity.",
+  },
+  {
+    key: "dns",
+    label: "DNS",
+    shortLabel: "DNS",
+    description: "Inspect resolver truth, delegation rollout, and global answer drift across the naming layer.",
+  },
+  {
+    key: "connectivity",
+    label: "Connectivity",
+    shortLabel: "Path",
+    description: "Measure reachability, latency, and hop-by-hop path behavior before assuming service failure.",
+  },
+  {
+    key: "service",
+    label: "Service Edge",
+    shortLabel: "Service",
+    description: "Inspect HTTP, TLS, and security posture where applications meet the public internet.",
+  },
+  {
+    key: "controlPlane",
+    label: "Control Plane",
+    shortLabel: "Control",
+    description: "Validate routing, authority, dual-stack parity, and edge policy from an operator point of view.",
+  },
+  {
+    key: "exposure",
+    label: "Exposure",
+    shortLabel: "Exposure",
+    description: "Review bounded surface area and externally reachable services without private-network discovery.",
+  },
+] as const satisfies readonly TechnicalLayerDefinition[];
+
 export const sitePageCatalog = {
   home: {
     path: "/",
@@ -36,6 +104,7 @@ export const sitePageCatalog = {
     palette: {
       id: "home",
       group: "Overview",
+      layer: "overview",
       label: "Home",
       description: "Return to the main diagnostics launchpad.",
       keywords: ["start", "dashboard"],
@@ -57,6 +126,7 @@ export const sitePageCatalog = {
     palette: {
       id: "ip-checker",
       group: "Tools",
+      layer: "identity",
       label: "IP Checker",
       description: "Inspect public IP, region, and ISP metadata.",
       keywords: ["public", "address", "geo"],
@@ -78,6 +148,7 @@ export const sitePageCatalog = {
     palette: {
       id: "dns-lookup",
       group: "Tools",
+      layer: "dns",
       label: "DNS Lookup",
       description: "Query and compare DNS records across resolvers.",
       keywords: ["record", "a", "mx", "txt"],
@@ -99,6 +170,7 @@ export const sitePageCatalog = {
     palette: {
       id: "subnet-calc",
       group: "Tools",
+      layer: "addressing",
       label: "Subnet Calculator",
       description: "Calculate CIDR ranges, masks, and host counts.",
       keywords: ["cidr", "mask", "network"],
@@ -106,6 +178,7 @@ export const sitePageCatalog = {
       commandHint: "inspect subnet",
       accent: "CIDR Math",
       useCase: "Use for network planning, mask conversion, and host capacity checks.",
+      primaryNavLabel: "Subnet",
     },
   },
   pingTool: {
@@ -119,6 +192,7 @@ export const sitePageCatalog = {
     palette: {
       id: "ping",
       group: "Tools",
+      layer: "connectivity",
       label: "Ping",
       description: "Measure latency and reachability over ICMP or TCP.",
       keywords: ["latency", "icmp", "connectivity"],
@@ -140,6 +214,7 @@ export const sitePageCatalog = {
     palette: {
       id: "trace",
       group: "Tools",
+      layer: "connectivity",
       label: "Trace Route",
       description: "Trace the public path hop by hop and spot where delay begins.",
       keywords: ["traceroute", "hops", "route", "path"],
@@ -161,6 +236,7 @@ export const sitePageCatalog = {
     palette: {
       id: "network-engineering",
       group: "Tools",
+      layer: "controlPlane",
       label: "Network Engineering",
       description: "Inspect routing state, DNS authority, dual-stack parity, and path MTU.",
       keywords: ["bgp", "rpki", "authority", "ipv6", "mtu"],
@@ -168,6 +244,7 @@ export const sitePageCatalog = {
       commandHint: "inspect control plane",
       accent: "Operator Depth",
       useCase: "Best when you need control-plane and dual-stack context, not just host reachability.",
+      primaryNavLabel: "Engineering",
     },
   },
   httpInspector: {
@@ -181,6 +258,7 @@ export const sitePageCatalog = {
     palette: {
       id: "http-inspector",
       group: "Tools",
+      layer: "service",
       label: "HTTP/TLS Inspector",
       description: "Inspect redirects, headers, TLS versions, and certificate health.",
       keywords: ["tls", "https", "headers", "certificate"],
@@ -202,6 +280,7 @@ export const sitePageCatalog = {
     palette: {
       id: "website-security",
       group: "Tools",
+      layer: "service",
       label: "Website Security",
       description: "Score website security posture across HTTP, TLS, and DNS controls.",
       keywords: ["headers", "security.txt", "caa", "dnssec"],
@@ -209,6 +288,7 @@ export const sitePageCatalog = {
       commandHint: "score website posture",
       accent: "Security Grade",
       useCase: "Use when you want an explainable website posture score instead of raw header output.",
+      primaryNavLabel: "Web Security",
     },
   },
   whoisLookup: {
@@ -222,6 +302,7 @@ export const sitePageCatalog = {
     palette: {
       id: "whois",
       group: "Tools",
+      layer: "identity",
       label: "WHOIS",
       description: "Inspect registration metadata for domains and IPs.",
       keywords: ["domain", "registration", "registrar"],
@@ -229,6 +310,7 @@ export const sitePageCatalog = {
       commandHint: "inspect whois",
       accent: "Registration Data",
       useCase: "Useful for registrar, delegation, and registration context.",
+      primaryNavLabel: "WHOIS",
     },
   },
   emailSecurity: {
@@ -242,6 +324,7 @@ export const sitePageCatalog = {
     palette: {
       id: "email-security",
       group: "Tools",
+      layer: "service",
       label: "Email Security",
       description: "Inspect SPF, DMARC, DKIM heuristics, MX posture, and STARTTLS.",
       keywords: ["spf", "dmarc", "dkim", "mx", "starttls"],
@@ -249,6 +332,7 @@ export const sitePageCatalog = {
       commandHint: "check mail posture",
       accent: "Mail Controls",
       useCase: "Best when mail deliverability or transport security feels incomplete.",
+      primaryNavLabel: "Email",
     },
   },
   dnsPropagation: {
@@ -262,6 +346,7 @@ export const sitePageCatalog = {
     palette: {
       id: "dns-propagation",
       group: "Tools",
+      layer: "dns",
       label: "DNS Propagation",
       description: "Compare answers from resolvers around the world.",
       keywords: ["nameserver", "global", "resolve"],
@@ -269,6 +354,7 @@ export const sitePageCatalog = {
       commandHint: "watch propagation",
       accent: "Global Nodes",
       useCase: "Use after changing records and waiting for global resolver convergence.",
+      primaryNavLabel: "Propagation",
     },
   },
   portScanner: {
@@ -282,6 +368,7 @@ export const sitePageCatalog = {
     palette: {
       id: "port-scan",
       group: "Tools",
+      layer: "exposure",
       label: "Port Scanner",
       description: "Scan exposed ports on an approved public target.",
       keywords: ["tcp", "open", "ports"],
@@ -289,6 +376,7 @@ export const sitePageCatalog = {
       commandHint: "scan tcp ports",
       accent: "Attack Surface",
       useCase: "Use when you need a bounded view of externally reachable services.",
+      primaryNavLabel: "Port Scan",
     },
   },
   notFound: {
@@ -315,6 +403,7 @@ export type PaletteSitePageKey = {
 export type PaletteSitePageEntry = {
   [K in PaletteSitePageKey]: SitePageEntry<K>;
 }[PaletteSitePageKey];
+export type TechnicalLayerEntry = (typeof technicalLayerCatalog)[number];
 
 export interface WorkflowCatalogDefinition {
   id: string;
@@ -379,12 +468,27 @@ export function getPalettePageByPath(path: string) {
   return getPalettePages().find((page) => page.path === path);
 }
 
-export function getPrimaryNavPages() {
-  return getPalettePages().filter((page) => "primaryNavLabel" in page.palette);
+export function getTechnicalLayers() {
+  return [...technicalLayerCatalog];
+}
+
+export function getTechnicalLayerByKey(key: TechnicalLayerKey) {
+  return technicalLayerCatalog.find((layer) => layer.key === key);
+}
+
+export function getTechnicalLayerGroups() {
+  return technicalLayerCatalog.map((layer) => ({
+    ...layer,
+    pages: getPalettePages().filter((page) => page.palette.layer === layer.key),
+  })).filter((group) => group.pages.length > 0);
 }
 
 export function getToolPages() {
   return getPalettePages().filter((page) => page.palette.group === "Tools");
+}
+
+export function getPrimaryNavigationPages() {
+  return getToolPages().filter((page) => Boolean(page.palette.primaryNavLabel));
 }
 
 export function getStructuredDataFeatureList() {

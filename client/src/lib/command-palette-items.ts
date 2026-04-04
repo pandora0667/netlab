@@ -13,18 +13,20 @@ import {
   Shield,
 } from "lucide-react";
 import {
-  getPalettePageByPath,
+  getPrimaryNavigationPages,
   getPalettePages,
-  getPrimaryNavPages,
+  getTechnicalLayerGroups,
   getToolPages,
   workflowCatalog,
   type PaletteSitePageKey,
+  type TechnicalLayerKey,
 } from "../../../shared/catalog/site-catalog";
 
 export type CommandPaletteEntry = {
   id: string;
   label: string;
   href: string;
+  layer: TechnicalLayerKey;
   icon: LucideIcon;
   keywords?: string[];
   description: string;
@@ -32,6 +34,15 @@ export type CommandPaletteEntry = {
   commandHint: string;
   accent: string;
   useCase: string;
+  primaryNavLabel?: string;
+};
+
+export type CommandPaletteLayerGroup = {
+  key: TechnicalLayerKey;
+  heading: string;
+  description: string;
+  shortLabel: string;
+  items: CommandPaletteEntry[];
 };
 
 const iconByPageKey: Record<PaletteSitePageKey, LucideIcon> = {
@@ -50,10 +61,11 @@ const iconByPageKey: Record<PaletteSitePageKey, LucideIcon> = {
   portScanner: ScanSearch,
 };
 
-const paletteEntries = getPalettePages().map((page) => ({
+const paletteEntries: CommandPaletteEntry[] = getPalettePages().map((page) => ({
   id: page.palette.id,
   label: page.palette.label,
   href: page.path,
+  layer: page.palette.layer,
   icon: iconByPageKey[page.key],
   keywords: page.palette.keywords,
   description: page.palette.description,
@@ -61,17 +73,21 @@ const paletteEntries = getPalettePages().map((page) => ({
   commandHint: page.palette.commandHint,
   accent: page.palette.accent,
   useCase: page.palette.useCase,
+  primaryNavLabel: page.palette.primaryNavLabel,
 }));
 
-export const commandPaletteGroups: {
-  heading: string;
-  items: CommandPaletteEntry[];
-}[] = ["Overview", "Tools"].map((heading) => ({
-  heading,
-  items: paletteEntries.filter((entry) => {
-    const page = getPalettePageByPath(entry.href);
-    return page?.palette?.group === heading;
-  }),
+const paletteEntriesByHref = new Map(
+  paletteEntries.map((entry) => [entry.href, entry]),
+);
+
+export const commandPaletteGroups: CommandPaletteLayerGroup[] = getTechnicalLayerGroups().map((layer) => ({
+  key: layer.key,
+  heading: layer.label,
+  description: layer.description,
+  shortLabel: layer.shortLabel,
+  items: layer.pages
+    .map((page) => paletteEntriesByHref.get(page.path))
+    .filter((entry): entry is CommandPaletteEntry => entry !== undefined),
 }));
 
 export function getAllCommandPaletteEntries(): CommandPaletteEntry[] {
@@ -82,17 +98,30 @@ export function getHomeToolTiles(): CommandPaletteEntry[] {
   return getAllCommandPaletteEntries().filter((item) => item.id !== "home");
 }
 
+export function getPrimaryNavigationEntries(): CommandPaletteEntry[] {
+  const primaryPages = getPrimaryNavigationPages();
+
+  return primaryPages
+    .map((page) => paletteEntriesByHref.get(page.path))
+    .filter((entry): entry is CommandPaletteEntry => entry !== undefined);
+}
+
 export function findCommandPaletteEntryByHref(
   href: string,
 ): CommandPaletteEntry | undefined {
   return getAllCommandPaletteEntries().find((item) => item.href === href);
 }
 
-export function getPrimaryNavigationItems() {
-  return getPrimaryNavPages().map((page) => ({
-    href: page.path,
-    label: ("primaryNavLabel" in page.palette ? page.palette.primaryNavLabel : page.palette.label),
-  }));
+export function findCommandPaletteGroupByLayer(layer: TechnicalLayerKey) {
+  return commandPaletteGroups.find((group) => group.key === layer);
+}
+
+export function getNavigationLayerGroups() {
+  return commandPaletteGroups.filter((group) => group.key !== "overview");
+}
+
+export function getHomeLayerGroups() {
+  return getNavigationLayerGroups();
 }
 
 export const quickStartWorkflows: {

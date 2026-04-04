@@ -24,7 +24,9 @@ function LoadingSpinner() {
 }
 
 export default function Layout({ children }: LayoutProps) {
-  const footerGroups = commandPaletteGroups.filter((group) => group.items.length > 0);
+  const footerGroups = commandPaletteGroups.filter(
+    (group) => group.items.length > 0 && group.key !== "overview",
+  );
 
   return (
     <CommandPaletteProvider>
@@ -41,7 +43,7 @@ export default function Layout({ children }: LayoutProps) {
             <Suspense fallback={<LoadingSpinner />}>
               <main
                 id="main-content"
-                className="mx-auto flex w-full max-w-[112rem] flex-1 px-3 pb-20 pt-6 sm:px-5"
+                className="app-shell flex w-full flex-1 pb-20 pt-6"
                 role="main"
                 tabIndex={-1}
               >
@@ -54,21 +56,21 @@ export default function Layout({ children }: LayoutProps) {
             className="mt-auto border-t border-white/6 bg-black/20 backdrop-blur-xl"
             role="contentinfo"
           >
-            <div className="mx-auto grid max-w-[112rem] gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,2fr)]">
+            <div className="app-shell grid gap-10 py-10 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,2fr)]">
               <div className="space-y-4">
                 <p className="text-[0.7rem] uppercase tracking-[0.28em] text-white/42">
-                  Netlab surface
+                  Netlab layers
                 </p>
                 <p className="max-w-md font-['Space_Grotesk'] text-2xl font-bold leading-tight text-white">
-                  Diagnostic tooling with the feel of a launcher, not a generic form stack.
+                  A diagnostic workspace organized by technical layer, not by random utility names.
                 </p>
                 <p className="max-w-lg text-sm leading-7 text-white/58">
-                  Public-facing network workflows, rebuilt as a dark command surface with
-                  fast entry points, strong hierarchy, and clear operator intent.
+                  Public-facing network workflows now read from identity through control plane
+                  and exposure, so operators can move with cleaner intent.
                 </p>
               </div>
 
-              <div className="grid gap-8 sm:grid-cols-3">
+              <div className="grid gap-8 [grid-template-columns:repeat(auto-fit,minmax(11rem,1fr))]">
                 {footerGroups.map((group) => (
                   <div key={group.heading} className="space-y-3">
                     <p className="text-[0.68rem] uppercase tracking-[0.26em] text-white/38">
@@ -89,7 +91,7 @@ export default function Layout({ children }: LayoutProps) {
                 ))}
               </div>
             </div>
-            <div className="mx-auto flex max-w-[112rem] flex-col gap-3 border-t border-white/6 px-4 py-5 text-[0.7rem] uppercase tracking-[0.24em] text-white/32 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <div className="app-shell flex flex-col gap-3 border-t border-white/6 py-5 text-[0.7rem] uppercase tracking-[0.24em] text-white/32 sm:flex-row sm:items-center sm:justify-between">
               <p>© {new Date().getFullYear()} Netlab</p>
               <div className="flex items-center gap-4">
                 <a

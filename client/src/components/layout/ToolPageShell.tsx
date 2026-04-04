@@ -2,7 +2,7 @@ import { type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { useModKeyLabel } from "@/hooks/use-mod-key-label";
 import {
-  commandPaletteGroups,
+  findCommandPaletteGroupByLayer,
   findCommandPaletteEntryByHref,
 } from "@/lib/command-palette-items";
 import { Command, Compass, Home } from "lucide-react";
@@ -23,8 +23,11 @@ export function ToolPageShell({
   const [location] = useLocation();
   const mod = useModKeyLabel();
   const activeEntry = findCommandPaletteEntryByHref(location);
-  const groupedTools = commandPaletteGroups.find((group) => group.heading === "Tools")?.items ?? [];
-  const adjacentTools = groupedTools.filter((item) => item.href !== location).slice(0, 3);
+  const activeLayerGroup = activeEntry ? findCommandPaletteGroupByLayer(activeEntry.layer) : undefined;
+  const adjacentTools = (activeLayerGroup?.items ?? [])
+    .filter((item) => item.href !== location)
+    .slice(0, 3);
+  const contextLabel = activeLayerGroup?.heading ?? activeEntry?.category ?? "Diagnostic";
 
   return (
     <div className="mx-auto w-full max-w-none space-y-3 sm:space-y-4">
@@ -39,7 +42,7 @@ export function ToolPageShell({
               Home
             </Link>
             <span>/</span>
-            <span>{activeEntry?.category ?? "Diagnostic"}</span>
+            <span>{contextLabel}</span>
             <span>/</span>
             <span className="text-white/72">{title}</span>
           </nav>
@@ -48,7 +51,7 @@ export function ToolPageShell({
           <div className="min-w-0 space-y-3">
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full border border-white/10 bg-white/6 px-3 py-1 text-[0.68rem] uppercase tracking-[0.24em] text-white/58">
-                {activeEntry?.category ?? "Diagnostic"}
+                {contextLabel}
               </span>
               {activeEntry ? (
                 <span className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-[0.68rem] uppercase tracking-[0.24em] text-cyan-200">
@@ -98,15 +101,21 @@ export function ToolPageShell({
                 Continue with
               </p>
               <div className="flex flex-wrap gap-2">
-                {adjacentTools.map((tool) => (
-                  <Link
-                    key={tool.href}
-                    href={tool.href}
-                    className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-white/72 transition-colors hover:border-white/16 hover:text-white"
-                  >
-                    {tool.label}
-                  </Link>
-                ))}
+                {adjacentTools.length > 0 ? (
+                  adjacentTools.map((tool) => (
+                    <Link
+                      key={tool.href}
+                      href={tool.href}
+                      className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-white/72 transition-colors hover:border-white/16 hover:text-white"
+                    >
+                      {tool.label}
+                    </Link>
+                  ))
+                ) : (
+                  <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-white/48">
+                    Use the command palette to jump across layers.
+                  </span>
+                )}
               </div>
             </div>
             {actions ? (
