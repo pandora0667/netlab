@@ -1,4 +1,4 @@
-import { StrictMode, lazy } from "react";
+import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { Switch, Route, Link } from "wouter";
 import "./index.css";
@@ -8,28 +8,7 @@ import { Toaster } from "./components/ui/toaster";
 import { ThemeProvider } from "@/hooks/use-theme";
 import Layout from "./components/layout/Layout";
 import { SEO } from "./components/SEO";
-
-const Home = lazy(() => import("./pages/Home"));
-const IPChecker = lazy(() => import("./components/tools/IPChecker"));
-const DNSLookup = lazy(() => import("./components/tools/DNSLookup"));
-const SubnetCalculator = lazy(() => import("./components/tools/SubnetCalculator"));
-const PingTool = lazy(() => import("./components/tools/PingTool"));
-const TraceRouteTool = lazy(() => import("./components/tools/TraceRouteTool"));
-const NetworkEngineeringWorkbench = lazy(
-  () => import("./components/tools/NetworkEngineeringWorkbench"),
-);
-const HttpTlsInspector = lazy(() => import("./components/tools/HttpTlsInspector"));
-const WebsiteSecurityReport = lazy(
-  () => import("./components/tools/WebsiteSecurityReport"),
-);
-const WhoisLookup = lazy(() => import("./components/tools/WhoisLookup"));
-const PortScanner = lazy(() => import("./components/tools/PortScanner"));
-const DNSPropagationChecker = lazy(
-  () => import("./components/tools/DNSPropagationChecker"),
-);
-const EmailSecurityChecker = lazy(
-  () => import("./components/tools/EmailSecurityChecker"),
-);
+import { appRoutes } from "./lib/app/page-registry";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -37,19 +16,9 @@ createRoot(document.getElementById("root")!).render(
       <SWRConfig value={{ fetcher }}>
         <Layout>
           <Switch>
-            <Route path="/" component={Home} />
-            <Route path="/ip-checker" component={IPChecker} />
-            <Route path="/dns-lookup" component={DNSLookup} />
-            <Route path="/subnet-calc" component={SubnetCalculator} />
-            <Route path="/ping" component={PingTool} />
-            <Route path="/trace" component={TraceRouteTool} />
-            <Route path="/network-engineering" component={NetworkEngineeringWorkbench} />
-            <Route path="/http-inspector" component={HttpTlsInspector} />
-            <Route path="/website-security" component={WebsiteSecurityReport} />
-            <Route path="/whois" component={WhoisLookup} />
-            <Route path="/port-scan" component={PortScanner} />
-            <Route path="/dns-propagation" component={DNSPropagationChecker} />
-            <Route path="/email-security" component={EmailSecurityChecker} />
+            {appRoutes.map((page) => (
+              <Route key={page.key} path={page.path} component={page.component} />
+            ))}
             <Route>
               <div className="mx-auto flex max-w-sm flex-col items-center gap-3 py-20 text-center">
                 <SEO page="notFound" />

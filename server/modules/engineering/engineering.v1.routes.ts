@@ -1,7 +1,12 @@
 import { Router } from "express";
-import { z } from "zod";
-import { sendError, sendSuccess } from "../../common/http/api-response.js";
-import { ConcurrencyLimitError } from "../../src/lib/concurrency-gate.js";
+import {
+  concurrencyRouteError,
+  fallbackRouteError,
+  firstRouteError,
+  registerPostAction,
+  resolveRequesterIp,
+  zodRouteError,
+} from "../../common/http/route-actions.js";
 import {
   engineeringDomainSchema,
   engineeringTargetSchema,
@@ -15,202 +20,102 @@ import { engineeringService } from "./engineering.service.js";
 
 const router = Router();
 
-router.post("/routing-reports", async (req, res) => {
-  let release = () => {};
+function buildEngineeringRouteError(
+  error: unknown,
+  invalidCode: string,
+  invalidMessage: string,
+  limitCode: string,
+  failedCode: string,
+  failedMessage: string,
+) {
+  return firstRouteError(
+    zodRouteError(error, invalidCode, invalidMessage),
+    concurrencyRouteError(error, limitCode),
+  ) ?? fallbackRouteError(error, failedCode, failedMessage);
+}
 
-  try {
-    const request = engineeringTargetSchema.parse(req.body);
-    release = engineeringGate.acquire(req.ip || "unknown");
-    const report = await engineeringService.getRoutingReport(request.input);
-    return sendSuccess(res, report);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return sendError(res, 400, {
-        code: "INVALID_ROUTING_REPORT_REQUEST",
-        message: "Invalid routing report request",
-        details: error.errors,
-      });
-    }
-
-    if (error instanceof ConcurrencyLimitError) {
-      return sendError(res, error.statusCode, {
-        code: "ROUTING_REPORT_LIMIT_REACHED",
-        message: error.message,
-      });
-    }
-
-    return sendError(res, 500, {
-      code: "ROUTING_REPORT_FAILED",
-      message: error instanceof Error ? error.message : "Routing report failed",
-    });
-  } finally {
-    release();
-  }
+registerPostAction(router, "/routing-reports", {
+  parse: (req) => engineeringTargetSchema.parse(req.body),
+  acquire: (req) => engineeringGate.acquire(resolveRequesterIp(req)),
+  execute: (request) => engineeringService.getRoutingReport(request.input),
+  onError: (error) => buildEngineeringRouteError(
+    error,
+    "INVALID_ROUTING_REPORT_REQUEST",
+    "Invalid routing report request",
+    "ROUTING_REPORT_LIMIT_REACHED",
+    "ROUTING_REPORT_FAILED",
+    "Routing report failed",
+  ),
 });
 
-router.post("/authority-reports", async (req, res) => {
-  let release = () => {};
-
-  try {
-    const request = engineeringDomainSchema.parse(req.body);
-    release = engineeringGate.acquire(req.ip || "unknown");
-    const report = await engineeringService.getDnsAuthorityReport(request.domain);
-    return sendSuccess(res, report);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return sendError(res, 400, {
-        code: "INVALID_AUTHORITY_REPORT_REQUEST",
-        message: "Invalid DNS authority report request",
-        details: error.errors,
-      });
-    }
-
-    if (error instanceof ConcurrencyLimitError) {
-      return sendError(res, error.statusCode, {
-        code: "AUTHORITY_REPORT_LIMIT_REACHED",
-        message: error.message,
-      });
-    }
-
-    return sendError(res, 500, {
-      code: "AUTHORITY_REPORT_FAILED",
-      message: error instanceof Error ? error.message : "DNS authority report failed",
-    });
-  } finally {
-    release();
-  }
+registerPostAction(router, "/authority-reports", {
+  parse: (req) => engineeringDomainSchema.parse(req.body),
+  acquire: (req) => engineeringGate.acquire(resolveRequesterIp(req)),
+  execute: (request) => engineeringService.getDnsAuthorityReport(request.domain),
+  onError: (error) => buildEngineeringRouteError(
+    error,
+    "INVALID_AUTHORITY_REPORT_REQUEST",
+    "Invalid DNS authority report request",
+    "AUTHORITY_REPORT_LIMIT_REACHED",
+    "AUTHORITY_REPORT_FAILED",
+    "DNS authority report failed",
+  ),
 });
 
-router.post("/parity-reports", async (req, res) => {
-  let release = () => {};
-
-  try {
-    const request = engineeringDomainSchema.parse(req.body);
-    release = engineeringGate.acquire(req.ip || "unknown");
-    const report = await engineeringService.getIpParityReport(request.domain);
-    return sendSuccess(res, report);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return sendError(res, 400, {
-        code: "INVALID_PARITY_REPORT_REQUEST",
-        message: "Invalid IPv4/IPv6 parity request",
-        details: error.errors,
-      });
-    }
-
-    if (error instanceof ConcurrencyLimitError) {
-      return sendError(res, error.statusCode, {
-        code: "PARITY_REPORT_LIMIT_REACHED",
-        message: error.message,
-      });
-    }
-
-    return sendError(res, 500, {
-      code: "PARITY_REPORT_FAILED",
-      message: error instanceof Error ? error.message : "IPv4/IPv6 parity report failed",
-    });
-  } finally {
-    release();
-  }
+registerPostAction(router, "/parity-reports", {
+  parse: (req) => engineeringDomainSchema.parse(req.body),
+  acquire: (req) => engineeringGate.acquire(resolveRequesterIp(req)),
+  execute: (request) => engineeringService.getIpParityReport(request.domain),
+  onError: (error) => buildEngineeringRouteError(
+    error,
+    "INVALID_PARITY_REPORT_REQUEST",
+    "Invalid IPv4/IPv6 parity request",
+    "PARITY_REPORT_LIMIT_REACHED",
+    "PARITY_REPORT_FAILED",
+    "IPv4/IPv6 parity report failed",
+  ),
 });
 
-router.post("/path-mtu-reports", async (req, res) => {
-  let release = () => {};
-
-  try {
-    const request = engineeringTargetSchema.parse(req.body);
-    release = engineeringGate.acquire(req.ip || "unknown");
-    const report = await engineeringService.getPathMtuReport(request.input);
-    return sendSuccess(res, report);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return sendError(res, 400, {
-        code: "INVALID_PATH_MTU_REPORT_REQUEST",
-        message: "Invalid path MTU report request",
-        details: error.errors,
-      });
-    }
-
-    if (error instanceof ConcurrencyLimitError) {
-      return sendError(res, error.statusCode, {
-        code: "PATH_MTU_REPORT_LIMIT_REACHED",
-        message: error.message,
-      });
-    }
-
-    return sendError(res, 500, {
-      code: "PATH_MTU_REPORT_FAILED",
-      message: error instanceof Error ? error.message : "Path MTU report failed",
-    });
-  } finally {
-    release();
-  }
+registerPostAction(router, "/path-mtu-reports", {
+  parse: (req) => engineeringTargetSchema.parse(req.body),
+  acquire: (req) => engineeringGate.acquire(resolveRequesterIp(req)),
+  execute: (request) => engineeringService.getPathMtuReport(request.input),
+  onError: (error) => buildEngineeringRouteError(
+    error,
+    "INVALID_PATH_MTU_REPORT_REQUEST",
+    "Invalid path MTU report request",
+    "PATH_MTU_REPORT_LIMIT_REACHED",
+    "PATH_MTU_REPORT_FAILED",
+    "Path MTU report failed",
+  ),
 });
 
-router.post("/website-security-reports", async (req, res) => {
-  let release = () => {};
-
-  try {
-    const request = engineeringTargetSchema.parse(req.body);
-    release = websiteSecurityGate.acquire(req.ip || "unknown");
-    const report = await engineeringService.getWebsiteSecurityReport(request.input);
-    return sendSuccess(res, report);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return sendError(res, 400, {
-        code: "INVALID_WEBSITE_SECURITY_REQUEST",
-        message: "Invalid website security request",
-        details: error.errors,
-      });
-    }
-
-    if (error instanceof ConcurrencyLimitError) {
-      return sendError(res, error.statusCode, {
-        code: "WEBSITE_SECURITY_LIMIT_REACHED",
-        message: error.message,
-      });
-    }
-
-    return sendError(res, 500, {
-      code: "WEBSITE_SECURITY_REPORT_FAILED",
-      message: error instanceof Error ? error.message : "Website security report failed",
-    });
-  } finally {
-    release();
-  }
+registerPostAction(router, "/website-security-reports", {
+  parse: (req) => engineeringTargetSchema.parse(req.body),
+  acquire: (req) => websiteSecurityGate.acquire(resolveRequesterIp(req)),
+  execute: (request) => engineeringService.getWebsiteSecurityReport(request.input),
+  onError: (error) => buildEngineeringRouteError(
+    error,
+    "INVALID_WEBSITE_SECURITY_REQUEST",
+    "Invalid website security request",
+    "WEBSITE_SECURITY_LIMIT_REACHED",
+    "WEBSITE_SECURITY_REPORT_FAILED",
+    "Website security report failed",
+  ),
 });
 
-router.post("/email-security-reports", async (req, res) => {
-  let release = () => {};
-
-  try {
-    const request = engineeringDomainSchema.parse(req.body);
-    release = emailSecurityGate.acquire(req.ip || "unknown");
-    const report = await engineeringService.getEmailSecurityReport(request.domain);
-    return sendSuccess(res, report);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return sendError(res, 400, {
-        code: "INVALID_EMAIL_SECURITY_REQUEST",
-        message: "Invalid email security request",
-        details: error.errors,
-      });
-    }
-
-    if (error instanceof ConcurrencyLimitError) {
-      return sendError(res, error.statusCode, {
-        code: "EMAIL_SECURITY_LIMIT_REACHED",
-        message: error.message,
-      });
-    }
-
-    return sendError(res, 500, {
-      code: "EMAIL_SECURITY_REPORT_FAILED",
-      message: error instanceof Error ? error.message : "Email security report failed",
-    });
-  } finally {
-    release();
-  }
+registerPostAction(router, "/email-security-reports", {
+  parse: (req) => engineeringDomainSchema.parse(req.body),
+  acquire: (req) => emailSecurityGate.acquire(resolveRequesterIp(req)),
+  execute: (request) => engineeringService.getEmailSecurityReport(request.domain),
+  onError: (error) => buildEngineeringRouteError(
+    error,
+    "INVALID_EMAIL_SECURITY_REQUEST",
+    "Invalid email security request",
+    "EMAIL_SECURITY_LIMIT_REACHED",
+    "EMAIL_SECURITY_REPORT_FAILED",
+    "Email security report failed",
+  ),
 });
 
 export default router;

@@ -7,6 +7,11 @@ import {
   normalizePingOptions,
 } from "../../src/lib/network-validation.js";
 import { PublicTargetError } from "../../src/lib/public-targets.js";
+import {
+  registerLegacyGetAction,
+  registerLegacyPostAction,
+} from "../../common/http/legacy-route-actions.js";
+import { sendLegacyError } from "../../common/http/legacy-responses.js";
 import { networkService } from "./network.service.js";
 import {
   parseLegacySubnetRequest,
@@ -15,49 +20,49 @@ import {
 
 const router = Router();
 
-router.get("/ip", async (req, res) => {
-  try {
+registerLegacyGetAction(router, "/ip", {
+  execute: async (_parsed, req) => {
     const clientIp = req.ip || req.socket.remoteAddress;
 
     if (!clientIp) {
-      return res.status(400).json({ error: "Unable to extract IP address" });
+      throw new Error("Unable to extract IP address");
     }
 
-    const ipInfo = await networkService.getIPInfo(clientIp);
-    return res.json(ipInfo);
-  } catch {
-    return res.status(500).json({ error: "Failed to fetch IP information" });
-  }
+    return networkService.getIPInfo(clientIp);
+  },
+  onError: (error, _req, res) => {
+    if (error instanceof Error && error.message === "Unable to extract IP address") {
+      return sendLegacyError(res, 400, "Unable to extract IP address");
+    }
+
+    return sendLegacyError(res, 500, "Failed to fetch IP information");
+  },
 });
 
-router.post("/subnet", (req, res) => {
-  try {
-    const request = parseLegacySubnetRequest(req.body);
-    const subnetInfo = networkService.calculateSubnet(
+registerLegacyPostAction(router, "/subnet", {
+  parse: (req) => parseLegacySubnetRequest(req.body),
+  execute: (request) => networkService.calculateSubnet(
       request.networkAddress,
       request.mask,
-    );
-
-    return res.json(subnetInfo);
-  } catch (error) {
+    ),
+  onError: (error, _req, res) => {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({
-        error: "networkAddress and mask are required",
-      });
+      return sendLegacyError(res, 400, "networkAddress and mask are required");
     }
 
-    return res.status(400).json({
-      error: error instanceof Error ? error.message : "Subnet calculation failed",
-    });
-  }
+    return sendLegacyError(
+      res,
+      400,
+      error instanceof Error ? error.message : "Subnet calculation failed",
+    );
+  },
 });
 
-router.post("/ping", pingLimiter, async (req, res) => {
-  try {
-    const options = normalizePingOptions(req.body);
-    const result = await networkService.ping(options);
-    return res.json(result);
-  } catch (error) {
+registerLegacyPostAction(router, "/ping", {
+  middlewares: [pingLimiter],
+  parse: (req) => normalizePingOptions(req.body),
+  execute: (options) => networkService.ping(options),
+  onError: (error, req, res) => {
     if (error instanceof NetworkInputError || error instanceof PublicTargetError) {
       if (error instanceof PublicTargetError) {
         abuseLogger.warn("Blocked ping target", {
@@ -69,21 +74,17 @@ router.post("/ping", pingLimiter, async (req, res) => {
         });
       }
 
-      return res.status(error.statusCode).json({ error: error.message });
+      return sendLegacyError(res, error.statusCode, error.message);
     }
 
-    return res.status(500).json({ error: "Ping failed" });
-  }
+    return sendLegacyError(res, 500, "Ping failed");
+  },
 });
 
-router.post("/whois", async (req, res) => {
-  try {
-    const request = whoisLookupSchema.parse(req.body);
-    const whoisResult = await networkService.whoisLookup(request.domain);
-    return res.json(whoisResult);
-  } catch {
-    return res.status(500).json({ error: "WHOIS lookup failed" });
-  }
+registerLegacyPostAction(router, "/whois", {
+  parse: (req) => whoisLookupSchema.parse(req.body),
+  execute: (request) => networkService.whoisLookup(request.domain),
+  onError: (_error, _req, res) => sendLegacyError(res, 500, "WHOIS lookup failed"),
 });
 
 export default router;

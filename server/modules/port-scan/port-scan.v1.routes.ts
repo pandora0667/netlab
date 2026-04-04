@@ -1,47 +1,42 @@
 import { Router } from "express";
 import { z } from "zod";
-import logger, { abuseLogger } from "../../lib/logger.js";
+import logger from "../../lib/logger.js";
 import {
   exportResults,
   portScan,
   PortScanError,
 } from "./port-scan.service.js";
 import { portScanLimiter } from "../../middleware/rateLimit.js";
-import { ConcurrencyLimitError } from "../../src/lib/concurrency-gate.js";
-import { PublicTargetError } from "../../src/lib/public-targets.js";
 import { sendError, sendSuccess } from "../../common/http/api-response.js";
+import {
+  registerPostAction,
+  resolveRequesterIp,
+  zodRouteError,
+} from "../../common/http/route-actions.js";
 import {
   parsePortScanRequest,
   portScanExportSchema,
 } from "./port-scan.contract.js";
 import { portScanGate } from "./port-scan.gate.js";
+import {
+  createRequestAbortLifecycle,
+  isPortScanConstraintError,
+  logPortScanConstraint,
+  PortScanStreamSession,
+  resolvePortScanErrorCode,
+} from "./port-scan.http-support.js";
 
 const router = Router();
 
-function resolveRequesterIp(ip: string | undefined): string {
-  return ip || "unknown";
-}
-
 router.get("/stream", portScanLimiter, async (req, res) => {
   let releaseScan = () => {};
-  let clientDisconnected = false;
-
-  const abortController = new AbortController();
-  const cancelScan = () => {
-    clientDisconnected = true;
-    abortController.abort();
-  };
-
-  req.on("close", cancelScan);
-  res.on("close", cancelScan);
+  const streamSession = new PortScanStreamSession(req, res);
 
   try {
     const scanRequest = parsePortScanRequest(req.query as Record<string, unknown>);
-    releaseScan = portScanGate.acquire(resolveRequesterIp(req.ip));
+    releaseScan = portScanGate.acquire(resolveRequesterIp(req));
 
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache");
-    res.setHeader("Connection", "keep-alive");
+    streamSession.start();
 
     let scanned = 0;
     const total = scanRequest.ports.length;
@@ -49,42 +44,21 @@ router.get("/stream", portScanLimiter, async (req, res) => {
 
     const results = await portScan({
       ...scanRequest,
-      signal: abortController.signal,
+      signal: streamSession.signal,
       onProgress: (currentPort, partialResults) => {
         scanned += 1;
-
-        if (clientDisconnected) {
-          return;
-        }
-
-        res.write(`data: ${JSON.stringify({
-          progress: {
-            scanned,
-            total,
-            currentPort,
-            status: "scanning",
-          },
-          results: partialResults,
-          showAllPorts,
-        })}\n\n`);
+        streamSession.writeProgress(scanned, total, currentPort, partialResults, showAllPorts);
       },
     });
 
-    if (!clientDisconnected) {
-      res.write(`data: ${JSON.stringify({
-        progress: {
-          scanned: total,
-          total,
-          currentPort: scanRequest.ports[scanRequest.ports.length - 1],
-          status: "completed",
-        },
-        results,
-        showAllPorts,
-      })}\n\n`);
-      res.end();
-    }
+    streamSession.complete(
+      total,
+      scanRequest.ports[scanRequest.ports.length - 1],
+      results,
+      showAllPorts,
+    );
   } catch (error) {
-    if (clientDisconnected || (error instanceof PortScanError && error.code === "SCAN_CANCELLED")) {
+    if (streamSession.disconnected || (error instanceof PortScanError && error.code === "SCAN_CANCELLED")) {
       return;
     }
 
@@ -93,28 +67,18 @@ router.get("/stream", portScanLimiter, async (req, res) => {
       error: error instanceof Error ? error.message : error,
     });
 
-    if (
-      error instanceof PortScanError ||
-      error instanceof ConcurrencyLimitError ||
-      error instanceof PublicTargetError
-    ) {
-      abuseLogger.warn("Blocked or constrained v1 port scan stream request", {
-        feature: "port-scan-stream-v1",
-        ip: req.ip,
-        requestId: res.locals.requestId,
-        targetIp: typeof req.query.targetIp === "string" ? req.query.targetIp : undefined,
-        reason: error.message,
-      });
+    if (isPortScanConstraintError(error)) {
+      logPortScanConstraint(
+        "port-scan-stream-v1",
+        req,
+        res,
+        error.message,
+        typeof req.query.targetIp === "string" ? req.query.targetIp : undefined,
+      );
     }
 
     if (res.headersSent) {
-      res.write(`data: ${JSON.stringify({
-        error: {
-          type: "error",
-          message: error instanceof Error ? error.message : "Port scanning failed",
-        },
-      })}\n\n`);
-      res.end();
+      streamSession.writeStreamError(error instanceof Error ? error.message : "Port scanning failed");
       return;
     }
 
@@ -126,17 +90,9 @@ router.get("/stream", portScanLimiter, async (req, res) => {
       });
     }
 
-    if (
-      error instanceof PortScanError ||
-      error instanceof ConcurrencyLimitError ||
-      error instanceof PublicTargetError
-    ) {
+    if (isPortScanConstraintError(error)) {
       return sendError(res, error.statusCode, {
-        code: error instanceof PortScanError
-          ? error.code
-          : error instanceof PublicTargetError
-            ? "PUBLIC_TARGET_REQUIRED"
-            : "PORT_SCAN_LIMIT_REACHED",
+        code: resolvePortScanErrorCode(error),
         message: error.message,
       });
     }
@@ -147,21 +103,17 @@ router.get("/stream", portScanLimiter, async (req, res) => {
     });
   } finally {
     releaseScan();
-    req.off("close", cancelScan);
-    res.off("close", cancelScan);
+    streamSession.cleanup();
   }
 });
 
 router.post("/", portScanLimiter, async (req, res) => {
   let releaseScan = () => {};
-  const abortController = new AbortController();
-  const cancelScan = () => abortController.abort();
-
-  req.on("close", cancelScan);
+  const { abortController, cleanup } = createRequestAbortLifecycle(req);
 
   try {
     const scanRequest = parsePortScanRequest(req.body as Record<string, unknown>);
-    releaseScan = portScanGate.acquire(resolveRequesterIp(req.ip));
+    releaseScan = portScanGate.acquire(resolveRequesterIp(req));
 
     const results = await portScan({
       ...scanRequest,
@@ -187,25 +139,17 @@ router.post("/", portScanLimiter, async (req, res) => {
       });
     }
 
-    if (
-      error instanceof PortScanError ||
-      error instanceof ConcurrencyLimitError ||
-      error instanceof PublicTargetError
-    ) {
-      abuseLogger.warn("Blocked or constrained v1 port scan request", {
-        feature: "port-scan-v1",
-        ip: req.ip,
-        requestId: res.locals.requestId,
-        targetIp: typeof req.body?.targetIp === "string" ? req.body.targetIp : undefined,
-        reason: error.message,
-      });
+    if (isPortScanConstraintError(error)) {
+      logPortScanConstraint(
+        "port-scan-v1",
+        req,
+        res,
+        error.message,
+        typeof req.body?.targetIp === "string" ? req.body.targetIp : undefined,
+      );
 
       return sendError(res, error.statusCode, {
-        code: error instanceof PortScanError
-          ? error.code
-          : error instanceof PublicTargetError
-            ? "PUBLIC_TARGET_REQUIRED"
-            : "PORT_SCAN_LIMIT_REACHED",
+        code: resolvePortScanErrorCode(error),
         message: error.message,
       });
     }
@@ -216,15 +160,17 @@ router.post("/", portScanLimiter, async (req, res) => {
     });
   } finally {
     releaseScan();
-    req.off("close", cancelScan);
+    cleanup();
   }
 });
 
-router.post("/exports", async (req, res) => {
-  try {
-    const { results, format } = portScanExportSchema.parse(req.body);
-    const exportedData = exportResults(results, format);
-
+registerPostAction(router, "/exports", {
+  parse: (req) => portScanExportSchema.parse(req.body),
+  execute: ({ results, format }) => ({
+    format,
+    exportedData: exportResults(results, format),
+  }),
+  onSuccess: ({ format, exportedData }, _req, res) => {
     res.setHeader(
       "Content-Type",
       format === "JSON" ? "application/json" : "text/csv",
@@ -235,20 +181,17 @@ router.post("/exports", async (req, res) => {
     );
 
     return res.send(exportedData);
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return sendError(res, 400, {
-        code: "INVALID_PORT_SCAN_EXPORT_REQUEST",
-        message: "Invalid port scan export request",
-        details: error.errors,
-      });
+  },
+  onError: (error) => (
+    zodRouteError(error, "INVALID_PORT_SCAN_EXPORT_REQUEST", "Invalid port scan export request")
+    ?? {
+      statusCode: 500,
+      error: {
+        code: "PORT_SCAN_EXPORT_FAILED",
+        message: error instanceof Error ? error.message : "Port scan export failed",
+      },
     }
-
-    return sendError(res, 500, {
-      code: "PORT_SCAN_EXPORT_FAILED",
-      message: error instanceof Error ? error.message : "Port scan export failed",
-    });
-  }
+  ),
 });
 
 export default router;

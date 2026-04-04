@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { normalizeUnorderedStrings } from "../../../modules/engineering/engineering.service.js";
+import { normalizeUnorderedStrings } from "../../../modules/engineering/domain/inputs.js";
 
 describe("normalizeUnorderedStrings", () => {
   it("returns a stable sorted copy for unordered string sets", () => {

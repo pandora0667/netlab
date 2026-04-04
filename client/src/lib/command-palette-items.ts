@@ -12,6 +12,14 @@ import {
   ShieldCheck,
   Shield,
 } from "lucide-react";
+import {
+  getPalettePageByPath,
+  getPalettePages,
+  getPrimaryNavPages,
+  getToolPages,
+  workflowCatalog,
+  type PaletteSitePageKey,
+} from "../../../shared/catalog/site-catalog";
 
 export type CommandPaletteEntry = {
   id: string;
@@ -26,177 +34,45 @@ export type CommandPaletteEntry = {
   useCase: string;
 };
 
+const iconByPageKey: Record<PaletteSitePageKey, LucideIcon> = {
+  home: Home,
+  ipChecker: Globe,
+  dnsLookup: Search,
+  subnetCalculator: Calculator,
+  pingTool: Activity,
+  traceTool: Route,
+  networkEngineering: Route,
+  httpInspector: ShieldCheck,
+  websiteSecurity: ShieldCheck,
+  whoisLookup: FileText,
+  emailSecurity: Shield,
+  dnsPropagation: Globe2,
+  portScanner: ScanSearch,
+};
+
+const paletteEntries = getPalettePages().map((page) => ({
+  id: page.palette.id,
+  label: page.palette.label,
+  href: page.path,
+  icon: iconByPageKey[page.key],
+  keywords: page.palette.keywords,
+  description: page.palette.description,
+  category: page.palette.category,
+  commandHint: page.palette.commandHint,
+  accent: page.palette.accent,
+  useCase: page.palette.useCase,
+}));
+
 export const commandPaletteGroups: {
   heading: string;
   items: CommandPaletteEntry[];
-}[] = [
-  {
-    heading: "Overview",
-    items: [
-      {
-        id: "home",
-        label: "Home",
-        href: "/",
-        icon: Home,
-        keywords: ["start", "dashboard"],
-        description: "Return to the main diagnostics launchpad.",
-        category: "Launchpad",
-        commandHint: "open netlab",
-        accent: "Command Center",
-        useCase: "Start a diagnostic workflow or switch to another tool.",
-      },
-    ],
-  },
-  {
-    heading: "Tools",
-    items: [
-      {
-        id: "ip-checker",
-        label: "IP Checker",
-        href: "/ip-checker",
-        icon: Globe,
-        keywords: ["public", "address", "geo"],
-        description: "Inspect public IP, region, and ISP metadata.",
-        category: "Identity",
-        commandHint: "check public ip",
-        accent: "Geolocation",
-        useCase: "Useful when you need to confirm public egress identity first.",
-      },
-      {
-        id: "dns-lookup",
-        label: "DNS Lookup",
-        href: "/dns-lookup",
-        icon: Search,
-        keywords: ["record", "a", "mx", "txt"],
-        description: "Query and compare DNS records across resolvers.",
-        category: "Resolution",
-        commandHint: "lookup dns records",
-        accent: "Resolver View",
-        useCase: "Best first step for hostname resolution or record verification.",
-      },
-      {
-        id: "subnet-calc",
-        label: "Subnet Calculator",
-        href: "/subnet-calc",
-        icon: Calculator,
-        keywords: ["cidr", "mask", "network"],
-        description: "Calculate CIDR ranges, masks, and host counts.",
-        category: "Addressing",
-        commandHint: "inspect subnet",
-        accent: "CIDR Math",
-        useCase: "Use for network planning, mask conversion, and host capacity checks.",
-      },
-      {
-        id: "ping",
-        label: "Ping",
-        href: "/ping",
-        icon: Activity,
-        keywords: ["latency", "icmp", "connectivity"],
-        description: "Measure latency and reachability over ICMP or TCP.",
-        category: "Reachability",
-        commandHint: "probe latency",
-        accent: "Latency Trace",
-        useCase: "Use when you need a fast reachability check before deeper tracing.",
-      },
-      {
-        id: "trace",
-        label: "Trace Route",
-        href: "/trace",
-        icon: Route,
-        keywords: ["traceroute", "hops", "route", "path"],
-        description: "Trace the public path hop by hop and spot where delay begins.",
-        category: "Path",
-        commandHint: "trace route",
-        accent: "Hop Map",
-        useCase: "Use after Ping when latency or routing looks inconsistent.",
-      },
-      {
-        id: "network-engineering",
-        label: "Network Engineering",
-        href: "/network-engineering",
-        icon: Route,
-        keywords: ["bgp", "rpki", "authority", "ipv6", "mtu"],
-        description: "Inspect routing state, DNS authority, dual-stack parity, and path MTU.",
-        category: "Engineering",
-        commandHint: "inspect control plane",
-        accent: "Operator Depth",
-        useCase: "Best when you need control-plane and dual-stack context, not just host reachability.",
-      },
-      {
-        id: "http-inspector",
-        label: "HTTP/TLS Inspector",
-        href: "/http-inspector",
-        icon: ShieldCheck,
-        keywords: ["tls", "https", "headers", "certificate"],
-        description: "Inspect redirects, headers, TLS versions, and certificate health.",
-        category: "Application",
-        commandHint: "inspect http tls",
-        accent: "Service Layer",
-        useCase: "Best when the hostname resolves but the web service still feels wrong.",
-      },
-      {
-        id: "website-security",
-        label: "Website Security",
-        href: "/website-security",
-        icon: ShieldCheck,
-        keywords: ["headers", "security.txt", "caa", "dnssec"],
-        description: "Score website security posture across HTTP, TLS, and DNS controls.",
-        category: "Posture",
-        commandHint: "score website posture",
-        accent: "Security Grade",
-        useCase: "Use when you want an explainable website posture score instead of raw header output.",
-      },
-      {
-        id: "whois",
-        label: "WHOIS",
-        href: "/whois",
-        icon: FileText,
-        keywords: ["domain", "registration", "registrar"],
-        description: "Inspect registration metadata for domains and IPs.",
-        category: "Ownership",
-        commandHint: "inspect whois",
-        accent: "Registration Data",
-        useCase: "Useful for registrar, delegation, and registration context.",
-      },
-      {
-        id: "email-security",
-        label: "Email Security",
-        href: "/email-security",
-        icon: Shield,
-        keywords: ["spf", "dmarc", "dkim", "mx", "starttls"],
-        description: "Inspect SPF, DMARC, DKIM heuristics, MX posture, and STARTTLS.",
-        category: "Mail",
-        commandHint: "check mail posture",
-        accent: "Mail Controls",
-        useCase: "Best when mail deliverability or transport security feels incomplete.",
-      },
-      {
-        id: "dns-propagation",
-        label: "DNS Propagation",
-        href: "/dns-propagation",
-        icon: Globe2,
-        keywords: ["nameserver", "global", "resolve"],
-        description: "Compare answers from resolvers around the world.",
-        category: "Propagation",
-        commandHint: "watch propagation",
-        accent: "Global Nodes",
-        useCase: "Use after changing records and waiting for global resolver convergence.",
-      },
-      {
-        id: "port-scan",
-        label: "Port Scanner",
-        href: "/port-scan",
-        icon: ScanSearch,
-        keywords: ["tcp", "open", "ports"],
-        description: "Scan exposed ports on an approved public target.",
-        category: "Surface",
-        commandHint: "scan tcp ports",
-        accent: "Attack Surface",
-        useCase: "Use when you need a bounded view of externally reachable services.",
-      },
-    ],
-  },
-];
+}[] = ["Overview", "Tools"].map((heading) => ({
+  heading,
+  items: paletteEntries.filter((entry) => {
+    const page = getPalettePageByPath(entry.href);
+    return page?.palette?.group === heading;
+  }),
+}));
 
 export function getAllCommandPaletteEntries(): CommandPaletteEntry[] {
   return commandPaletteGroups.flatMap((group) => group.items);
@@ -212,34 +88,22 @@ export function findCommandPaletteEntryByHref(
   return getAllCommandPaletteEntries().find((item) => item.href === href);
 }
 
+export function getPrimaryNavigationItems() {
+  return getPrimaryNavPages().map((page) => ({
+    href: page.path,
+    label: ("primaryNavLabel" in page.palette ? page.palette.primaryNavLabel : page.palette.label),
+  }));
+}
+
 export const quickStartWorkflows: {
   id: string;
   title: string;
   description: string;
   steps: string[];
-}[] = [
-  {
-    id: "domain-debug",
-    title: "A hostname is not resolving",
-    description: "Start with resolver truth, then confirm whether propagation or ownership is involved.",
-    steps: ["DNS Lookup", "DNS Propagation", "WHOIS"],
-  },
-  {
-    id: "service-debug",
-    title: "A site is up, but users report failures",
-    description: "Separate transport, path, and application issues instead of guessing one layer.",
-    steps: ["Ping", "Trace Route", "Website Security"],
-  },
-  {
-    id: "surface-review",
-    title: "You need a public exposure snapshot",
-    description: "Confirm identity first, then inspect open surface and ownership context.",
-    steps: ["IP Checker", "Port Scanner", "WHOIS"],
-  },
-  {
-    id: "control-plane-debug",
-    title: "The route or edge policy feels wrong",
-    description: "Check origin state, authority health, dual-stack drift, and path MTU before escalating upstream.",
-    steps: ["Network Engineering", "DNS Propagation", "HTTP/TLS Inspector"],
-  },
-];
+}[] = workflowCatalog.map((workflow) => ({
+  ...workflow,
+  steps: workflow.steps.map((step) => {
+    const page = getToolPages().find((entry) => entry.key === step);
+    return page?.palette.label || step;
+  }),
+}));

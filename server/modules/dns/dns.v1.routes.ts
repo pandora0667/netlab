@@ -1,10 +1,15 @@
 import { Router } from "express";
-import { z } from "zod";
 import { abuseLogger } from "../../lib/logger.js";
 import { dnsLimiter } from "../../middleware/rateLimit.js";
-import { sendError, sendSuccess } from "../../common/http/api-response.js";
 import { isPublicIPAddress } from "../../../shared/network/ip.js";
-import { ConcurrencyLimitError } from "../../src/lib/concurrency-gate.js";
+import {
+  concurrencyRouteError,
+  fallbackRouteError,
+  firstRouteError,
+  registerPostAction,
+  resolveRequesterIp,
+  zodRouteError,
+} from "../../common/http/route-actions.js";
 import { dnsServerValidationService } from "./dns-server-validation.service.js";
 import { dnsLookupService } from "./dns-lookup.service.js";
 import { DNSError } from "./dns-resolver.service.js";
@@ -17,20 +22,27 @@ import {
 const router = Router();
 router.use(dnsLimiter);
 
-router.post("/lookups", async (req, res) => {
-  let releaseLookup = () => {};
+function dnsErrorResponse(
+  error: unknown,
+  code: string,
+  message: string,
+  statusCode = 500,
+) {
+  return fallbackRouteError(error, code, message, statusCode);
+}
 
-  try {
-    const request = dnsLookupRequestSchema.parse(req.body);
-    releaseLookup = dnsLookupGate.acquire(req.ip || "unknown");
+registerPostAction(router, "/lookups", {
+  parse: (req) => dnsLookupRequestSchema.parse(req.body),
+  acquire: (req) => dnsLookupGate.acquire(resolveRequesterIp(req)),
+  execute: async (request) => {
     const response = await dnsLookupService.lookup(request.domain, request.servers);
-
-    return sendSuccess(res, {
+    return {
       domain: response.domain,
       results: response.results,
-    });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
+    };
+  },
+  onError: (error, req, res) => {
+    if (zodRouteError(error, "INVALID_DNS_LOOKUP_REQUEST", "Invalid DNS lookup request")) {
       const blockedServer = Array.isArray(req.body?.servers)
         ? req.body.servers.find(
             (server: unknown) =>
@@ -46,44 +58,22 @@ router.post("/lookups", async (req, res) => {
           resolver: blockedServer,
         });
       }
-
-      return sendError(res, 400, {
-        code: "INVALID_DNS_LOOKUP_REQUEST",
-        message: "Invalid DNS lookup request",
-        details: error.errors,
-      });
     }
 
     if (error instanceof DNSError) {
-      return sendError(res, error.statusCode, {
-        code: error.code,
-        message: error.message,
-      });
+      return dnsErrorResponse(error, error.code, error.message, error.statusCode);
     }
 
-    if (error instanceof ConcurrencyLimitError) {
-      return sendError(res, error.statusCode, {
-        code: "DNS_LOOKUP_LIMIT_REACHED",
-        message: error.message,
-      });
-    }
-
-    return sendError(res, 500, {
-      code: "DNS_LOOKUP_FAILED",
-      message: error instanceof Error ? error.message : "DNS lookup failed",
-    });
-  } finally {
-    releaseLookup();
-  }
+    return firstRouteError(
+      zodRouteError(error, "INVALID_DNS_LOOKUP_REQUEST", "Invalid DNS lookup request"),
+      concurrencyRouteError(error, "DNS_LOOKUP_LIMIT_REACHED"),
+    ) ?? dnsErrorResponse(error, "DNS_LOOKUP_FAILED", "DNS lookup failed");
+  },
 });
 
-router.post("/servers/validate", async (req, res) => {
-  const serverIP = typeof req.body?.serverIP === "string"
-    ? req.body.serverIP
-    : undefined;
-
-  try {
-    const request = dnsServerValidationSchema.parse(req.body);
+registerPostAction(router, "/servers/validate", {
+  parse: (req) => dnsServerValidationSchema.parse(req.body),
+  execute: async (request) => {
     const validationResult = await dnsServerValidationService.validate(request.serverIP);
 
     if (!validationResult.success) {
@@ -93,18 +83,15 @@ router.post("/servers/validate", async (req, res) => {
       );
     }
 
-    return sendSuccess(res, {
+    return {
       isValid: true,
       message: "DNS server validated successfully",
-    });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return sendError(res, 400, {
-        code: "INVALID_DNS_SERVER_REQUEST",
-        message: "Invalid DNS server validation request",
-        details: error.errors,
-      });
-    }
+    };
+  },
+  onError: (error, req, res) => {
+    const serverIP = typeof req.body?.serverIP === "string"
+      ? req.body.serverIP
+      : undefined;
 
     if (error instanceof DNSError) {
       if (error.code === "INVALID_DNS_SERVER" || error.code === "PUBLIC_DNS_SERVER_REQUIRED") {
@@ -117,19 +104,13 @@ router.post("/servers/validate", async (req, res) => {
         });
       }
 
-      return sendError(res, error.statusCode, {
-        code: error.code,
-        message: error.message,
-      });
+      return dnsErrorResponse(error, error.code, error.message, error.statusCode);
     }
 
-    return sendError(res, 500, {
-      code: "DNS_SERVER_VALIDATION_FAILED",
-      message: error instanceof Error
-        ? error.message
-        : "DNS server validation failed",
-    });
-  }
+    return firstRouteError(
+      zodRouteError(error, "INVALID_DNS_SERVER_REQUEST", "Invalid DNS server validation request"),
+    ) ?? dnsErrorResponse(error, "DNS_SERVER_VALIDATION_FAILED", "DNS server validation failed");
+  },
 });
 
 export default router;

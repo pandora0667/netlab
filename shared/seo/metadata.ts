@@ -1,18 +1,11 @@
-export type SEOPageKey =
-  | "home"
-  | "ipChecker"
-  | "dnsLookup"
-  | "subnetCalculator"
-  | "pingTool"
-  | "traceTool"
-  | "networkEngineering"
-  | "httpInspector"
-  | "websiteSecurity"
-  | "whoisLookup"
-  | "dnsPropagation"
-  | "portScanner"
-  | "emailSecurity"
-  | "notFound";
+import {
+  getStructuredDataFeatureList,
+  sitePageCatalog,
+  sitePageKeys,
+  type SitePageKey,
+} from "../catalog/site-catalog.js";
+
+export type SEOPageKey = SitePageKey;
 
 export interface SEOPageDefinition {
   key: SEOPageKey;
@@ -42,151 +35,26 @@ export const normalizeSiteUrl = (value?: string) =>
 export const resolveSeoUrl = (siteUrl: string, path = "/") =>
   new URL(path, `${normalizeSiteUrl(siteUrl)}/`).toString();
 
-export const seoPages: Record<SEOPageKey, SEOPageDefinition> = {
-  home: {
-    key: "home",
-    path: "/",
-    title: "Netlab | Public Network Diagnostics Workspace",
-    description:
-      "Run public DNS, path, routing, HTTP/TLS, website security, email posture, and bounded port diagnostics from one operator-focused network workspace.",
-    imageAlt: "Netlab network diagnostics workspace preview",
-    changeFrequency: "weekly",
-    priority: "1.0",
-  },
-  ipChecker: {
-    key: "ipChecker",
-    path: "/ip-checker",
-    title: "IP Checker | Public IP and Connection Details | Netlab",
-    description:
-      "Check your public IP address, location context, and network details with a focused browser-based IP checker.",
-    imageAlt: "Netlab IP checker preview",
-    changeFrequency: "weekly",
-    priority: "0.9",
-  },
-  dnsLookup: {
-    key: "dnsLookup",
-    path: "/dns-lookup",
-    title: "DNS Lookup | Query A, AAAA, MX, TXT, and More | Netlab",
-    description:
-      "Look up DNS records including A, AAAA, MX, TXT, CNAME, NS, and SOA against public resolvers or a custom DNS server.",
-    imageAlt: "Netlab DNS lookup preview",
-    changeFrequency: "weekly",
-    priority: "0.9",
-  },
-  subnetCalculator: {
-    key: "subnetCalculator",
-    path: "/subnet-calc",
-    title: "Subnet Calculator | CIDR, Masks, and Host Ranges | Netlab",
-    description:
-      "Calculate subnet ranges, host counts, network addresses, and export subnet plans from CIDR prefixes or dotted decimal masks.",
-    imageAlt: "Netlab subnet calculator preview",
-    changeFrequency: "weekly",
-    priority: "0.9",
-  },
-  pingTool: {
-    key: "pingTool",
-    path: "/ping",
-    title: "Ping Tool | Check Public Host Reachability | Netlab",
-    description:
-      "Test public host reachability and latency with a live ping tool designed for quick troubleshooting and repeat checks.",
-    imageAlt: "Netlab ping tool preview",
-    changeFrequency: "weekly",
-    priority: "0.9",
-  },
-  traceTool: {
-    key: "traceTool",
-    path: "/trace",
-    title: "Trace Route | Bounded Hop-by-Hop Path Probe | Netlab",
-    description:
-      "Trace the public path toward a host with a bounded hop-by-hop probe to see where latency or timeouts begin.",
-    imageAlt: "Netlab trace route preview",
-    changeFrequency: "weekly",
-    priority: "0.9",
-  },
-  networkEngineering: {
-    key: "networkEngineering",
-    path: "/network-engineering",
-    title: "Network Engineering Workbench | Routing, Authority, IPv6, and MTU | Netlab",
-    description:
-      "Inspect routing visibility, origin ASN, RPKI, DNS authority health, IPv4 and IPv6 parity, and path MTU from one operator-focused workbench.",
-    imageAlt: "Netlab network engineering workbench preview",
-    changeFrequency: "weekly",
-    priority: "0.9",
-  },
-  httpInspector: {
-    key: "httpInspector",
-    path: "/http-inspector",
-    title: "HTTP and TLS Inspector | Headers, Redirects, and Certificates | Netlab",
-    description:
-      "Inspect redirect chains, response headers, TLS versions, HSTS, and certificate expiry for a public web target.",
-    imageAlt: "Netlab HTTP and TLS inspector preview",
-    changeFrequency: "weekly",
-    priority: "0.9",
-  },
-  websiteSecurity: {
-    key: "websiteSecurity",
-    path: "/website-security",
-    title: "Website Security Posture | HTTP, TLS, DNSSEC, and CAA | Netlab",
-    description:
-      "Score website security posture with checks for headers, TLS, HSTS, DNSSEC, CAA, and security.txt.",
-    imageAlt: "Netlab website security posture preview",
-    changeFrequency: "weekly",
-    priority: "0.9",
-  },
-  whoisLookup: {
-    key: "whoisLookup",
-    path: "/whois",
-    title: "WHOIS Lookup | Domain Registration Details | Netlab",
-    description:
-      "Inspect domain registration records, registrar details, and ownership metadata with a focused WHOIS lookup tool.",
-    imageAlt: "Netlab WHOIS lookup preview",
-    changeFrequency: "weekly",
-    priority: "0.9",
-  },
-  emailSecurity: {
-    key: "emailSecurity",
-    path: "/email-security",
-    title: "Email Security Checker | SPF, DMARC, DKIM, and STARTTLS | Netlab",
-    description:
-      "Inspect email security posture across MX, SPF, DMARC, DKIM heuristics, STARTTLS, MTA-STS, and TLS-RPT.",
-    imageAlt: "Netlab email security checker preview",
-    changeFrequency: "weekly",
-    priority: "0.9",
-  },
-  dnsPropagation: {
-    key: "dnsPropagation",
-    path: "/dns-propagation",
-    title: "DNS Propagation Checker | Compare Resolver Rollout | Netlab",
-    description:
-      "Track DNS propagation across global resolvers and compare record responses while updates roll out.",
-    imageAlt: "Netlab DNS propagation checker preview",
-    changeFrequency: "weekly",
-    priority: "0.9",
-  },
-  portScanner: {
-    key: "portScanner",
-    path: "/port-scan",
-    title: "Port Scanner | Bounded Public Port Checks | Netlab",
-    description:
-      "Run bounded public port scans to confirm exposed services and troubleshoot connectivity without scanning private networks.",
-    imageAlt: "Netlab port scanner preview",
-    changeFrequency: "weekly",
-    priority: "0.9",
-  },
-  notFound: {
-    key: "notFound",
-    path: "/404",
-    title: "Page Not Found | Netlab",
-    description:
-      "The requested Netlab page does not exist or may have moved.",
-    imageAlt: "Netlab page not found preview",
-    changeFrequency: "monthly",
-    priority: "0.1",
-    noIndex: true,
-  },
-};
+export const seoPages = Object.fromEntries(
+  sitePageKeys.map((key) => {
+    const page = sitePageCatalog[key];
+    return [
+      key,
+      {
+        key,
+        path: page.path,
+        title: page.title,
+        description: page.description,
+        imageAlt: page.imageAlt,
+        changeFrequency: page.changeFrequency,
+        priority: page.priority,
+        ...("noIndex" in page ? { noIndex: page.noIndex } : {}),
+      } satisfies SEOPageDefinition,
+    ];
+  }),
+) as Record<SEOPageKey, SEOPageDefinition>;
 
-const seoPageKeys = Object.keys(seoPages) as SEOPageKey[];
+const seoPageKeys = sitePageKeys;
 
 export const hasKnownSEOPagePath = (pathname: string) => {
   const normalizedPath = pathname.replace(/\/+$/, "") || "/";
@@ -251,18 +119,7 @@ export const buildStructuredData = (entry: ResolvedSEOEntry) => {
         priceCurrency: "USD",
       },
       featureList: [
-        "IP checker",
-        "DNS lookup",
-        "DNS propagation checker",
-        "Subnet calculator",
-        "Ping tool",
-        "Trace route",
-        "HTTP and TLS inspector",
-        "Network engineering workbench",
-        "Website security posture report",
-        "Email security checker",
-        "WHOIS lookup",
-        "Bounded public port scanner",
+        ...getStructuredDataFeatureList(),
       ],
     });
 

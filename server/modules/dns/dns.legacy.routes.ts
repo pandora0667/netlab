@@ -4,6 +4,12 @@ import { isPublicIPAddress } from "../../../shared/network/ip.js";
 import { abuseLogger } from "../../lib/logger.js";
 import { dnsLimiter } from "../../middleware/rateLimit.js";
 import {
+  registerLegacyPostAction,
+} from "../../common/http/legacy-route-actions.js";
+import {
+  sendLegacyError,
+} from "../../common/http/legacy-responses.js";
+import {
   dnsLookupRequestSchema,
   dnsServerValidationSchema,
 } from "./dns.contract.js";
@@ -14,12 +20,13 @@ import { dnsServerValidationService } from "./dns-server-validation.service.js";
 const router = Router();
 router.use(dnsLimiter);
 
-router.post("/", async (req, res) => {
-  try {
-    const request = dnsLookupRequestSchema.parse(req.body);
+registerLegacyPostAction(router, "/", {
+  parse: (req) => dnsLookupRequestSchema.parse(req.body),
+  execute: async (request) => {
     const response = await dnsLookupService.lookup(request.domain, request.servers);
-    return res.json(response);
-  } catch (error) {
+    return response;
+  },
+  onError: (error, req, res) => {
     if (error instanceof z.ZodError) {
       const blockedServer = Array.isArray(req.body?.servers)
         ? req.body.servers.find(
@@ -37,36 +44,34 @@ router.post("/", async (req, res) => {
         });
       }
 
-      return res.status(400).json({
-        error: "Invalid request data",
+      return sendLegacyError(res, 400, "Invalid request data", {
         details: error.errors,
       });
     }
 
     if (error instanceof DNSError) {
-      return res.status(error.statusCode).json({
-        error: error.message,
+      return sendLegacyError(res, error.statusCode, error.message, {
         code: error.code,
       });
     }
 
-    return res.status(500).json({
-      error: "Internal server error",
+    return sendLegacyError(res, 500, "Internal server error", {
       message: error instanceof Error ? error.message : "Unknown error occurred",
     });
-  }
+  },
 });
 
-router.post("/validate-server", async (req, res) => {
-  const serverIP = typeof req.body?.serverIP === "string" ? req.body.serverIP : undefined;
-
-  try {
+registerLegacyPostAction(router, "/validate-server", {
+  parse: (req) => {
+    const serverIP = typeof req.body?.serverIP === "string" ? req.body.serverIP : undefined;
     if (!serverIP) {
       throw new DNSError("DNS server IP is required", "MISSING_SERVER_IP");
     }
 
     dnsServerValidationSchema.parse(req.body);
-
+    return { serverIP };
+  },
+  execute: async ({ serverIP }) => {
     const validationResult = await dnsServerValidationService.validate(serverIP);
     if (!validationResult.success) {
       throw new DNSError(
@@ -75,15 +80,18 @@ router.post("/validate-server", async (req, res) => {
       );
     }
 
-    return res.json({
+    return {
       success: true,
       isValid: true,
       message: "DNS server validated successfully",
-    });
-  } catch (error) {
+    };
+  },
+  onSuccess: (result, _req, res) => res.json(result),
+  onError: (error, req, res) => {
+    const serverIP = typeof req.body?.serverIP === "string" ? req.body.serverIP : undefined;
+
     if (error instanceof z.ZodError) {
-      return res.status(400).json({
-        error: "DNS server IP is required",
+      return sendLegacyError(res, 400, "DNS server IP is required", {
         code: "MISSING_SERVER_IP",
       });
     }
@@ -99,17 +107,15 @@ router.post("/validate-server", async (req, res) => {
         });
       }
 
-      return res.status(error.statusCode).json({
-        error: error.message,
+      return sendLegacyError(res, error.statusCode, error.message, {
         code: error.code,
       });
     }
 
-    return res.status(500).json({
-      error: "Internal server error",
+    return sendLegacyError(res, 500, "Internal server error", {
       code: "INTERNAL_ERROR",
     });
-  }
+  },
 });
 
 export default router;

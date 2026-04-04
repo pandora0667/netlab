@@ -1,0 +1,392 @@
+export type SiteNavigationGroup = "Overview" | "Tools";
+
+export interface SitePaletteDefinition {
+  id: string;
+  group: SiteNavigationGroup;
+  label: string;
+  description: string;
+  keywords?: string[];
+  category: string;
+  commandHint: string;
+  accent: string;
+  useCase: string;
+  primaryNavLabel?: string;
+}
+
+export interface SitePageCatalogDefinition {
+  path: string;
+  title: string;
+  description: string;
+  imageAlt: string;
+  changeFrequency: "weekly" | "monthly";
+  priority: string;
+  noIndex?: boolean;
+  palette?: SitePaletteDefinition;
+}
+
+export const sitePageCatalog = {
+  home: {
+    path: "/",
+    title: "Netlab | Public Network Diagnostics Workspace",
+    description:
+      "Run public DNS, path, routing, HTTP/TLS, website security, email posture, and bounded port diagnostics from one operator-focused network workspace.",
+    imageAlt: "Netlab network diagnostics workspace preview",
+    changeFrequency: "weekly",
+    priority: "1.0",
+    palette: {
+      id: "home",
+      group: "Overview",
+      label: "Home",
+      description: "Return to the main diagnostics launchpad.",
+      keywords: ["start", "dashboard"],
+      category: "Launchpad",
+      commandHint: "open netlab",
+      accent: "Command Center",
+      useCase: "Start a diagnostic workflow or switch to another tool.",
+      primaryNavLabel: "Overview",
+    },
+  },
+  ipChecker: {
+    path: "/ip-checker",
+    title: "IP Checker | Public IP and Connection Details | Netlab",
+    description:
+      "Check your public IP address, location context, and network details with a focused browser-based IP checker.",
+    imageAlt: "Netlab IP checker preview",
+    changeFrequency: "weekly",
+    priority: "0.9",
+    palette: {
+      id: "ip-checker",
+      group: "Tools",
+      label: "IP Checker",
+      description: "Inspect public IP, region, and ISP metadata.",
+      keywords: ["public", "address", "geo"],
+      category: "Identity",
+      commandHint: "check public ip",
+      accent: "Geolocation",
+      useCase: "Useful when you need to confirm public egress identity first.",
+      primaryNavLabel: "IP",
+    },
+  },
+  dnsLookup: {
+    path: "/dns-lookup",
+    title: "DNS Lookup | Query A, AAAA, MX, TXT, and More | Netlab",
+    description:
+      "Look up DNS records including A, AAAA, MX, TXT, CNAME, NS, and SOA against public resolvers or a custom DNS server.",
+    imageAlt: "Netlab DNS lookup preview",
+    changeFrequency: "weekly",
+    priority: "0.9",
+    palette: {
+      id: "dns-lookup",
+      group: "Tools",
+      label: "DNS Lookup",
+      description: "Query and compare DNS records across resolvers.",
+      keywords: ["record", "a", "mx", "txt"],
+      category: "Resolution",
+      commandHint: "lookup dns records",
+      accent: "Resolver View",
+      useCase: "Best first step for hostname resolution or record verification.",
+      primaryNavLabel: "DNS",
+    },
+  },
+  subnetCalculator: {
+    path: "/subnet-calc",
+    title: "Subnet Calculator | CIDR, Masks, and Host Ranges | Netlab",
+    description:
+      "Calculate subnet ranges, host counts, network addresses, and export subnet plans from CIDR prefixes or dotted decimal masks.",
+    imageAlt: "Netlab subnet calculator preview",
+    changeFrequency: "weekly",
+    priority: "0.9",
+    palette: {
+      id: "subnet-calc",
+      group: "Tools",
+      label: "Subnet Calculator",
+      description: "Calculate CIDR ranges, masks, and host counts.",
+      keywords: ["cidr", "mask", "network"],
+      category: "Addressing",
+      commandHint: "inspect subnet",
+      accent: "CIDR Math",
+      useCase: "Use for network planning, mask conversion, and host capacity checks.",
+    },
+  },
+  pingTool: {
+    path: "/ping",
+    title: "Ping Tool | Check Public Host Reachability | Netlab",
+    description:
+      "Test public host reachability and latency with a live ping tool designed for quick troubleshooting and repeat checks.",
+    imageAlt: "Netlab ping tool preview",
+    changeFrequency: "weekly",
+    priority: "0.9",
+    palette: {
+      id: "ping",
+      group: "Tools",
+      label: "Ping",
+      description: "Measure latency and reachability over ICMP or TCP.",
+      keywords: ["latency", "icmp", "connectivity"],
+      category: "Reachability",
+      commandHint: "probe latency",
+      accent: "Latency Trace",
+      useCase: "Use when you need a fast reachability check before deeper tracing.",
+      primaryNavLabel: "Ping",
+    },
+  },
+  traceTool: {
+    path: "/trace",
+    title: "Trace Route | Bounded Hop-by-Hop Path Probe | Netlab",
+    description:
+      "Trace the public path toward a host with a bounded hop-by-hop probe to see where latency or timeouts begin.",
+    imageAlt: "Netlab trace route preview",
+    changeFrequency: "weekly",
+    priority: "0.9",
+    palette: {
+      id: "trace",
+      group: "Tools",
+      label: "Trace Route",
+      description: "Trace the public path hop by hop and spot where delay begins.",
+      keywords: ["traceroute", "hops", "route", "path"],
+      category: "Path",
+      commandHint: "trace route",
+      accent: "Hop Map",
+      useCase: "Use after Ping when latency or routing looks inconsistent.",
+      primaryNavLabel: "Trace",
+    },
+  },
+  networkEngineering: {
+    path: "/network-engineering",
+    title: "Network Engineering Workbench | Routing, Authority, IPv6, and MTU | Netlab",
+    description:
+      "Inspect routing visibility, origin ASN, RPKI, DNS authority health, IPv4 and IPv6 parity, and path MTU from one operator-focused workbench.",
+    imageAlt: "Netlab network engineering workbench preview",
+    changeFrequency: "weekly",
+    priority: "0.9",
+    palette: {
+      id: "network-engineering",
+      group: "Tools",
+      label: "Network Engineering",
+      description: "Inspect routing state, DNS authority, dual-stack parity, and path MTU.",
+      keywords: ["bgp", "rpki", "authority", "ipv6", "mtu"],
+      category: "Engineering",
+      commandHint: "inspect control plane",
+      accent: "Operator Depth",
+      useCase: "Best when you need control-plane and dual-stack context, not just host reachability.",
+    },
+  },
+  httpInspector: {
+    path: "/http-inspector",
+    title: "HTTP and TLS Inspector | Headers, Redirects, and Certificates | Netlab",
+    description:
+      "Inspect redirect chains, response headers, TLS versions, HSTS, and certificate expiry for a public web target.",
+    imageAlt: "Netlab HTTP and TLS inspector preview",
+    changeFrequency: "weekly",
+    priority: "0.9",
+    palette: {
+      id: "http-inspector",
+      group: "Tools",
+      label: "HTTP/TLS Inspector",
+      description: "Inspect redirects, headers, TLS versions, and certificate health.",
+      keywords: ["tls", "https", "headers", "certificate"],
+      category: "Application",
+      commandHint: "inspect http tls",
+      accent: "Service Layer",
+      useCase: "Best when the hostname resolves but the web service still feels wrong.",
+      primaryNavLabel: "HTTP/TLS",
+    },
+  },
+  websiteSecurity: {
+    path: "/website-security",
+    title: "Website Security Posture | HTTP, TLS, DNSSEC, and CAA | Netlab",
+    description:
+      "Score website security posture with checks for headers, TLS, HSTS, DNSSEC, CAA, and security.txt.",
+    imageAlt: "Netlab website security posture preview",
+    changeFrequency: "weekly",
+    priority: "0.9",
+    palette: {
+      id: "website-security",
+      group: "Tools",
+      label: "Website Security",
+      description: "Score website security posture across HTTP, TLS, and DNS controls.",
+      keywords: ["headers", "security.txt", "caa", "dnssec"],
+      category: "Posture",
+      commandHint: "score website posture",
+      accent: "Security Grade",
+      useCase: "Use when you want an explainable website posture score instead of raw header output.",
+    },
+  },
+  whoisLookup: {
+    path: "/whois",
+    title: "WHOIS Lookup | Domain Registration Details | Netlab",
+    description:
+      "Inspect domain registration records, registrar details, and ownership metadata with a focused WHOIS lookup tool.",
+    imageAlt: "Netlab WHOIS lookup preview",
+    changeFrequency: "weekly",
+    priority: "0.9",
+    palette: {
+      id: "whois",
+      group: "Tools",
+      label: "WHOIS",
+      description: "Inspect registration metadata for domains and IPs.",
+      keywords: ["domain", "registration", "registrar"],
+      category: "Ownership",
+      commandHint: "inspect whois",
+      accent: "Registration Data",
+      useCase: "Useful for registrar, delegation, and registration context.",
+    },
+  },
+  emailSecurity: {
+    path: "/email-security",
+    title: "Email Security Checker | SPF, DMARC, DKIM, and STARTTLS | Netlab",
+    description:
+      "Inspect email security posture across MX, SPF, DMARC, DKIM heuristics, STARTTLS, MTA-STS, and TLS-RPT.",
+    imageAlt: "Netlab email security checker preview",
+    changeFrequency: "weekly",
+    priority: "0.9",
+    palette: {
+      id: "email-security",
+      group: "Tools",
+      label: "Email Security",
+      description: "Inspect SPF, DMARC, DKIM heuristics, MX posture, and STARTTLS.",
+      keywords: ["spf", "dmarc", "dkim", "mx", "starttls"],
+      category: "Mail",
+      commandHint: "check mail posture",
+      accent: "Mail Controls",
+      useCase: "Best when mail deliverability or transport security feels incomplete.",
+    },
+  },
+  dnsPropagation: {
+    path: "/dns-propagation",
+    title: "DNS Propagation Checker | Compare Resolver Rollout | Netlab",
+    description:
+      "Track DNS propagation across global resolvers and compare record responses while updates roll out.",
+    imageAlt: "Netlab DNS propagation checker preview",
+    changeFrequency: "weekly",
+    priority: "0.9",
+    palette: {
+      id: "dns-propagation",
+      group: "Tools",
+      label: "DNS Propagation",
+      description: "Compare answers from resolvers around the world.",
+      keywords: ["nameserver", "global", "resolve"],
+      category: "Propagation",
+      commandHint: "watch propagation",
+      accent: "Global Nodes",
+      useCase: "Use after changing records and waiting for global resolver convergence.",
+    },
+  },
+  portScanner: {
+    path: "/port-scan",
+    title: "Port Scanner | Bounded Public Port Checks | Netlab",
+    description:
+      "Run bounded public port scans to confirm exposed services and troubleshoot connectivity without scanning private networks.",
+    imageAlt: "Netlab port scanner preview",
+    changeFrequency: "weekly",
+    priority: "0.9",
+    palette: {
+      id: "port-scan",
+      group: "Tools",
+      label: "Port Scanner",
+      description: "Scan exposed ports on an approved public target.",
+      keywords: ["tcp", "open", "ports"],
+      category: "Surface",
+      commandHint: "scan tcp ports",
+      accent: "Attack Surface",
+      useCase: "Use when you need a bounded view of externally reachable services.",
+    },
+  },
+  notFound: {
+    path: "/404",
+    title: "Page Not Found | Netlab",
+    description:
+      "The requested Netlab page does not exist or may have moved.",
+    imageAlt: "Netlab page not found preview",
+    changeFrequency: "monthly",
+    priority: "0.1",
+    noIndex: true,
+  },
+} as const satisfies Record<string, SitePageCatalogDefinition>;
+
+export type SitePageKey = keyof typeof sitePageCatalog;
+export type SitePageEntry<K extends SitePageKey = SitePageKey> = {
+  key: K;
+} & (typeof sitePageCatalog)[K];
+export type PaletteSitePageKey = {
+  [K in SitePageKey]: (typeof sitePageCatalog)[K] extends { palette: SitePaletteDefinition }
+    ? K
+    : never;
+}[SitePageKey];
+export type PaletteSitePageEntry = {
+  [K in PaletteSitePageKey]: SitePageEntry<K>;
+}[PaletteSitePageKey];
+
+export interface WorkflowCatalogDefinition {
+  id: string;
+  title: string;
+  description: string;
+  steps: SitePageKey[];
+}
+
+export const workflowCatalog: WorkflowCatalogDefinition[] = [
+  {
+    id: "domain-debug",
+    title: "A hostname is not resolving",
+    description: "Start with resolver truth, then confirm whether propagation or ownership is involved.",
+    steps: ["dnsLookup", "dnsPropagation", "whoisLookup"],
+  },
+  {
+    id: "service-debug",
+    title: "A site is up, but users report failures",
+    description: "Separate transport, path, and application issues instead of guessing one layer.",
+    steps: ["pingTool", "traceTool", "websiteSecurity"],
+  },
+  {
+    id: "surface-review",
+    title: "You need a public exposure snapshot",
+    description: "Confirm identity first, then inspect open surface and ownership context.",
+    steps: ["ipChecker", "portScanner", "whoisLookup"],
+  },
+  {
+    id: "control-plane-debug",
+    title: "The route or edge policy feels wrong",
+    description: "Check origin state, authority health, dual-stack drift, and path MTU before escalating upstream.",
+    steps: ["networkEngineering", "dnsPropagation", "httpInspector"],
+  },
+];
+
+export const sitePageKeys = Object.keys(sitePageCatalog) as SitePageKey[];
+
+export function getSitePageEntry<K extends SitePageKey>(key: K): SitePageEntry<K> {
+  return {
+    key,
+    ...sitePageCatalog[key],
+  };
+}
+
+export function getAllSitePages() {
+  return sitePageKeys.map((key) => getSitePageEntry(key));
+}
+
+export function getRoutableSitePages() {
+  return getAllSitePages().filter((page) => page.key !== "notFound");
+}
+
+function hasPalette(page: SitePageEntry): page is PaletteSitePageEntry {
+  return "palette" in page;
+}
+
+export function getPalettePages() {
+  return getAllSitePages().filter(hasPalette);
+}
+
+export function getPalettePageByPath(path: string) {
+  return getPalettePages().find((page) => page.path === path);
+}
+
+export function getPrimaryNavPages() {
+  return getPalettePages().filter((page) => "primaryNavLabel" in page.palette);
+}
+
+export function getToolPages() {
+  return getPalettePages().filter((page) => page.palette.group === "Tools");
+}
+
+export function getStructuredDataFeatureList() {
+  return getToolPages().map((page) => page.palette.label);
+}

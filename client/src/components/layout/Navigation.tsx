@@ -3,23 +3,18 @@ import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { useCommandPalette } from "@/components/layout/command-palette";
 import { useModKeyLabel } from "@/hooks/use-mod-key-label";
-import { commandPaletteGroups } from "@/lib/command-palette-items";
+import {
+  commandPaletteGroups,
+  getPrimaryNavigationItems,
+} from "@/lib/command-palette-items";
 import { Command, Menu, X } from "lucide-react";
-
-const primaryNavItems = [
-  { href: "/", label: "Overview" },
-  { href: "/ip-checker", label: "IP" },
-  { href: "/dns-lookup", label: "DNS" },
-  { href: "/ping", label: "Ping" },
-  { href: "/trace", label: "Trace" },
-  { href: "/http-inspector", label: "HTTP/TLS" },
-];
 
 export default function Navigation() {
   const [isOpen, setIsOpen] = useState(false);
   const [location] = useLocation();
   const { setOpen: openCommandPalette } = useCommandPalette();
   const mod = useModKeyLabel();
+  const primaryNavItems = getPrimaryNavigationItems();
 
   const isActive = (href: string): boolean => location === href;
 
