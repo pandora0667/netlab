@@ -56,39 +56,46 @@ export default function Navigation() {
   );
 
   return (
-    <header className="sticky top-0 z-50 pt-5" role="banner">
-      <div className="app-shell flex flex-col gap-3">
-        <div className="floating-nav rounded-[1.6rem] px-3 py-3">
-          <div className="flex items-center gap-3">
+    <header className="sticky top-0 z-50 pt-4" role="banner">
+      <div className="app-shell flex flex-col gap-2">
+        <div className="netlab-header-frame">
+          <div className="netlab-header-top">
             <Link
               href="/"
               onClick={() => {
                 setIsMobileMenuOpen(false);
                 setDesktopLayerKey(null);
               }}
-              className="nav-brand flex shrink-0 items-center gap-3 rounded-full px-2 py-1 text-sm font-semibold tracking-[0.02em] text-foreground transition-transform duration-200 hover:scale-[0.99]"
+              className="netlab-header-brand"
             >
-              <img
-                src="/favicon.svg"
-                alt=""
-                aria-hidden="true"
-                className="h-9 w-9 rounded-2xl border border-white/10 object-cover shadow-[0_10px_30px_rgba(6,12,28,0.45)]"
-              />
+              <span className="netlab-header-brandmark">
+                <img
+                  src="/favicon.svg"
+                  alt=""
+                  aria-hidden="true"
+                  className="h-8 w-8 rounded-2xl object-cover"
+                />
+              </span>
               <span className="flex flex-col leading-none" aria-label="Netlab Home">
-                <span className="font-['Space_Grotesk'] text-[0.95rem] font-bold tracking-[0.08em]">
+                <span className="font-['Space_Grotesk'] text-[0.95rem] font-bold tracking-[0.08em] text-white">
                   NETLAB
                 </span>
-                <span className="text-[0.62rem] uppercase tracking-[0.26em] text-white/45">
+                <span className="text-[0.62rem] uppercase tracking-[0.26em] text-white/38">
                   command surface
                 </span>
               </span>
             </Link>
 
-            <div className="ml-auto flex items-center gap-1.5">
+            <div className="ml-auto flex items-center gap-3">
+              {isDesktop ? (
+                <span className="netlab-header-meta">
+                  public edge / operator surface / bounded diagnostics
+                </span>
+              ) : null}
               <Button
                 type="button"
                 variant="ghost"
-                className="hidden rounded-full border border-white/10 bg-white/[0.04] px-4 text-sm text-white/74 hover:bg-white/[0.08] hover:text-white md:inline-flex"
+                className="netlab-header-search hidden md:inline-flex"
                 onClick={() => {
                   openCommandPalette(true);
                   setIsMobileMenuOpen(false);
@@ -98,14 +105,14 @@ export default function Navigation() {
                 Search
               </Button>
               {isDesktop ? (
-                <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[0.68rem] font-mono uppercase tracking-[0.2em] text-white/54">
+                <span className="netlab-header-kbd">
                   {mod}+K
                 </span>
               ) : (
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="rounded-full border border-white/10 bg-white/6 text-white hover:bg-white/10"
+                  className="rounded-full border border-white/10 bg-white/[0.03] text-white hover:bg-white/[0.08]"
                   onClick={() => setIsMobileMenuOpen((open) => !open)}
                   aria-expanded={isMobileMenuOpen}
                   aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
@@ -118,7 +125,7 @@ export default function Navigation() {
 
           {isDesktop ? (
             <div
-              className="mt-3 border-t border-white/8 pt-3"
+              className="netlab-header-navline"
               onMouseLeave={() => setDesktopLayerKey(null)}
               onBlurCapture={(event) => {
                 if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
@@ -126,7 +133,7 @@ export default function Navigation() {
                 }
               }}
             >
-              <nav className="flex flex-wrap items-center gap-x-5 gap-y-2" aria-label="Primary layers">
+              <nav className="flex flex-wrap items-center gap-x-7 gap-y-2" aria-label="Primary layers">
                 {layerGroups.map((group) => {
                   const isActiveLayer = activeLayerKey === group.key;
                   const isOpenLayer = desktopLayerKey === group.key;
@@ -137,24 +144,24 @@ export default function Navigation() {
                       type="button"
                       onMouseEnter={() => setDesktopLayerKey(group.key)}
                       onFocus={() => setDesktopLayerKey(group.key)}
-                      className={`inline-flex items-center gap-2 border-b px-0.5 py-1 text-[0.74rem] font-medium uppercase tracking-[0.18em] transition-colors ${
+                      className={`netlab-header-trigger ${
                         isOpenLayer || isActiveLayer
-                          ? "border-white/70 text-white"
-                          : "border-transparent text-white/54 hover:text-white"
+                          ? "is-active"
+                          : ""
                       }`}
                       aria-expanded={isOpenLayer}
                       aria-haspopup="true"
                     >
                       {group.shortLabel}
-                      <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isOpenLayer ? "rotate-180" : ""}`} />
+                      <ChevronDown className={`h-3 w-3 shrink-0 transition-transform ${isOpenLayer ? "rotate-180" : ""}`} />
                     </button>
                   );
                 })}
               </nav>
 
               {desktopGroup ? (
-                <div className="mt-3 rounded-[1.2rem] border border-white/10 bg-white/[0.035] p-3 shadow-[0_18px_42px_rgba(0,0,0,0.24)] backdrop-blur-xl">
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-[0.68rem] uppercase tracking-[0.2em] text-white/40">
+                <div className="netlab-header-dropdown">
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-[0.68rem] uppercase tracking-[0.2em] text-white/34">
                     <span>{desktopGroup.heading}</span>
                     <span>{desktopGroup.items.length} tools</span>
                   </div>
@@ -169,7 +176,7 @@ export default function Navigation() {
                           className={`rounded-full border px-3 py-2 text-sm transition-colors ${
                             active
                               ? "border-white/16 bg-white text-neutral-950"
-                              : "border-white/10 bg-white/[0.03] text-white/72 hover:border-white/16 hover:text-white"
+                              : "border-white/10 bg-white/[0.02] text-white/72 hover:border-white/16 hover:bg-white/[0.05] hover:text-white"
                           }`}
                         >
                           {tool.label}
@@ -185,7 +192,7 @@ export default function Navigation() {
 
         {!isDesktop && isMobileMenuOpen ? (
           <nav
-            className="glass-panel rounded-[1.75rem] border border-white/10 p-4 shadow-[0_30px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl"
+            className="netlab-header-mobile"
             role="navigation"
             aria-label="Mobile menu"
           >

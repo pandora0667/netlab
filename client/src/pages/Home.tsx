@@ -1,512 +1,510 @@
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useCommandPalette } from "@/components/layout/command-palette";
 import { SEO } from "../components/SEO";
+import { Link } from "wouter";
 import {
   ArrowRight,
   ArrowUpRight,
-  BadgeCheck,
-  Globe2,
-  Mail,
-  Route,
+  Globe,
+  Network,
+  Radar,
   ShieldCheck,
   Waypoints,
 } from "lucide-react";
-import { getTechnicalLayerGroups, getToolPages, workflowCatalog } from "../../../shared/catalog/site-catalog";
+import { workflowCatalog } from "../../../shared/catalog/site-catalog";
 
-const technicalLayers = getTechnicalLayerGroups().filter((layer) => layer.key !== "overview");
-const toolCount = getToolPages().length;
-const workflowCount = workflowCatalog.length;
-
-const heroSignals = [
-  "Public-only scope",
-  "Readable evidence",
-  "Bounded checks",
-];
-
-const heroSurfaceRows = [
+const heroShortcuts = [
   {
-    label: "Identity",
-    title: "Anchor the target first",
-    body: "Confirm public IP, ownership, and subnet context before deeper checks muddy the story.",
+    href: "/dns-lookup",
+    label: "DNS Lookup",
+    detail: "Check resolver truth first.",
   },
   {
-    label: "DNS and path",
-    title: "Find where the symptom begins",
-    body: "Keep resolver truth, propagation drift, latency, and hop behavior close enough to compare.",
+    href: "/trace",
+    label: "Trace Route",
+    detail: "See where the path breaks.",
   },
   {
-    label: "Service edge",
-    title: "Read what the internet actually receives",
-    body: "Inspect HTTP, TLS, website posture, and mail controls instead of assuming the edge is healthy.",
-  },
-  {
-    label: "Control and exposure",
-    title: "Escalate with operator context",
-    body: "Move into routing, authority, parity, MTU, and bounded surface checks without leaving the same workspace.",
+    href: "/http-inspector",
+    label: "HTTP/TLS Inspector",
+    detail: "Inspect the public edge response.",
   },
 ];
 
-const proofMetrics = [
+const heroFieldColumns = Array.from({ length: 12 });
+const heroFieldStreaks = Array.from({ length: 3 });
+
+const supportColumns = [
   {
-    value: "1",
-    label: "Workspace",
-    description: "Keep identity, DNS, path, service edge, control plane, and exposure context together.",
+    title: "Identity and ownership",
+    body: "Confirm public IP, registrar context, and network boundaries before deeper diagnostics distort the problem.",
   },
   {
-    value: `${technicalLayers.length}`,
-    label: "Layers",
-    description: "Organized by where evidence lives on the public internet, not by random utility names.",
+    title: "Naming and path",
+    body: "Keep DNS, propagation, reachability, and hop behavior in one reading surface instead of switching tools mid-investigation.",
   },
   {
-    value: `${toolCount}`,
-    label: "Routes",
-    description: "Focused diagnostics for public targets, from egress identity through bounded port exposure.",
-  },
-  {
-    value: `${workflowCount}`,
-    label: "Guides",
-    description: "Symptom-led investigation flows for the moments when you know the pain before the layer.",
+    title: "Service and control plane",
+    body: "Move from web and mail posture into routing, authority, parity, MTU, and exposure without losing the same thread.",
   },
 ];
 
-const productNarrative = [
+const featureBands = [
   {
-    title: "Keep one story",
-    body: "Public incidents are usually explained across too many disconnected tools. Netlab keeps identity, naming, path, service behavior, routing context, and bounded exposure in one operator-facing workspace so the evidence stays connected.",
+    id: "identity",
+    eyebrow: "Identity",
+    title: "Start with who the target is before asking why it is failing.",
+    body: "Public identity, ownership, and subnet context are the first things teams skip and the first things they need later.",
+    href: "/ip-checker",
+    cta: "Open IP Checker",
   },
   {
-    title: "Read across layers",
-    body: "The goal is to show where the problem actually starts, not just return isolated raw responses. That makes it easier to separate DNS, path, service, and control-plane issues before anyone changes configuration.",
+    id: "dns",
+    eyebrow: "DNS and naming",
+    title: "Separate naming drift from transport and service failure.",
+    body: "DNS lookup and propagation belong in the same conversation as path checks because resolver truth often decides the next move.",
+    href: "/dns-lookup",
+    cta: "Open DNS Lookup",
   },
   {
-    title: "Stay inside policy",
-    body: "Netlab is intentionally biased toward public targets and explainable diagnostics. It is built for verification and analysis, not private-network discovery or opaque active scanning.",
-  },
-];
-
-const investigationArcs = [
-  {
-    number: "01",
-    title: "Establish identity before you debug behavior.",
-    label: "Identity and ownership",
-    description: "Many failures get escalated before anyone confirms which public IP, registrar, ownership record, or subnet boundary is actually in play. Netlab starts by anchoring the target in something concrete.",
-    questions: [
-      "What public identity is the target presenting right now?",
-      "Does ownership or registration context explain the issue?",
-      "Are we debugging the right network boundary in the first place?",
-    ],
+    id: "service",
+    eyebrow: "Service edge",
+    title: "Read what users and mail receivers actually meet on the public edge.",
+    body: "HTTP, TLS, website posture, and email security belong together when the hostname resolves but trust, redirects, or policy still feel wrong.",
+    href: "/website-security",
+    cta: "Open Website Security",
   },
   {
-    number: "02",
-    title: "Separate naming from transport before blaming the app.",
-    label: "Naming and reachability",
-    description: "A surprising amount of edge noise comes from DNS drift, resolver disagreement, or path instability rather than the application itself. Netlab keeps those checks next to each other so they can be compared instead of guessed.",
-    questions: [
-      "Does the hostname resolve correctly and consistently?",
-      "Is the issue propagation, path behavior, or raw reachability?",
-      "Where does latency or timeout start showing up from the public edge?",
-    ],
-  },
-  {
-    number: "03",
-    title: "Inspect the service the way users and mail receivers see it.",
-    label: "Service edge and delivery",
-    description: "When the target resolves, the next problem is usually not existence but quality. Netlab surfaces redirect chains, TLS posture, website controls, and mail security signals so teams can explain what the public edge is actually delivering.",
-    questions: [
-      "Is the web edge behaving correctly under HTTP and TLS?",
-      "Do security headers, HSTS, DNS controls, and certificates line up?",
-      "Does mail posture explain deliverability or transport trust problems?",
-    ],
-  },
-  {
-    number: "04",
-    title: "Move into operator context without leaving the same workspace.",
-    label: "Control plane and exposure",
-    description: "Sometimes the problem is neither DNS nor the app. Routing visibility, authority drift, IPv4 or IPv6 mismatch, path MTU, or exposed surface area can all create symptoms that look like application bugs. Netlab keeps those checks in the same narrative instead of making them a separate product.",
-    questions: [
-      "Is routing or authority state creating the observed symptom?",
-      "Do IPv4 and IPv6 present the same reality from the edge?",
-      "What public surface is actually reachable right now?",
-    ],
+    id: "engineering",
+    eyebrow: "Operator depth",
+    title: "Move into routing, authority, dual-stack parity, and bounded exposure only when the evidence requires it.",
+    body: "Netlab keeps the deep checks close to the front-line checks so escalation can happen with context instead of assumption.",
+    href: "/network-engineering",
+    cta: "Open Engineering",
   },
 ];
 
-const operatorMoments = [
-  {
-    title: "During cutovers and changes",
-    description: "Use Netlab when a DNS, edge, or security change has been made and you need public evidence before rolling forward or rolling back.",
-    outcomes: [
-      "Confirm whether propagation is complete or still drifting.",
-      "Check whether the web edge matches the intended policy.",
-      "Collect evidence that can be shared outside the change window.",
-    ],
-  },
-  {
-    title: "During incidents and escalations",
-    description: "Use it when the symptom is real but the failing layer is still ambiguous. The goal is to stop guessing which team owns the next move.",
-    outcomes: [
-      "Separate resolver issues from path or service failures.",
-      "Show where the symptom begins from the public side.",
-      "Escalate with context instead of screenshots and intuition.",
-    ],
-  },
-  {
-    title: "During periodic review",
-    description: "Use Netlab to audit public posture and exposure before there is an outage, especially for domains, external services, and mail edge configuration.",
-    outcomes: [
-      "Identify posture gaps that are easy to miss in raw output.",
-      "Review public surface area without crossing into private discovery.",
-      "Keep an operator-readable record of what the edge looks like today.",
-    ],
-  },
-];
+const workflowHighlights = workflowCatalog.map((workflow) => ({
+  id: workflow.id,
+  title: workflow.title,
+  description: workflow.description,
+  steps: workflow.steps.length,
+}));
 
-const trustBoundaries = [
+const operatorProof = [
   {
-    title: "Public targets only",
-    body: "The workspace is built around public domains, hostnames, and IPs. It is not a pivot into internal networks.",
+    icon: Globe,
+    title: "Public-only scope",
+    body: "Built for public targets and edge evidence, not internal network discovery.",
   },
   {
-    title: "Bounded probing",
-    body: "Diagnostics are designed to stay explainable and contained, including bounded port checks and redacted local trace context.",
-  },
-  {
+    icon: Radar,
     title: "Readable outputs",
-    body: "The goal is to translate edge behavior into operator evidence, not just return raw protocol fragments without context.",
+    body: "Results are meant to explain where the problem begins, not just dump raw protocol fragments.",
   },
   {
-    title: "Cross-layer context",
-    body: "Identity, naming, path, service, and control-plane evidence stay close enough to be compared during one investigation.",
+    icon: ShieldCheck,
+    title: "Bounded exposure",
+    body: "Checks stay controlled and operator-facing, including redacted local trace context and bounded port probing.",
   },
 ];
+
+function HeroSignalArtwork() {
+  return (
+    <svg
+      className="home-cinematic-artwork"
+      viewBox="0 0 920 760"
+      preserveAspectRatio="none"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <defs>
+        <linearGradient id="netlabSignal" x1="140" y1="96" x2="760" y2="620" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="rgba(129,255,230,0.04)" />
+          <stop offset="0.36" stopColor="rgba(129,255,230,0.44)" />
+          <stop offset="0.68" stopColor="rgba(114,186,255,0.32)" />
+          <stop offset="1" stopColor="rgba(114,186,255,0.03)" />
+        </linearGradient>
+        <linearGradient id="netlabFaint" x1="80" y1="120" x2="820" y2="540" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="rgba(255,255,255,0)" />
+          <stop offset="0.5" stopColor="rgba(170,245,228,0.11)" />
+          <stop offset="1" stopColor="rgba(255,255,255,0)" />
+        </linearGradient>
+        <linearGradient id="netlabHairline" x1="120" y1="160" x2="818" y2="518" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="rgba(255,255,255,0)" />
+          <stop offset="0.42" stopColor="rgba(173,246,231,0.2)" />
+          <stop offset="0.74" stopColor="rgba(133,173,255,0.16)" />
+          <stop offset="1" stopColor="rgba(255,255,255,0)" />
+        </linearGradient>
+        <radialGradient id="netlabNode" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(0.5 0.5) scale(1)">
+          <stop stopColor="rgba(210,255,244,1)" />
+          <stop offset="1" stopColor="rgba(210,255,244,0)" />
+        </radialGradient>
+      </defs>
+
+      <g opacity="0.42" className="home-cinematic-pathfield">
+        <path className="home-cinematic-path home-cinematic-path-faint" d="M72 558C190 542 260 422 378 408C496 394 566 468 670 450C786 432 836 286 914 242" stroke="url(#netlabFaint)" strokeWidth="0.55" strokeLinecap="round" pathLength="100" />
+        <path className="home-cinematic-path home-cinematic-path-faint-alt" d="M54 430C162 398 242 282 358 278C466 274 560 360 652 348C760 334 834 228 910 174" stroke="url(#netlabFaint)" strokeWidth="0.52" strokeLinecap="round" pathLength="100" />
+        <path className="home-cinematic-path home-cinematic-path-hairline" d="M88 626C214 592 302 486 424 474C542 462 628 520 730 498C820 478 876 392 924 336" stroke="url(#netlabHairline)" strokeWidth="0.45" strokeLinecap="round" pathLength="100" />
+        <path className="home-cinematic-path home-cinematic-path-hairline-alt" d="M132 322C252 286 350 184 466 192C568 198 638 284 734 276C818 268 878 216 926 168" stroke="url(#netlabHairline)" strokeWidth="0.44" strokeLinecap="round" pathLength="100" />
+        <path className="home-cinematic-path home-cinematic-path-hairline-soft" d="M104 506C198 476 280 426 388 414C502 402 596 422 704 396C806 372 884 302 938 246" stroke="url(#netlabHairline)" strokeWidth="0.42" strokeLinecap="round" pathLength="100" />
+        <path className="home-cinematic-path home-cinematic-path-hairline-soft" d="M120 214C232 212 314 126 432 132C548 138 626 220 736 214C836 210 902 154 942 112" stroke="url(#netlabHairline)" strokeWidth="0.4" strokeLinecap="round" pathLength="100" />
+      </g>
+
+      <g>
+        {[
+          [154, 542],
+          [292, 434],
+          [438, 404],
+          [592, 430],
+          [734, 352],
+          [848, 254],
+          [356, 278],
+          [674, 282],
+          [782, 194],
+          [236, 222],
+        ].map(([cx, cy], index) => (
+          <g key={`${cx}-${cy}`} className="home-cinematic-node" style={{ ["--node-delay" as string]: `${index * 1.1}s` }}>
+            <circle className="home-cinematic-node-halo" cx={cx} cy={cy} r="11" fill="url(#netlabNode)" opacity="0.06" />
+            <circle className="home-cinematic-node-core" cx={cx} cy={cy} r="1.8" fill="rgba(200,255,240,0.66)" />
+            <circle className="home-cinematic-node-ring" cx={cx} cy={cy} r="4.8" stroke="rgba(170,245,228,0.1)" />
+          </g>
+        ))}
+      </g>
+    </svg>
+  );
+}
 
 export default function Home() {
   const { setOpen: openPalette } = useCommandPalette();
+  const heroRef = useRef<HTMLElement | null>(null);
+  const [heroMotionPaused, setHeroMotionPaused] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let isVisible = !document.hidden;
+    let isIntersecting = true;
+
+    const updateMotionState = () => {
+      setHeroMotionPaused(media.matches || !isVisible || !isIntersecting);
+    };
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        isIntersecting = entry.isIntersecting && entry.intersectionRatio > 0.12;
+        updateMotionState();
+      },
+      { threshold: [0, 0.12, 0.3] },
+    );
+
+    if (heroRef.current) {
+      observer.observe(heroRef.current);
+    }
+
+    const handleVisibilityChange = () => {
+      isVisible = !document.hidden;
+      updateMotionState();
+    };
+
+    media.addEventListener("change", updateMotionState);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    updateMotionState();
+
+    return () => {
+      observer.disconnect();
+      media.removeEventListener("change", updateMotionState);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
 
   return (
     <>
       <SEO page="home" />
-      <div className="w-full space-y-24 pb-24">
-        <section className="home-hero app-bleed overflow-hidden">
-          <div className="app-shell py-14 lg:py-20">
-            <div className="grid gap-12 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:items-center">
-              <div className="max-w-[42rem]">
-                <div className="flex flex-wrap gap-2">
-                  {heroSignals.map((signal) => (
-                    <span key={signal} className="tool-kicker">
-                      {signal}
-                    </span>
-                  ))}
-                </div>
+      <div className="home-surface-merge relative w-full pb-28 text-foreground">
+        <section
+          ref={heroRef}
+          className={`home-cinematic-hero app-bleed ${heroMotionPaused ? "is-motion-paused" : ""}`}
+        >
+          <div className="home-cinematic-backdrop" aria-hidden="true">
+            <HeroSignalArtwork />
+            <div className="home-cinematic-softfield">
+              <span />
+              <span />
+              <span />
+              <span />
+            </div>
+            <div className="home-cinematic-bloomfield">
+              <span />
+              <span />
+            </div>
+            <div className="home-cinematic-orbs">
+              <span />
+              <span />
+            </div>
+            <div className="home-cinematic-lightfield">
+              {heroFieldColumns.map((_, index) => (
+                <span key={`backdrop-field-${index}`} />
+              ))}
+            </div>
+            <div className="home-cinematic-streaks">
+              {heroFieldStreaks.map((_, index) => (
+                <span key={`backdrop-streak-${index}`} />
+              ))}
+            </div>
+          </div>
 
-                <h1 className="mt-6 max-w-[7.5ch] font-['Space_Grotesk'] text-5xl font-bold leading-[0.9] tracking-[-0.07em] text-white sm:text-6xl lg:text-[5.8rem]">
-                  Explain the public edge before you change it.
-                </h1>
-                <p className="mt-6 max-w-3xl text-base leading-8 text-white/62 sm:text-lg">
-                  Netlab gives network, platform, and security teams one public diagnostics
-                  workspace for reading identity, naming, path behavior, service edge,
-                  routing context, and bounded exposure without losing the investigation narrative.
-                </p>
+          <div className="home-cinematic-grid app-shell">
+            <div className="home-cinematic-copy">
+              <p className="home-cinematic-eyebrow">Netlab command surface</p>
+              <h1 className="home-cinematic-title">
+                Read the public edge.
+                <span>Before you touch production.</span>
+              </h1>
+              <p className="home-cinematic-body">
+                One workspace for identity, DNS, path, service behavior, routing context,
+                and bounded exposure when the internet-facing symptom is real but the
+                failing layer is still unclear.
+              </p>
 
-                <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-                  <Button
-                    size="lg"
-                    className="group rounded-full bg-white px-6 text-neutral-950 hover:bg-white/92"
-                    onClick={() => openPalette(true)}
-                  >
-                    Open command palette
-                    <ArrowUpRight className="ml-2 h-4 w-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-                  </Button>
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    className="rounded-full border-white/10 bg-white/[0.03] px-6 text-white hover:bg-white/[0.06] hover:text-white"
-                    onClick={() =>
-                      document.getElementById("coverage")?.scrollIntoView({
-                        behavior: "smooth",
-                        block: "start",
-                      })
-                    }
-                  >
-                    See what the workspace covers
-                  </Button>
-                </div>
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                <Button
+                  size="lg"
+                  onClick={() => openPalette(true)}
+                  className="rounded-full bg-white px-6 text-neutral-950 hover:bg-white/92"
+                >
+                  Open command palette
+                  <ArrowUpRight className="ml-2 h-4 w-4" />
+                </Button>
+                <Button
+                  size="lg"
+                  variant="ghost"
+                  className="rounded-full border border-white/10 bg-white/[0.03] px-6 text-white/74 hover:bg-white/[0.06] hover:text-white"
+                  onClick={() =>
+                    document.getElementById("coverage")?.scrollIntoView({
+                      behavior: "smooth",
+                      block: "start",
+                    })
+                  }
+                >
+                  Explore coverage
+                </Button>
               </div>
 
-              <div className="home-hero-visual">
-                <div className="home-hero-console">
-                  <div className="flex items-start justify-between gap-4 border-b border-white/8 pb-4">
-                    <div className="space-y-2">
-                      <p className="tool-eyebrow">Public investigation surface</p>
-                      <p className="max-w-md text-sm leading-7 text-white/58">
-                        Start with the big public question, then move downward only as far as the evidence requires.
-                      </p>
+              <div className="home-hero-shortcuts">
+                {heroShortcuts.map((item) => (
+                  <Link key={item.href} href={item.href} className="home-hero-shortcut">
+                    <div>
+                      <p className="tool-eyebrow">{item.label}</p>
+                      <p className="mt-2 text-sm leading-7 text-white/64">{item.detail}</p>
                     </div>
-                    <div className="rounded-full border border-emerald-300/18 bg-emerald-300/8 px-3 py-2 text-[0.68rem] uppercase tracking-[0.18em] text-emerald-100/72">
-                      Public-only
+                    <ArrowRight className="h-4 w-4 shrink-0 text-white/30" />
+                  </Link>
+                ))}
+              </div>
+            </div>
+
+            <div className="home-cinematic-visual" aria-hidden="true">
+              <div className="home-cinematic-stage">
+                <div className="home-cinematic-console">
+                  <div className="home-cinematic-console-head">
+                    <span>public surface</span>
+                    <span>netlab.edge</span>
+                  </div>
+
+                  <div className="home-cinematic-console-list">
+                    <div className="home-cinematic-console-row">
+                      <span>identity.resolve()</span>
+                      <span>public ip, whois, subnet</span>
+                    </div>
+                    <div className="home-cinematic-console-row">
+                      <span>dns.inspect()</span>
+                      <span>lookup, propagation, authority</span>
+                    </div>
+                    <div className="home-cinematic-console-row">
+                      <span>path.measure()</span>
+                      <span>ping, trace, mtu, parity</span>
+                    </div>
+                    <div className="home-cinematic-console-row">
+                      <span>service.read()</span>
+                      <span>http, tls, web, email</span>
+                    </div>
+                    <div className="home-cinematic-console-row">
+                      <span>control.escalate()</span>
+                      <span>routing, exposure, operator depth</span>
                     </div>
                   </div>
 
-                  <div className="mt-5 space-y-3">
-                    {heroSurfaceRows.map((row) => (
-                      <article key={row.title} className="home-hero-console-row">
-                        <div className="space-y-2">
-                          <p className="tool-eyebrow">{row.label}</p>
-                          <h3 className="font-['Space_Grotesk'] text-xl font-semibold tracking-[-0.04em] text-white">
-                            {row.title}
-                          </h3>
-                          <p className="text-sm leading-7 text-white/62">
-                            {row.body}
-                          </p>
-                        </div>
-                        <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-white/28" />
-                      </article>
-                    ))}
-                  </div>
-
-                  <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-white/8 pt-4">
-                    {technicalLayers.map((layer) => (
-                      <span
-                        key={layer.key}
-                        className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-2 text-[0.7rem] uppercase tracking-[0.18em] text-white/54"
-                      >
-                        {layer.shortLabel}
-                      </span>
-                    ))}
+                  <div className="home-cinematic-console-foot">
+                    <span>operator-readable evidence</span>
+                    <span>public-only</span>
                   </div>
                 </div>
               </div>
             </div>
+          </div>
+        </section>
 
-            <div className="home-hero-metrics mt-10">
-              {proofMetrics.map((metric) => (
-                <article key={metric.label} className="home-hero-metric">
-                  <p className="tool-metric-label">{metric.label}</p>
-                  <div className="mt-3 flex items-end justify-between gap-4">
-                    <p className="tool-metric-value">{metric.value}</p>
-                    <ArrowUpRight className="mb-1 h-4 w-4 shrink-0 text-white/24" />
+        <section className="app-shell py-24">
+          <div className="home-support-intro">
+            <p className="tool-eyebrow">What the workspace covers</p>
+            <h2 className="home-section-title">
+              One investigation surface across the public stack.
+            </h2>
+            <p className="home-section-copy">
+              The homepage should explain the operating model first. The layer menu above is
+              for direct entry when you already know the exact function.
+            </p>
+          </div>
+
+          <div className="home-support-marker" aria-hidden="true">
+            <span>identity</span>
+            <span>naming</span>
+            <span>path</span>
+            <span>service</span>
+            <span>control</span>
+          </div>
+
+          <div className="home-support-columns">
+            {supportColumns.map((column) => (
+              <article key={column.title} className="home-support-column">
+                <p className="tool-eyebrow">{column.title}</p>
+                <p className="mt-4 text-[1.02rem] leading-8 text-white/76">{column.body}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section id="coverage" className="app-shell py-12">
+          <div className="home-feature-layout">
+            <div className="home-feature-intro">
+              <p className="tool-eyebrow">Coverage</p>
+              <h2 className="home-section-title">
+                Follow the public signal in the order operators usually have to explain it.
+              </h2>
+              <p className="home-section-copy">
+                Netlab is most useful when it keeps the investigation story coherent from first signal to deeper operator context.
+              </p>
+            </div>
+
+            <div className="home-feature-bands">
+              {featureBands.map((band) => (
+                <Link key={band.id} href={band.href} className="home-feature-band">
+                  <div className="home-feature-band-copy">
+                    <p className="tool-eyebrow">{band.eyebrow}</p>
+                    <h3 className="home-feature-band-title">{band.title}</h3>
+                    <p className="text-[0.98rem] leading-8 text-white/62">{band.body}</p>
                   </div>
-                  <p className="mt-3 text-sm leading-7 text-white/56">
-                    {metric.description}
-                  </p>
-                </article>
+                  <div className="home-feature-band-meta">
+                    <span>{band.cta}</span>
+                    <ArrowRight className="h-4 w-4" />
+                  </div>
+                </Link>
               ))}
             </div>
           </div>
         </section>
 
-        <section className="grid gap-10 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-start">
-          <div className="max-w-xl space-y-4">
-            <p className="text-[0.72rem] uppercase tracking-[0.26em] text-white/40">
-              Investigation Model
-            </p>
-            <h2 className="font-['Space_Grotesk'] text-3xl font-bold tracking-[-0.05em] text-white sm:text-4xl">
-              One public narrative from identity through exposure.
-            </h2>
-            <p className="text-sm leading-7 text-white/56 sm:text-base">
-              Netlab is designed to keep public evidence in order, so teams can explain
-              what layer is actually failing before a change window, an escalation, or a postmortem
-              turns into guesswork.
-            </p>
-          </div>
-
-          <div className="space-y-4">
-            {productNarrative.map((item) => (
-              <article key={item.title} className="tool-surface-muted space-y-3">
-                <p className="tool-eyebrow">{item.title}</p>
-                <p className="text-sm leading-7 text-white/64">
-                  {item.body}
+        <section className="home-proof-section app-bleed mt-16">
+          <div className="app-shell py-24">
+            <div className="home-proof-grid">
+              <div className="home-proof-copy">
+                <p className="tool-eyebrow">Why teams use it</p>
+                <h2 className="home-section-title">
+                  Investigation speed comes from keeping fewer tabs open and more context intact.
+                </h2>
+                <p className="home-section-copy">
+                  The value is not just having many tools. The value is that each one stays close
+                  enough to the others that a public-edge incident can still be read as one system.
                 </p>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section id="coverage" className="space-y-8">
-          <div className="max-w-3xl space-y-3">
-            <p className="text-[0.72rem] uppercase tracking-[0.26em] text-white/40">
-              Investigation Coverage
-            </p>
-            <h2 className="font-['Space_Grotesk'] text-3xl font-bold tracking-[-0.05em] text-white sm:text-4xl">
-              Follow the public stack in the order operators usually have to explain it.
-            </h2>
-            <p className="text-sm leading-7 text-white/56 sm:text-base">
-              Instead of reading like a pile of unrelated utilities, Netlab is organized
-              around the questions teams actually ask while debugging internet-facing systems.
-            </p>
-          </div>
-
-          <div className="hero-panel overflow-hidden">
-            {investigationArcs.map((arc, index) => (
-              <article
-                key={arc.number}
-                className={`grid gap-6 p-6 lg:grid-cols-[minmax(0,0.76fr)_minmax(0,1.24fr)] lg:gap-10 lg:p-8 ${
-                  index === 0 ? "" : "border-t border-white/8"
-                }`}
-              >
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 font-['IBM_Plex_Mono'] text-[0.72rem] uppercase tracking-[0.18em] text-white/52">
-                      {arc.number}
-                    </span>
-                    <span className="tool-eyebrow">{arc.label}</span>
-                  </div>
-                  <h3 className="max-w-xl font-['Space_Grotesk'] text-2xl font-semibold tracking-[-0.04em] text-white sm:text-[2rem]">
-                    {arc.title}
-                  </h3>
-                  <p className="max-w-xl text-sm leading-7 text-white/60 sm:text-base">
-                    {arc.description}
-                  </p>
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-3">
-                  {arc.questions.map((question) => (
-                    <div
-                      key={question}
-                      className="rounded-[1.15rem] border border-white/8 bg-white/[0.03] p-4 text-sm leading-7 text-white/72"
-                    >
-                      {question}
-                    </div>
-                  ))}
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section className="space-y-8">
-          <div className="max-w-3xl space-y-3">
-            <p className="text-[0.72rem] uppercase tracking-[0.26em] text-white/40">
-              Typical Moments
-            </p>
-            <h2 className="font-['Space_Grotesk'] text-3xl font-bold tracking-[-0.05em] text-white sm:text-4xl">
-              Use the workspace when the symptom is obvious but the owning layer is not.
-            </h2>
-            <p className="text-sm leading-7 text-white/56 sm:text-base">
-              These are the moments when operator teams usually need a shared public view
-              before they can decide whether to change something, escalate something, or leave it alone.
-            </p>
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-3">
-            {operatorMoments.map((moment) => (
-              <article key={moment.title} className="tool-surface space-y-5">
-                <div className="space-y-3">
-                  <p className="tool-eyebrow">{moment.title}</p>
-                  <p className="text-base leading-8 text-white/72">
-                    {moment.description}
-                  </p>
-                </div>
-                <div className="space-y-3 border-t border-white/8 pt-4">
-                  {moment.outcomes.map((outcome) => (
-                    <div
-                      key={outcome}
-                      className="flex items-start gap-3 rounded-[1rem] border border-white/8 bg-white/[0.03] px-4 py-3"
-                    >
-                      <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-white/34" />
-                      <span className="text-sm leading-7 text-white/68">{outcome}</span>
-                    </div>
-                  ))}
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section className="grid gap-10 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-start">
-          <div className="max-w-xl space-y-4">
-            <p className="text-[0.72rem] uppercase tracking-[0.26em] text-white/40">
-              Trust Boundary
-            </p>
-            <h2 className="font-['Space_Grotesk'] text-3xl font-bold tracking-[-0.05em] text-white sm:text-4xl">
-              Public by design, bounded by policy, and written for humans who need evidence.
-            </h2>
-            <p className="text-sm leading-7 text-white/56 sm:text-base">
-              A diagnostics workspace only stays useful if people can trust where it stops.
-              Netlab should make that boundary explicit instead of hiding it in a footer note.
-            </p>
-
-            <div className="grid gap-3 pt-2 sm:grid-cols-2">
-              <div className="tool-surface-muted flex items-start gap-3">
-                <BadgeCheck className="mt-0.5 h-5 w-5 shrink-0 text-[rgb(181,219,235)]" />
-                <div className="space-y-1">
-                  <p className="tool-eyebrow">Readable by default</p>
-                  <p className="text-sm leading-7 text-white/62">
-                    Focused on explanation, not raw protocol noise.
-                  </p>
-                </div>
               </div>
-              <div className="tool-surface-muted flex items-start gap-3">
-                <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-[rgb(181,219,235)]" />
-                <div className="space-y-1">
-                  <p className="tool-eyebrow">Bounded actions</p>
-                  <p className="text-sm leading-7 text-white/62">
-                    Public-only targets and constrained diagnostics.
-                  </p>
-                </div>
+
+              <div className="home-proof-list">
+                {operatorProof.map((item) => {
+                  const Icon = item.icon;
+
+                  return (
+                    <article key={item.title} className="home-proof-item">
+                      <Icon className="h-5 w-5 text-[rgb(164,234,222)]" />
+                      <div>
+                        <p className="tool-eyebrow">{item.title}</p>
+                        <p className="mt-3 text-[0.98rem] leading-8 text-white/66">{item.body}</p>
+                      </div>
+                    </article>
+                  );
+                })}
               </div>
             </div>
           </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            {trustBoundaries.map((item, index) => {
-              const Icon = [Globe2, Route, Waypoints, Mail][index] ?? BadgeCheck;
-
-              return (
-                <article key={item.title} className="tool-surface space-y-4">
-                  <div className="flex items-center gap-3">
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-[rgb(181,219,235)]">
-                      <Icon className="h-5 w-5" />
-                    </div>
-                    <p className="font-['Space_Grotesk'] text-xl font-semibold tracking-[-0.04em] text-white">
-                      {item.title}
-                    </p>
-                  </div>
-                  <p className="text-sm leading-7 text-white/62">
-                    {item.body}
-                  </p>
-                </article>
-              );
-            })}
-          </div>
         </section>
 
-        <section className="hero-panel overflow-hidden">
-          <div className="grid gap-8 p-6 sm:p-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end lg:p-10">
-            <div className="max-w-3xl space-y-4">
-              <p className="text-[0.72rem] uppercase tracking-[0.26em] text-white/40">
-                Start When Ready
-              </p>
-              <h2 className="font-['Space_Grotesk'] text-3xl font-bold tracking-[-0.05em] text-white sm:text-4xl">
-                Use search when you know the function. Use the layer menu when you know the surface. Use the homepage when you need the story first.
+        <section className="app-shell py-24">
+          <div className="home-workflow-layout">
+            <div className="home-workflow-intro">
+              <p className="tool-eyebrow">Common investigations</p>
+              <h2 className="home-section-title">
+                Start from the symptom when the layer is still ambiguous.
               </h2>
-              <p className="text-sm leading-7 text-white/58 sm:text-base">
-                The top navigation is there for direct access. This page is here to explain
-                what Netlab is actually for, how broad the workspace is, and why its boundary matters.
+              <p className="home-section-copy">
+                Workflow guides stay secondary on the homepage, but they matter when the problem is easy to describe and hard to place.
               </p>
             </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
+            <div className="home-workflow-list">
+              {workflowHighlights.map((workflow, index) => (
+                <button
+                  key={workflow.id}
+                  type="button"
+                  onClick={() => openPalette(true)}
+                  className="home-workflow-row"
+                >
+                  <span className="home-workflow-index">0{index + 1}</span>
+                  <div className="home-workflow-copy">
+                    <h3 className="home-workflow-title">{workflow.title}</h3>
+                    <p className="text-[0.98rem] leading-8 text-white/62">{workflow.description}</p>
+                  </div>
+                  <div className="home-workflow-meta">
+                    <span>{workflow.steps} steps</span>
+                    <Waypoints className="h-4 w-4" />
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="app-shell pb-8">
+          <div className="home-final-cta">
+            <div>
+              <p className="tool-eyebrow">Start here</p>
+              <h2 className="home-section-title">
+                Search when you know the function. Browse the layers when you know the surface.
+              </h2>
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row">
               <Button
                 size="lg"
-                className="group rounded-full bg-white px-6 text-neutral-950 hover:bg-white/92"
                 onClick={() => openPalette(true)}
+                className="rounded-full bg-white px-6 text-neutral-950 hover:bg-white/92"
               >
-                Open command palette
-                <ArrowUpRight className="ml-2 h-4 w-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+                Search all tools
+                <ArrowUpRight className="ml-2 h-4 w-4" />
               </Button>
               <Button
+                asChild
                 size="lg"
-                variant="outline"
-                className="rounded-full border-white/10 bg-white/[0.03] px-6 text-white hover:bg-white/[0.06] hover:text-white"
-                onClick={() =>
-                  document.getElementById("coverage")?.scrollIntoView({
-                    behavior: "smooth",
-                    block: "start",
-                  })
-                }
+                variant="ghost"
+                className="rounded-full border border-white/10 bg-white/[0.03] px-6 text-white/74 hover:bg-white/[0.06] hover:text-white"
               >
-                Review coverage
+                <Link href="/network-engineering">
+                  Open engineering
+                  <Network className="ml-2 h-4 w-4" />
+                </Link>
               </Button>
             </div>
           </div>
