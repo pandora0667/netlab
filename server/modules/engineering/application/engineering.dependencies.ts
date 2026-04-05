@@ -1,5 +1,7 @@
 import { httpInspectorService } from "../../network/http-inspector.service.js";
 import { ipInfoService } from "../../network/ip-info.service.js";
+import { pingService } from "../../network/ping.service.js";
+import { traceService } from "../../network/trace.service.js";
 import type { ReportHistoryStore } from "../domain/history.js";
 import { InMemoryExpiringCache } from "../infrastructure/cache/in-memory-expiring-cache.js";
 import { InMemoryReportHistoryStore } from "../infrastructure/cache/in-memory-report-history.js";
@@ -8,6 +10,10 @@ import {
   NodeDnsAdapter,
 } from "../infrastructure/dns/dns-adapter.js";
 import { ExternalJsonClient } from "../infrastructure/http/external-json-client.js";
+import {
+  Nat64Probe,
+  PacketCaptureAnalyzer,
+} from "../infrastructure/probes/lab-probes.js";
 import {
   MtaStsPolicyProbe,
   PathMtuProbe,
@@ -28,6 +34,10 @@ export interface EngineeringDependencies {
   mtaStsPolicyProbe: MtaStsPolicyProbe;
   geoIpLookup: Pick<typeof ipInfoService, "getIPInfo">;
   httpInspection: Pick<typeof httpInspectorService, "inspect">;
+  ping: Pick<typeof pingService, "executePing" | "calculateStatistics">;
+  trace: Pick<typeof traceService, "trace">;
+  packetCaptureAnalyzer: PacketCaptureAnalyzer;
+  nat64Probe: Nat64Probe;
 }
 
 export function createEngineeringDependencies(): EngineeringDependencies {
@@ -46,6 +56,9 @@ export function createEngineeringDependencies(): EngineeringDependencies {
     mtaStsPolicyProbe: new MtaStsPolicyProbe(),
     geoIpLookup: ipInfoService,
     httpInspection: httpInspectorService,
+    ping: pingService,
+    trace: traceService,
+    packetCaptureAnalyzer: new PacketCaptureAnalyzer(),
+    nat64Probe: new Nat64Probe(),
   };
 }
-

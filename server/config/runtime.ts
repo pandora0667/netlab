@@ -1,3 +1,5 @@
+import { getDefaultPacketCaptureConcurrency } from "./system-resources.js";
+
 function readIntegerEnv(name: string, fallback: number, minimum = 1): number {
   const rawValue = process.env[name];
 
@@ -59,6 +61,7 @@ function readTrustProxyEnv(
 }
 
 const FIFTEEN_MINUTES = 15 * 60 * 1000;
+const DEFAULT_PACKET_CAPTURE_MAX_CONCURRENT_GLOBAL = getDefaultPacketCaptureConcurrency();
 
 export const runtimeConfig = {
   server: {
@@ -115,5 +118,10 @@ export const runtimeConfig = {
     httpInspectionMaxConcurrentPerIp: readIntegerEnv("HTTP_INSPECTION_MAX_CONCURRENT_PER_IP", 3, 1),
     whoisMaxConcurrentGlobal: readIntegerEnv("WHOIS_MAX_CONCURRENT_GLOBAL", 12, 1),
     whoisMaxConcurrentPerIp: readIntegerEnv("WHOIS_MAX_CONCURRENT_PER_IP", 2, 1),
+    packetCaptureMaxConcurrentGlobal: readIntegerEnv("PACKET_CAPTURE_MAX_CONCURRENT_GLOBAL", DEFAULT_PACKET_CAPTURE_MAX_CONCURRENT_GLOBAL, 1),
+    packetCaptureMaxConcurrentPerIp: readIntegerEnv("PACKET_CAPTURE_MAX_CONCURRENT_PER_IP", 1, 1),
+    packetCaptureMaxLoadPerCpuPercent: readIntegerEnv("PACKET_CAPTURE_MAX_LOAD_PER_CPU_PERCENT", 90, 1),
+    packetCaptureMinFreeSystemMemoryMb: readIntegerEnv("PACKET_CAPTURE_MIN_FREE_SYSTEM_MEMORY_MB", 384, 64),
+    packetCaptureMaxSystemMemoryUtilizationPercent: readIntegerEnv("PACKET_CAPTURE_MAX_SYSTEM_MEMORY_UTILIZATION_PERCENT", 92, 1),
   },
 } as const;

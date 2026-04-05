@@ -386,6 +386,22 @@ describe("API routes", () => {
     assert.equal(payload.error.code, "INVALID_ROUTING_REPORT_REQUEST");
   });
 
+  it("rejects routing incident reports without input", async () => {
+    const response = await request("/api/v1/engineering/routing-incident-reports", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({}),
+    });
+
+    assert.equal(response.status, 400);
+    const payload = await response.json();
+
+    assertErrorEnvelope(payload);
+    assert.equal(payload.error.code, "INVALID_ROUTING_INCIDENT_REQUEST");
+  });
+
   it("rejects authority reports for invalid domains", async () => {
     const response = await request("/api/v1/engineering/authority-reports", {
       method: "POST",
@@ -420,5 +436,87 @@ describe("API routes", () => {
 
     assertErrorEnvelope(payload);
     assert.equal(payload.error.code, "INVALID_EMAIL_SECURITY_REQUEST");
+  });
+
+  it("rejects packet capture reports without a raw upload", async () => {
+    const response = await request("/api/v1/engineering/packet-capture-reports", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/octet-stream",
+        "x-netlab-filename": "empty.pcapng",
+      },
+      body: "",
+    });
+
+    assert.equal(response.status, 400);
+    const payload = await response.json();
+
+    assertErrorEnvelope(payload);
+    assert.equal(payload.error.code, "INVALID_PACKET_CAPTURE_REQUEST");
+  });
+
+  it("rejects packet capture uploads that are not real capture files", async () => {
+    const response = await request("/api/v1/engineering/packet-capture-reports", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/octet-stream",
+        "x-netlab-filename": "notes.pcapng",
+      },
+      body: "plain text",
+    });
+
+    assert.equal(response.status, 400);
+    const payload = await response.json();
+
+    assertErrorEnvelope(payload);
+    assert.equal(payload.error.code, "INVALID_PACKET_CAPTURE_REQUEST");
+  });
+
+  it("exposes packet capture capacity status", async () => {
+    const response = await request("/api/v1/engineering/packet-capture-capacity");
+
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+
+    assertSuccessEnvelope(payload);
+    assert.equal(typeof payload.data.available, "boolean");
+    assert.ok(["strict", "best-effort"].includes(payload.data.admissionMode));
+    assert.ok(Array.isArray(payload.data.advisories));
+    assert.ok(Array.isArray(payload.data.acceptedExtensions));
+    assert.equal(typeof payload.data.snapshot.activeAnalyses, "number");
+  });
+
+  it("rejects performance reports without input", async () => {
+    const response = await request("/api/v1/engineering/performance-reports", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({}),
+    });
+
+    assert.equal(response.status, 400);
+    const payload = await response.json();
+
+    assertErrorEnvelope(payload);
+    assert.equal(payload.error.code, "INVALID_PERFORMANCE_REPORT_REQUEST");
+  });
+
+  it("rejects IPv6 transition reports for invalid domains", async () => {
+    const response = await request("/api/v1/engineering/ipv6-transition-reports", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        domain: "localhost",
+      }),
+    });
+
+    assert.equal(response.status, 400);
+    const payload = await response.json();
+
+    assertErrorEnvelope(payload);
+    assert.equal(payload.error.code, "INVALID_IPV6_TRANSITION_REQUEST");
   });
 });

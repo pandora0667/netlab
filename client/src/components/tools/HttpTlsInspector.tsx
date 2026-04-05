@@ -66,6 +66,25 @@ function buildInspectorGuidance(
     });
   }
 
+  if (result.altSvcProtocols.some((protocol) => protocol.startsWith("h3"))) {
+    items.push({
+      title: "The service is advertising HTTP/3 candidates.",
+      detail:
+        "Alt-Svc or HTTPS records indicate that the edge wants clients to consider an H3 path in addition to HTTP/2 or HTTP/1.1.",
+      nextStep: "Compare the advertised H3 path with the real QUIC probe result before assuming it is usable everywhere.",
+      tone: "info",
+    });
+  }
+
+  if (result.http3.handshakeSucceeded === false) {
+    items.push({
+      title: "HTTP/3 was advertised, but the real QUIC probe did not complete cleanly.",
+      detail: result.http3.detail,
+      nextStep: "Treat this as a service-edge inconsistency and compare it with Alt-Svc, ALPN, and SVCB evidence.",
+      tone: "warn",
+    });
+  }
+
   if (typeof expiresInDays === "number" && expiresInDays >= 0 && expiresInDays <= 30) {
     items.push({
       title: "The TLS certificate is approaching expiry.",
@@ -201,6 +220,11 @@ export default function HttpTlsInspector() {
                       <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
                         {result.tlsVersion ?? "no tls"}
                       </span>
+                      {result.alpnProtocol ? (
+                        <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                          ALPN {result.alpnProtocol}
+                        </span>
+                      ) : null}
                     </div>
                   </div>
 
@@ -226,6 +250,11 @@ export default function HttpTlsInspector() {
                       <p className="mt-3 text-xl font-semibold text-white">
                         {result.tlsVersion ?? "Unavailable"}
                       </p>
+                      {result.alpnProtocol ? (
+                        <p className="mt-2 text-sm text-cyan-100">
+                          ALPN {result.alpnProtocol}
+                        </p>
+                      ) : null}
                       {result.tlsAuthorized === false ? (
                         <p className="mt-2 text-sm text-amber-200">
                           Verification warning
@@ -239,6 +268,54 @@ export default function HttpTlsInspector() {
                       <p className="mt-3 text-xl font-semibold text-white">
                         {result.hsts ? "Enabled" : "Missing"}
                       </p>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 lg:grid-cols-[0.85fr_1.15fr]">
+                    <div className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] p-4">
+                      <p className="text-[0.68rem] uppercase tracking-[0.22em] text-white/38">
+                        HTTP/3 evidence
+                      </p>
+                      <div className="mt-4 space-y-3 text-sm text-white/62">
+                        <p><span className="text-white/42">Alt-Svc:</span> {result.altSvcRaw ?? "none"}</p>
+                        <p><span className="text-white/42">Advertised protocols:</span> {result.altSvcProtocols.join(", ") || "none"}</p>
+                        <p><span className="text-white/42">Probe:</span> {result.http3.handshakeSucceeded == null ? "not attempted" : result.http3.handshakeSucceeded ? "succeeded" : "failed"}</p>
+                        <p><span className="text-white/42">Detail:</span> {result.http3.detail}</p>
+                        {result.http3.httpVersion ? (
+                          <p><span className="text-white/42">HTTP version:</span> {result.http3.httpVersion}</p>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] p-4">
+                      <p className="text-[0.68rem] uppercase tracking-[0.22em] text-white/38">
+                        HTTPS / SVCB records
+                      </p>
+                      <div className="mt-4 space-y-3">
+                        {result.serviceBindings.length > 0 ? (
+                          result.serviceBindings.map((record, index) => (
+                            <div
+                              key={`${record.recordType}-${record.priority}-${index}`}
+                              className="rounded-[1rem] border border-white/8 bg-black/20 px-4 py-3 text-sm text-white/64"
+                            >
+                              <p className="font-medium text-white">
+                                {record.recordType} priority {record.priority} → {record.targetName}
+                              </p>
+                              <p className="mt-1">ALPN: {record.alpns.join(", ") || "n/a"}</p>
+                              <p className="mt-1">Port: {record.port ?? "default"}</p>
+                              <p className="mt-1">IPv4 hints: {record.ipv4Hints.join(", ") || "n/a"}</p>
+                              <p className="mt-1">IPv6 hints: {record.ipv6Hints.join(", ") || "n/a"}</p>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-sm text-white/54">
+                            No structured HTTPS/SVCB records were parsed for this hostname.
+                          </p>
+                        )}
+                        {result.serviceBindingNotes.map((note) => (
+                          <p key={note} className="text-xs text-white/42">{note}</p>
+                        ))}
+                      </div>
                     </div>
                   </div>
 

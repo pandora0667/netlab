@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { toast } from "react-hot-toast";
-import { Activity, Globe2, Loader2, Route, Search } from "lucide-react";
+import { Activity, GitBranch, Globe2, Loader2, Route, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -10,6 +10,7 @@ import {
   fetchDnsAuthorityReport,
   fetchIpParityReport,
   fetchPathMtuReport,
+  fetchRoutingIncidentReport,
   fetchRoutingReport,
 } from "@/domains/engineering/api";
 import type {
@@ -17,9 +18,19 @@ import type {
   FamilyProbeResult,
   IpParityReport,
   PathMtuReport,
+  RoutingIncidentReport,
   RoutingControlPlaneReport,
 } from "@/domains/engineering/types";
 import { ReportHistory } from "./ReportHistory";
+
+type EngineeringWorkbenchTab = "routing" | "incident" | "authority" | "parity" | "mtu";
+
+interface NetworkEngineeringWorkbenchProps {
+  initialTab?: EngineeringWorkbenchTab;
+  seoPage?: "networkEngineering" | "routingIncidentExplorer";
+  title?: string;
+  description?: string;
+}
 
 function renderFindingTone(status: "pass" | "warn" | "info") {
   if (status === "pass") {
@@ -31,6 +42,15 @@ function renderFindingTone(status: "pass" | "warn" | "info") {
   }
 
   return "border-cyan-400/15 bg-cyan-400/[0.05] text-cyan-100";
+}
+
+function formatTimestamp(value: string) {
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) {
+    return value;
+  }
+
+  return new Date(timestamp).toLocaleString();
 }
 
 function FamilyProbeCard({
@@ -62,23 +82,31 @@ function FamilyProbeCard({
   );
 }
 
-export default function NetworkEngineeringWorkbench() {
+export default function NetworkEngineeringWorkbench({
+  initialTab = "routing",
+  seoPage = "networkEngineering",
+  title = "Network Engineering Workbench",
+  description = "Inspect control-plane state, authority health, dual-stack drift, and path MTU from one operator-focused workbench.",
+}: NetworkEngineeringWorkbenchProps) {
   const [routingInput, setRoutingInput] = useState("");
   const [authorityInput, setAuthorityInput] = useState("");
   const [parityInput, setParityInput] = useState("");
   const [mtuInput, setMtuInput] = useState("");
 
   const [routingLoading, setRoutingLoading] = useState(false);
+  const [incidentLoading, setIncidentLoading] = useState(false);
   const [authorityLoading, setAuthorityLoading] = useState(false);
   const [parityLoading, setParityLoading] = useState(false);
   const [mtuLoading, setMtuLoading] = useState(false);
 
   const [routingError, setRoutingError] = useState<string | null>(null);
+  const [incidentError, setIncidentError] = useState<string | null>(null);
   const [authorityError, setAuthorityError] = useState<string | null>(null);
   const [parityError, setParityError] = useState<string | null>(null);
   const [mtuError, setMtuError] = useState<string | null>(null);
 
   const [routingReport, setRoutingReport] = useState<RoutingControlPlaneReport | null>(null);
+  const [incidentReport, setIncidentReport] = useState<RoutingIncidentReport | null>(null);
   const [authorityReport, setAuthorityReport] = useState<DnsAuthorityReport | null>(null);
   const [parityReport, setParityReport] = useState<IpParityReport | null>(null);
   const [mtuReport, setMtuReport] = useState<PathMtuReport | null>(null);
@@ -112,6 +140,22 @@ export default function NetworkEngineeringWorkbench() {
       toast.error("Authority report failed");
     } finally {
       setAuthorityLoading(false);
+    }
+  }
+
+  async function handleIncidentSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIncidentLoading(true);
+    setIncidentError(null);
+
+    try {
+      setIncidentReport(await fetchRoutingIncidentReport(routingInput.trim()));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Routing incident report failed";
+      setIncidentError(message);
+      toast.error("Routing incident report failed");
+    } finally {
+      setIncidentLoading(false);
     }
   }
 
@@ -149,14 +193,15 @@ export default function NetworkEngineeringWorkbench() {
 
   return (
     <>
-      <SEO page="networkEngineering" />
+      <SEO page={seoPage} />
       <ToolPageShell
-        title="Network Engineering Workbench"
-        description="Inspect control-plane state, authority health, dual-stack drift, and path MTU from one operator-focused workbench."
+        title={title}
+        description={description}
       >
-        <Tabs defaultValue="routing" className="space-y-4">
+        <Tabs defaultValue={initialTab} className="space-y-4">
           <TabsList className="h-auto flex-wrap justify-start rounded-[1rem] border border-white/8 bg-white/[0.03] p-1">
             <TabsTrigger value="routing">Routing</TabsTrigger>
+            <TabsTrigger value="incident">Incidents</TabsTrigger>
             <TabsTrigger value="authority">Authority</TabsTrigger>
             <TabsTrigger value="parity">IPv4/IPv6</TabsTrigger>
             <TabsTrigger value="mtu">Path MTU</TabsTrigger>
@@ -262,6 +307,242 @@ export default function NetworkEngineeringWorkbench() {
                 </section>
 
                 <ReportHistory history={routingReport.history} />
+              </>
+            ) : null}
+          </TabsContent>
+
+          <TabsContent value="incident" className="space-y-4">
+            <form onSubmit={handleIncidentSubmit} className="tool-surface space-y-6">
+              <div className="space-y-3">
+                <span className="tool-kicker">
+                  <GitBranch className="h-3.5 w-3.5" />
+                  Incident replay
+                </span>
+                <div className="space-y-2">
+                  <p className="tool-heading">Trace recent announcements, withdrawals, AS-path drift, and ROA evidence around the current route.</p>
+                  <p className="tool-copy">
+                    Use the same public hostname or IP you would inspect in the routing tab. The explorer reads recent RIPEstat BGP and BGPlay data, then compresses it into peer-scoped changes.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-3 md:flex-row">
+                <Input
+                  value={routingInput}
+                  onChange={(event) => setRoutingInput(event.target.value)}
+                  placeholder="example.com or 8.8.8.8"
+                />
+                <Button type="submit" disabled={incidentLoading || routingInput.trim().length === 0} className="rounded-full">
+                  {incidentLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Explore incidents
+                </Button>
+              </div>
+            </form>
+
+            {incidentError ? (
+              <div className="rounded-[1.35rem] border border-rose-500/15 bg-rose-500/[0.06] px-4 py-3 text-sm text-rose-100">
+                {incidentError}
+              </div>
+            ) : null}
+
+            {incidentReport ? (
+              <>
+                <section className="tool-surface space-y-5">
+                  <div className="grid gap-3 md:grid-cols-5">
+                    <div className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] p-4">
+                      <p className="text-[0.68rem] uppercase tracking-[0.22em] text-white/38">Prefix</p>
+                      <p className="mt-3 text-xl font-semibold text-white">{incidentReport.prefix ?? "n/a"}</p>
+                    </div>
+                    <div className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] p-4">
+                      <p className="text-[0.68rem] uppercase tracking-[0.22em] text-white/38">Origin</p>
+                      <p className="mt-3 text-xl font-semibold text-white">{incidentReport.originAsn ?? "n/a"}</p>
+                    </div>
+                    <div className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] p-4">
+                      <p className="text-[0.68rem] uppercase tracking-[0.22em] text-white/38">Updates</p>
+                      <p className="mt-3 text-xl font-semibold text-white">{incidentReport.summary.updates}</p>
+                    </div>
+                    <div className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] p-4">
+                      <p className="text-[0.68rem] uppercase tracking-[0.22em] text-white/38">Withdrawals</p>
+                      <p className="mt-3 text-xl font-semibold text-white">{incidentReport.summary.withdrawals}</p>
+                    </div>
+                    <div className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] p-4">
+                      <p className="text-[0.68rem] uppercase tracking-[0.22em] text-white/38">RPKI</p>
+                      <p className="mt-3 text-xl font-semibold text-white">{incidentReport.rpkiStatus ?? "n/a"}</p>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <div className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] p-4 text-sm text-white/62">
+                      <p className="text-[0.68rem] uppercase tracking-[0.22em] text-white/38">Observation window</p>
+                      <div className="mt-4 space-y-2">
+                        <p>Start: {formatTimestamp(incidentReport.window.start)}</p>
+                        <p>End: {formatTimestamp(incidentReport.window.end)}</p>
+                        <p>Unique peers: {incidentReport.summary.uniquePeers}</p>
+                        <p>Unique origins: {incidentReport.summary.uniqueOrigins}</p>
+                        <p>Unique paths: {incidentReport.summary.uniquePaths}</p>
+                      </div>
+                    </div>
+
+                    <div className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] p-4 text-sm text-white/62">
+                      <p className="text-[0.68rem] uppercase tracking-[0.22em] text-white/38">Change pressure</p>
+                      <div className="mt-4 space-y-2">
+                        <p>Announcements: {incidentReport.summary.announcements}</p>
+                        <p>Path changes: {incidentReport.summary.pathChanges}</p>
+                        <p>Origin changes: {incidentReport.summary.originChanges}</p>
+                        <p>Resolved target: {incidentReport.targetIp}</p>
+                        <p>All addresses: {incidentReport.resolvedAddresses.join(", ")}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    {incidentReport.findings.map((finding) => (
+                      <div
+                        key={`${finding.title}-${finding.detail}`}
+                        className={`rounded-[1rem] border px-4 py-3 text-sm ${renderFindingTone(finding.status)}`}
+                      >
+                        <p className="font-medium">{finding.title}</p>
+                        <p className="mt-1 opacity-80">{finding.detail}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {incidentReport.notes.length > 0 ? (
+                    <div className="space-y-3">
+                      {incidentReport.notes.map((note) => (
+                        <div
+                          key={note}
+                          className="rounded-[1rem] border border-cyan-400/15 bg-cyan-400/[0.05] px-4 py-3 text-sm text-cyan-100"
+                        >
+                          {note}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </section>
+
+                <section className="tool-surface space-y-5">
+                  <div className="grid gap-4 xl:grid-cols-2">
+                    <div className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] p-4">
+                      <p className="text-[0.68rem] uppercase tracking-[0.22em] text-white/38">Recent events</p>
+                      <div className="mt-4 space-y-3">
+                        {incidentReport.recentEvents.length > 0 ? incidentReport.recentEvents.map((event) => (
+                          <div
+                            key={`${event.timestamp}-${event.sourceId}-${event.pathLabel}`}
+                            className={`rounded-[1rem] border px-4 py-3 text-sm ${
+                              event.type === "withdrawal"
+                                ? "border-amber-400/15 bg-amber-400/[0.05] text-amber-100"
+                                : "border-white/8 bg-black/20 text-white/70"
+                            }`}
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <p className="font-medium">
+                                {event.type === "withdrawal" ? "Withdrawal" : "Announcement"}
+                              </p>
+                              <p className="text-xs opacity-70">{formatTimestamp(event.timestamp)}</p>
+                            </div>
+                            <p className="mt-1 opacity-80">
+                              {event.sourceId ?? "unknown peer"} · {event.pathLabel}
+                            </p>
+                            <p className="mt-1 text-xs opacity-60">
+                              Origin {event.originAsn ? `AS${event.originAsn}` : "n/a"} · communities {event.communityCount}
+                            </p>
+                          </div>
+                        )) : (
+                          <p className="text-sm text-white/56">No recent events were returned for the current window.</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] p-4">
+                        <p className="text-[0.68rem] uppercase tracking-[0.22em] text-white/38">Window start paths</p>
+                        <div className="mt-4 space-y-3">
+                          {incidentReport.initialState.length > 0 ? incidentReport.initialState.map((item) => (
+                            <div key={`${item.scope}-${item.pathLabel}`} className="rounded-[1rem] border border-white/8 bg-black/20 px-4 py-3 text-sm text-white/70">
+                              <p className="font-medium text-white">{item.pathLabel}</p>
+                              <p className="mt-1 opacity-80">
+                                Seen by {item.observations} peers · origin {item.originAsn ? `AS${item.originAsn}` : "n/a"}
+                              </p>
+                            </div>
+                          )) : (
+                            <p className="text-sm text-white/56">No BGPlay initial-state sample was returned.</p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] p-4">
+                        <p className="text-[0.68rem] uppercase tracking-[0.22em] text-white/38">Recent path variants</p>
+                        <div className="mt-4 space-y-3">
+                          {incidentReport.recentPathObservations.length > 0 ? incidentReport.recentPathObservations.map((item) => (
+                            <div key={`${item.scope}-${item.pathLabel}`} className="rounded-[1rem] border border-white/8 bg-black/20 px-4 py-3 text-sm text-white/70">
+                              <p className="font-medium text-white">{item.pathLabel}</p>
+                              <p className="mt-1 opacity-80">
+                                Seen in {item.observations} recent announcements · origin {item.originAsn ? `AS${item.originAsn}` : "n/a"}
+                              </p>
+                            </div>
+                          )) : (
+                            <p className="text-sm text-white/56">No recent announcement variants were returned.</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 xl:grid-cols-2">
+                    <div className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] p-4">
+                      <p className="text-[0.68rem] uppercase tracking-[0.22em] text-white/38">Origin transitions</p>
+                      <div className="mt-4 space-y-3">
+                        {incidentReport.originTransitions.length > 0 ? incidentReport.originTransitions.map((item) => (
+                          <div
+                            key={`${item.timestamp}-${item.sourceId}-${item.from}-${item.to}`}
+                            className="rounded-[1rem] border border-amber-400/15 bg-amber-400/[0.05] px-4 py-3 text-sm text-amber-100"
+                          >
+                            <p className="font-medium">{item.from} → {item.to}</p>
+                            <p className="mt-1 opacity-80">{item.sourceId ?? "unknown peer"} · {formatTimestamp(item.timestamp)}</p>
+                          </div>
+                        )) : (
+                          <p className="text-sm text-white/56">No peer-scoped origin transitions were detected.</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] p-4">
+                      <p className="text-[0.68rem] uppercase tracking-[0.22em] text-white/38">AS-path transitions</p>
+                      <div className="mt-4 space-y-3">
+                        {incidentReport.pathTransitions.length > 0 ? incidentReport.pathTransitions.map((item) => (
+                          <div
+                            key={`${item.timestamp}-${item.sourceId}-${item.from}-${item.to}`}
+                            className="rounded-[1rem] border border-cyan-400/15 bg-cyan-400/[0.05] px-4 py-3 text-sm text-cyan-100"
+                          >
+                            <p className="font-medium">{item.from}</p>
+                            <p className="mt-1 opacity-80">→ {item.to}</p>
+                            <p className="mt-1 text-xs opacity-70">{item.sourceId ?? "unknown peer"} · {formatTimestamp(item.timestamp)}</p>
+                          </div>
+                        )) : (
+                          <p className="text-sm text-white/56">No peer-scoped AS-path transitions were detected.</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] p-4">
+                    <p className="text-[0.68rem] uppercase tracking-[0.22em] text-white/38">ROA evidence timeline</p>
+                    <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                      {incidentReport.rpkiEvidence.length > 0 ? incidentReport.rpkiEvidence.map((point) => (
+                        <div key={point.time} className="rounded-[1rem] border border-white/8 bg-black/20 px-4 py-3 text-sm text-white/70">
+                          <p className="font-medium text-white">{formatTimestamp(point.time)}</p>
+                          <p className="mt-1 opacity-80">VRPs {point.vrpCount} · ROAs {point.roaCount}</p>
+                          <p className="mt-1 text-xs opacity-60">Max length {point.maxLength ?? "n/a"}</p>
+                        </div>
+                      )) : (
+                        <p className="text-sm text-white/56">No historical ROA evidence points were returned.</p>
+                      )}
+                    </div>
+                  </div>
+                </section>
+
+                <ReportHistory history={incidentReport.history} />
               </>
             ) : null}
           </TabsContent>

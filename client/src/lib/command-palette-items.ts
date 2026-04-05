@@ -3,6 +3,7 @@ import {
   Activity,
   Calculator,
   FileText,
+  GitBranch,
   Globe,
   Globe2,
   Home,
@@ -53,6 +54,10 @@ const iconByPageKey: Record<PaletteSitePageKey, LucideIcon> = {
   pingTool: Activity,
   traceTool: Route,
   networkEngineering: Route,
+  routingIncidentExplorer: GitBranch,
+  packetCaptureLab: FileText,
+  performanceLab: Activity,
+  ipv6TransitionLab: Globe2,
   httpInspector: ShieldCheck,
   websiteSecurity: ShieldCheck,
   whoisLookup: FileText,
@@ -73,7 +78,7 @@ const paletteEntries: CommandPaletteEntry[] = getPalettePages().map((page) => ({
   commandHint: page.palette.commandHint,
   accent: page.palette.accent,
   useCase: page.palette.useCase,
-  primaryNavLabel: page.palette.primaryNavLabel,
+  primaryNavLabel: "primaryNavLabel" in page.palette ? page.palette.primaryNavLabel : undefined,
 }));
 
 const paletteEntriesByHref = new Map(

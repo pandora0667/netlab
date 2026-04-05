@@ -39,6 +39,7 @@ export interface SitePageCatalogDefinition {
   priority: string;
   noIndex?: boolean;
   palette?: SitePaletteDefinition;
+  recommendedNext?: string[];
 }
 
 export const technicalLayerCatalog = [
@@ -246,6 +247,29 @@ export const sitePageCatalog = {
       useCase: "Best when you need control-plane and dual-stack context, not just host reachability.",
       primaryNavLabel: "Engineering",
     },
+    recommendedNext: ["routingIncidentExplorer", "ipv6TransitionLab", "performanceLab"],
+  },
+  routingIncidentExplorer: {
+    path: "/routing-incidents",
+    title: "Routing Incident Explorer | BGP Drift, Withdrawals, and ROA Context | Netlab",
+    description:
+      "Explore recent BGP announcements, withdrawals, AS-path changes, origin drift, and ROA evidence around a public route.",
+    imageAlt: "Netlab routing incident explorer preview",
+    changeFrequency: "weekly",
+    priority: "0.8",
+    palette: {
+      id: "routing-incidents",
+      group: "Tools",
+      layer: "controlPlane",
+      label: "Routing Incidents",
+      description: "Replay recent BGP events, origin drift, and path changes.",
+      keywords: ["bgp updates", "withdrawal", "bgplay", "incident", "route drift"],
+      category: "Incidents",
+      commandHint: "replay routing incident",
+      accent: "Incident Replay",
+      useCase: "Use when the current route looks wrong and you need the recent control-plane change timeline, not just the present state.",
+    },
+    recommendedNext: ["networkEngineering", "ipv6TransitionLab", "performanceLab"],
   },
   httpInspector: {
     path: "/http-inspector",
@@ -268,6 +292,7 @@ export const sitePageCatalog = {
       useCase: "Best when the hostname resolves but the web service still feels wrong.",
       primaryNavLabel: "HTTP/TLS",
     },
+    recommendedNext: ["websiteSecurity", "packetCaptureLab", "networkEngineering"],
   },
   websiteSecurity: {
     path: "/website-security",
@@ -290,6 +315,7 @@ export const sitePageCatalog = {
       useCase: "Use when you want an explainable website posture score instead of raw header output.",
       primaryNavLabel: "Web Security",
     },
+    recommendedNext: ["httpInspector", "dnsLookup", "emailSecurity"],
   },
   whoisLookup: {
     path: "/whois",
@@ -334,6 +360,7 @@ export const sitePageCatalog = {
       useCase: "Best when mail deliverability or transport security feels incomplete.",
       primaryNavLabel: "Email",
     },
+    recommendedNext: ["dnsLookup", "httpInspector", "websiteSecurity"],
   },
   dnsPropagation: {
     path: "/dns-propagation",
@@ -378,6 +405,72 @@ export const sitePageCatalog = {
       useCase: "Use when you need a bounded view of externally reachable services.",
       primaryNavLabel: "Port Scan",
     },
+  },
+  packetCaptureLab: {
+    path: "/packet-capture-lab",
+    title: "Packet Capture Analysis | Protocols, Flows, and Expert Findings | Netlab",
+    description:
+      "Upload a pcap or pcapng file for one-shot analysis of protocol hierarchy, flow summaries, TCP anomalies, and DNS, HTTP, TLS, or QUIC evidence.",
+    imageAlt: "Netlab packet capture analysis preview",
+    changeFrequency: "weekly",
+    priority: "0.8",
+    palette: {
+      id: "packet-capture-lab",
+      group: "Tools",
+      layer: "service",
+      label: "Packet Capture Analysis",
+      description: "Analyze uploaded pcap artifacts without active scanning.",
+      keywords: ["pcap", "tshark", "flow", "wireshark"],
+      category: "Capture",
+      commandHint: "analyze packet capture",
+      accent: "Offline Analysis",
+      useCase: "Use when you have a capture file and need protocol, flow, and anomaly context without probing the network again.",
+    },
+    recommendedNext: ["httpInspector", "performanceLab", "networkEngineering"],
+  },
+  performanceLab: {
+    path: "/performance-lab",
+    title: "Performance Analysis | Jitter, Loss, Quality, and Path Context | Netlab",
+    description:
+      "Sample latency, jitter, packet loss, trace behavior, and path MTU to reason about path quality without running full bandwidth tests.",
+    imageAlt: "Netlab performance analysis preview",
+    changeFrequency: "weekly",
+    priority: "0.8",
+    palette: {
+      id: "performance-lab",
+      group: "Tools",
+      layer: "connectivity",
+      label: "Performance Analysis",
+      description: "Reason about jitter, loss, and path quality from lightweight probes.",
+      keywords: ["jitter", "loss", "latency", "quality"],
+      category: "Performance",
+      commandHint: "measure path quality",
+      accent: "Path Quality",
+      useCase: "Use when users report slowness and you need a path-quality view before heavier testing.",
+    },
+    recommendedNext: ["traceTool", "networkEngineering", "ipv6TransitionLab"],
+  },
+  ipv6TransitionLab: {
+    path: "/ipv6-transition",
+    title: "IPv6 Transition Analysis | Happy Eyeballs, DNS64, NAT64, and Fallback | Netlab",
+    description:
+      "Inspect dual-stack behavior with Happy Eyeballs reasoning, DNS64 or NAT64 detection, fallback patterns, and family-specific path MTU signals.",
+    imageAlt: "Netlab IPv6 transition analysis preview",
+    changeFrequency: "weekly",
+    priority: "0.8",
+    palette: {
+      id: "ipv6-transition",
+      group: "Tools",
+      layer: "controlPlane",
+      label: "IPv6 Transition Analysis",
+      description: "Model dual-stack fallback, DNS64/NAT64, and family drift.",
+      keywords: ["happy eyeballs", "dns64", "nat64", "dual stack", "ipv6"],
+      category: "Transition",
+      commandHint: "inspect ipv6 transition",
+      accent: "Dual-Stack Drift",
+      useCase: "Best when IPv4 works, IPv6 feels inconsistent, or fallback behavior is hiding the real failure mode.",
+    },
+    recommendedNext: ["networkEngineering", "routingIncidentExplorer", "dnsLookup"],
   },
   notFound: {
     path: "/404",
@@ -435,7 +528,13 @@ export const workflowCatalog: WorkflowCatalogDefinition[] = [
     id: "control-plane-debug",
     title: "The route or edge policy feels wrong",
     description: "Check origin state, authority health, dual-stack drift, and path MTU before escalating upstream.",
-    steps: ["networkEngineering", "dnsPropagation", "httpInspector"],
+    steps: ["networkEngineering", "routingIncidentExplorer", "ipv6TransitionLab", "performanceLab"],
+  },
+  {
+    id: "capture-review",
+    title: "You already have a packet capture",
+    description: "Start with the offline artifact, then branch into edge or path checks only where the capture points next.",
+    steps: ["packetCaptureLab", "httpInspector", "performanceLab"],
   },
 ];
 
@@ -488,9 +587,21 @@ export function getToolPages() {
 }
 
 export function getPrimaryNavigationPages() {
-  return getToolPages().filter((page) => Boolean(page.palette.primaryNavLabel));
+  return getToolPages().filter((page) => "primaryNavLabel" in page.palette && Boolean(page.palette.primaryNavLabel));
 }
 
 export function getStructuredDataFeatureList() {
   return getToolPages().map((page) => page.palette.label);
+}
+
+export function getRecommendedNextToolPages(path: string) {
+  const activePage = getPalettePageByPath(path);
+  if (!activePage || !("recommendedNext" in activePage) || !activePage.recommendedNext?.length) {
+    return [];
+  }
+
+  return activePage.recommendedNext
+    .filter((key: string): key is SitePageKey => key in sitePageCatalog)
+    .map((key: SitePageKey) => getSitePageEntry(key))
+    .filter(hasPalette);
 }

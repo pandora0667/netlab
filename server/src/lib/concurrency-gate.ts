@@ -53,4 +53,16 @@ export class ConcurrencyGate {
       this.activePerKey.set(normalizedKey, nextActiveForKey);
     };
   }
+
+  getSnapshot(key = "unknown") {
+    const normalizedKey = key || "unknown";
+
+    return {
+      operationName: this.operationName,
+      activeGlobal: this.activeGlobal,
+      activeForKey: this.activePerKey.get(normalizedKey) ?? 0,
+      maxGlobal: this.maxGlobal,
+      maxPerKey: this.maxPerKey,
+    };
+  }
 }

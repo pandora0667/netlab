@@ -140,7 +140,7 @@ export class TcpFamilyProbe {
 }
 
 export class PathMtuProbe {
-  async probe(targetIp: string) {
+  async probe(targetIp: string, family: 4 | 6 = 4) {
     const attempts: PathMtuAttempt[] = [];
     let low = PMTU_MIN_PAYLOAD;
     let high = PMTU_MAX_PAYLOAD;
@@ -149,12 +149,17 @@ export class PathMtuProbe {
 
     const runPing = async (payloadSize: number) => {
       const isDarwin = process.platform === "darwin";
+      const command = family === 6 ? "ping6" : "ping";
       const args = isDarwin
-        ? ["-D", "-c", "1", "-W", String(PMTU_TIMEOUT_MS), "-t", "2", "-s", String(payloadSize), targetIp]
-        : ["-M", "do", "-c", "1", "-W", "2", "-s", String(payloadSize), targetIp];
+        ? family === 6
+          ? ["-D", "-c", "1", "-W", String(PMTU_TIMEOUT_MS), "-s", String(payloadSize), targetIp]
+          : ["-D", "-c", "1", "-W", String(PMTU_TIMEOUT_MS), "-t", "2", "-s", String(payloadSize), targetIp]
+        : family === 6
+          ? ["-c", "1", "-W", "2", "-s", String(payloadSize), targetIp]
+          : ["-M", "do", "-c", "1", "-W", "2", "-s", String(payloadSize), targetIp];
 
       return new Promise<PathMtuAttempt>((resolve) => {
-        const processHandle = spawn("ping", args, { shell: false });
+        const processHandle = spawn(command, args, { shell: false });
         let stderr = "";
         let stdout = "";
         let settled = false;
@@ -223,12 +228,16 @@ export class PathMtuProbe {
     if (best == null) {
       notes.push("The probe did not find a successful DF packet inside the tested payload range.");
     } else {
-      notes.push("Estimated MTU adds the IPv4 and ICMP overhead to the largest successful payload.");
+      notes.push(
+        family === 6
+          ? "Estimated MTU adds the IPv6 and ICMPv6 overhead to the largest successful payload."
+          : "Estimated MTU adds the IPv4 and ICMP overhead to the largest successful payload.",
+      );
     }
 
     return {
       maxPayloadSize: best,
-      estimatedPathMtu: best == null ? null : best + 28,
+      estimatedPathMtu: best == null ? null : best + (family === 6 ? 48 : 28),
       attempts,
       notes,
     };

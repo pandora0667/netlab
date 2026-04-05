@@ -1,4 +1,4 @@
-import type { NetworkIpInfo } from "../network/network.types.js";
+import type { NetworkIpInfo, TraceSummary } from "../network/network.types.js";
 
 export interface ReportHistoryChange {
   label: string;
@@ -43,6 +43,78 @@ export interface RoutingControlPlaneReport {
     description: string | null;
   };
   geo: NetworkIpInfo;
+  notes: string[];
+  checkedAt: number;
+  history: ReportHistory;
+}
+
+export interface RoutingIncidentEvent {
+  timestamp: string;
+  type: "announcement" | "withdrawal";
+  sourceId: string | null;
+  path: string[];
+  pathLabel: string;
+  originAsn: string | null;
+  communityCount: number;
+}
+
+export interface RoutingPathObservation {
+  scope: "window-start" | "recent-announcements";
+  path: string[];
+  pathLabel: string;
+  originAsn: string | null;
+  observations: number;
+  sampleSourceId: string | null;
+}
+
+export interface RoutingIncidentTransition {
+  timestamp: string;
+  sourceId: string | null;
+  from: string;
+  to: string;
+}
+
+export interface RoutingRoaEvidencePoint {
+  time: string;
+  vrpCount: number;
+  roaCount: number;
+  maxLength: number | null;
+}
+
+export interface RoutingIncidentReport {
+  input: string;
+  targetIp: string;
+  resolvedAddresses: string[];
+  resolvedFromHostname: boolean;
+  prefix: string | null;
+  originAsn: string | null;
+  rpkiStatus: string | null;
+  window: {
+    start: string;
+    end: string;
+    hours: number;
+  };
+  summary: {
+    updates: number;
+    announcements: number;
+    withdrawals: number;
+    uniquePeers: number;
+    uniqueOrigins: number;
+    uniquePaths: number;
+    pathChanges: number;
+    originChanges: number;
+  };
+  recentEvents: RoutingIncidentEvent[];
+  initialState: RoutingPathObservation[];
+  recentPathObservations: RoutingPathObservation[];
+  originTransitions: RoutingIncidentTransition[];
+  pathTransitions: RoutingIncidentTransition[];
+  rpkiEvidence: RoutingRoaEvidencePoint[];
+  findings: Array<{
+    status: "pass" | "warn" | "info";
+    title: string;
+    detail: string;
+  }>;
   notes: string[];
   checkedAt: number;
   history: ReportHistory;
@@ -187,6 +259,185 @@ export interface EmailSecurityReport {
   };
   checks: Array<{
     status: "pass" | "warn" | "fail" | "info";
+    title: string;
+    detail: string;
+  }>;
+  checkedAt: number;
+  history: ReportHistory;
+}
+
+export interface PacketCaptureProtocolStat {
+  protocol: string;
+  packets: number;
+  bytes: number;
+  share: number;
+}
+
+export interface PacketCaptureFlow {
+  id: string;
+  transport: "tcp" | "udp" | "other";
+  source: string;
+  destination: string;
+  packets: number;
+  bytes: number;
+  stream: string | null;
+  application: string | null;
+}
+
+export interface PacketCaptureExpertFinding {
+  severity: "error" | "warn" | "info";
+  summary: string;
+  detail: string;
+}
+
+export interface PacketCaptureReport {
+  filename: string;
+  sizeBytes: number;
+  packetCount: number;
+  dataSizeBytes: number;
+  durationSeconds: number | null;
+  captureFileType: string | null;
+  encapsulation: string | null;
+  protocols: PacketCaptureProtocolStat[];
+  flows: PacketCaptureFlow[];
+  tcpAnalysis: {
+    streamCount: number;
+    retransmissions: number;
+    duplicateAcks: number;
+    zeroWindows: number;
+    resets: number;
+  };
+  dns: {
+    queryCount: number;
+    queries: Array<{
+      name: string;
+      type: string;
+      responses: number;
+      responseCodes: string[];
+    }>;
+  };
+  http: {
+    requestCount: number;
+    hosts: string[];
+    methods: string[];
+    statusCodes: number[];
+  };
+  tls: {
+    handshakeCount: number;
+    serverNames: string[];
+    versions: string[];
+    alpns: string[];
+  };
+  quic: {
+    packetCount: number;
+    versions: string[];
+    connectionIds: number;
+  };
+  expertFindings: PacketCaptureExpertFinding[];
+  notes: string[];
+  analyzedAt: number;
+}
+
+export interface PacketCaptureCapacityStatus {
+  acceptedExtensions: string[];
+  maxFileBytes: number;
+  available: boolean;
+  admissionMode: "strict" | "best-effort";
+  reason: string | null;
+  advisories: string[];
+  retryable: boolean;
+  retryAfterSeconds: number | null;
+  snapshot: {
+    resourceBasis: "cgroup" | "host";
+    cpuMetricSource: "cgroup" | "loadavg";
+    memoryMetricSource: "cgroup" | "host";
+    effectiveCpuLimit: number;
+    cpuUtilizationPercent: number;
+    loadAverage1m: number;
+    memoryUtilizationPercent: number;
+    memoryHeadroomMb: number;
+    rssMb: number;
+    activeAnalyses: number;
+    maxConcurrentAnalyses: number;
+    activeForRequester: number;
+    maxConcurrentPerRequester: number;
+  };
+  thresholds: {
+    maxCpuUtilizationPercent: number;
+    minMemoryHeadroomMb: number;
+    maxMemoryUtilizationPercent: number;
+  };
+}
+
+export interface PerformanceFinding {
+  status: "pass" | "warn" | "info";
+  title: string;
+  detail: string;
+}
+
+export interface PerformanceSample {
+  sequence: number;
+  success: boolean;
+  latencyMs: number | null;
+  error: string | null;
+  timestamp: number;
+}
+
+export interface PerformanceLabReport {
+  input: string;
+  targetIp: string;
+  sampleCount: number;
+  samples: PerformanceSample[];
+  packetLossPercent: number;
+  minLatencyMs: number | null;
+  avgLatencyMs: number | null;
+  maxLatencyMs: number | null;
+  jitterMs: number | null;
+  pathQuality: "excellent" | "steady" | "degraded" | "poor";
+  trace: TraceSummary;
+  pathMtu: {
+    maxPayloadSize: number | null;
+    estimatedPathMtu: number | null;
+  };
+  findings: PerformanceFinding[];
+  checkedAt: number;
+  history: ReportHistory;
+}
+
+export interface HappyEyeballsStep {
+  order: number;
+  family: "ipv6" | "ipv4";
+  candidate: string | null;
+  startDelayMs: number;
+  latencyMs: number | null;
+  outcome: "win" | "fallback" | "failed" | "not-tried";
+  note: string;
+}
+
+export interface Ipv6TransitionReport {
+  domain: string;
+  ipv4Addresses: string[];
+  ipv6Addresses: string[];
+  ipv4: FamilyProbeResult;
+  ipv6: FamilyProbeResult;
+  nat64: {
+    detected: boolean;
+    prefix: string | null;
+    evidence: string[];
+    synthesizedAddresses: string[];
+  };
+  happyEyeballs: {
+    winner: "ipv6" | "ipv4" | "none";
+    fallbackDelayMs: number;
+    rationale: string;
+    steps: HappyEyeballsStep[];
+  };
+  pathMtu: {
+    ipv4EstimatedMtu: number | null;
+    ipv6EstimatedMtu: number | null;
+  };
+  findings: Array<{
+    status: "pass" | "warn" | "info";
     title: string;
     detail: string;
   }>;

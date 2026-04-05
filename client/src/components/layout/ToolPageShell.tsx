@@ -6,6 +6,8 @@ import {
   findCommandPaletteEntryByHref,
 } from "@/lib/command-palette-items";
 import { Command, Compass, Home } from "lucide-react";
+import { getRecommendedNextToolPages } from "../../../../shared/catalog/site-catalog";
+import type { PaletteSitePageEntry } from "../../../../shared/catalog/site-catalog";
 
 type ToolPageShellProps = {
   title: string;
@@ -24,9 +26,14 @@ export function ToolPageShell({
   const mod = useModKeyLabel();
   const activeEntry = findCommandPaletteEntryByHref(location);
   const activeLayerGroup = activeEntry ? findCommandPaletteGroupByLayer(activeEntry.layer) : undefined;
-  const adjacentTools = (activeLayerGroup?.items ?? [])
-    .filter((item) => item.href !== location)
-    .slice(0, 3);
+  const recommendedTools = getRecommendedNextToolPages(location)
+    .map((page: PaletteSitePageEntry) => findCommandPaletteEntryByHref(page.path))
+    .filter((entry: ReturnType<typeof findCommandPaletteEntryByHref>): entry is NonNullable<typeof entry> => entry !== undefined);
+  const adjacentTools = recommendedTools.length > 0
+    ? recommendedTools
+    : (activeLayerGroup?.items ?? [])
+      .filter((item) => item.href !== location)
+      .slice(0, 3);
   const contextLabel = activeLayerGroup?.heading ?? activeEntry?.category ?? "Diagnostic";
 
   return (
@@ -102,7 +109,7 @@ export function ToolPageShell({
               </p>
               <div className="flex flex-wrap gap-2">
                 {adjacentTools.length > 0 ? (
-                  adjacentTools.map((tool) => (
+                  adjacentTools.map((tool: NonNullable<typeof adjacentTools[number]>) => (
                     <Link
                       key={tool.href}
                       href={tool.href}

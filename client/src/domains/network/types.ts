@@ -46,6 +46,27 @@ export interface HttpTlsCertificate {
   expiresInDays: number | null;
 }
 
+export interface HttpServiceBindingRecord {
+  recordType: "HTTPS" | "SVCB";
+  priority: number;
+  targetName: string;
+  alpns: string[];
+  ipv4Hints: string[];
+  ipv6Hints: string[];
+  port: number | null;
+  ech: boolean;
+  raw: string;
+}
+
+export interface Http3ProbeResult {
+  available: boolean;
+  binary: string | null;
+  handshakeSucceeded: boolean | null;
+  httpVersion: string | null;
+  remoteIp: string | null;
+  detail: string;
+}
+
 export interface HttpTlsInspectionResult {
   input: string;
   requestedUrl: string;
@@ -58,9 +79,16 @@ export interface HttpTlsInspectionResult {
   contentType: string | null;
   protocol: string | null;
   tlsVersion: string | null;
+  alpnProtocol: string | null;
   tlsAuthorized: boolean | null;
   tlsAuthorizationError: string | null;
   certificate: HttpTlsCertificate | null;
+  altSvcRaw: string | null;
+  altSvcProtocols: string[];
+  serviceBindings: HttpServiceBindingRecord[];
+  serviceBindingSource: "dig" | "doh" | "none";
+  serviceBindingNotes: string[];
+  http3: Http3ProbeResult;
   timestamp: number;
 }
 

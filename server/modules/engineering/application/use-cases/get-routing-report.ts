@@ -3,10 +3,10 @@ import { safeArray } from "../../domain/collections.js";
 import type { RoutingControlPlaneReport } from "../../engineering.types.js";
 import type { EngineeringDependencies } from "../engineering.dependencies.js";
 
-export async function getRoutingReport(
+export async function fetchRoutingControlPlaneContext(
   input: string,
   deps: EngineeringDependencies,
-): Promise<RoutingControlPlaneReport> {
+): Promise<Omit<RoutingControlPlaneReport, "checkedAt" | "history">> {
   const target = await resolvePublicTarget(input, "Routing target");
   const targetIp = target.resolvedTarget;
   const notes: string[] = [];
@@ -55,16 +55,8 @@ export async function getRoutingReport(
     return item[1];
   }).filter(Boolean)));
 
-  const history = deps.historyStore.remember("routing", input, {
-    Prefix: prefix,
-    "Origin ASN": originAsn,
-    "RPKI status": rpkiValidationPayload?.data?.status ?? "unknown",
-    "IPv4 visibility": routingStatusPayload?.data?.visibility?.v4?.ris_peers_seeing ?? "n/a",
-    "IPv6 visibility": routingStatusPayload?.data?.visibility?.v6?.ris_peers_seeing ?? "n/a",
-  });
-
   return {
-    input,
+    input: target.input,
     targetIp,
     resolvedAddresses: target.addresses,
     resolvedFromHostname: target.resolvedFromHostname,
@@ -101,6 +93,24 @@ export async function getRoutingReport(
     },
     geo,
     notes,
+  };
+}
+
+export async function getRoutingReport(
+  input: string,
+  deps: EngineeringDependencies,
+): Promise<RoutingControlPlaneReport> {
+  const report = await fetchRoutingControlPlaneContext(input, deps);
+  const history = deps.historyStore.remember("routing", input, {
+    Prefix: report.prefix,
+    "Origin ASN": report.originAsn,
+    "RPKI status": report.rpkiStatus ?? "unknown",
+    "IPv4 visibility": report.visibility.ipv4RisPeersSeeing ?? "n/a",
+    "IPv6 visibility": report.visibility.ipv6RisPeersSeeing ?? "n/a",
+  });
+
+  return {
+    ...report,
     checkedAt: Date.now(),
     history,
   };

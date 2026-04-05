@@ -17,6 +17,18 @@ const pageComponents: Record<RoutablePageKey, RoutablePageComponent> = {
   networkEngineering: lazy(
     () => import("../../components/tools/NetworkEngineeringWorkbench"),
   ),
+  routingIncidentExplorer: lazy(
+    () => import("../../components/tools/RoutingIncidentExplorer"),
+  ),
+  packetCaptureLab: lazy(
+    () => import("../../components/tools/PacketCaptureAnalysisLab"),
+  ),
+  performanceLab: lazy(
+    () => import("../../components/tools/PerformanceLab"),
+  ),
+  ipv6TransitionLab: lazy(
+    () => import("../../components/tools/IPv6TransitionLab"),
+  ),
   httpInspector: lazy(() => import("../../components/tools/HttpTlsInspector")),
   websiteSecurity: lazy(
     () => import("../../components/tools/WebsiteSecurityReport"),

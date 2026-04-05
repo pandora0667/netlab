@@ -2,6 +2,10 @@ import http from "http";
 import https from "https";
 import { TLSSocket } from "tls";
 import { resolvePublicTarget } from "../../src/lib/public-targets.js";
+import {
+  QuicHandshakeProbe,
+  ServiceBindingProbe,
+} from "../engineering/infrastructure/probes/lab-probes.js";
 import type {
   HttpRedirectHop,
   HttpTlsCertificate,
@@ -21,6 +25,8 @@ const HTTPS_AGENT = new https.Agent({
   maxSockets: 50,
   maxFreeSockets: 10,
 });
+const serviceBindingProbe = new ServiceBindingProbe();
+const quicHandshakeProbe = new QuicHandshakeProbe();
 
 function normalizeInspectorUrl(input: string): URL {
   const normalizedInput = input.startsWith("http://") || input.startsWith("https://")
@@ -68,12 +74,26 @@ function parseCertificate(socket: TLSSocket | undefined): HttpTlsCertificate | n
   };
 }
 
+function parseAltSvcHeader(value: string | null) {
+  if (!value) {
+    return [];
+  }
+
+  return value
+    .split(",")
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+    .map((segment) => segment.match(/^([^=]+)=/)?.[1]?.trim().replace(/^"+|"+$/g, "") ?? null)
+    .filter((protocol): protocol is string => Boolean(protocol));
+}
+
 function performRequest(url: URL, timeoutMs: number) {
   return new Promise<{
     status: number;
     headers: Record<string, string>;
     location: string | null;
     tlsVersion: string | null;
+    alpnProtocol: string | null;
     tlsAuthorized: boolean | null;
     tlsAuthorizationError: string | null;
     certificate: HttpTlsCertificate | null;
@@ -96,6 +116,7 @@ function performRequest(url: URL, timeoutMs: number) {
           ? response.socket
           : undefined;
         const tlsVersion = tlsSocket?.getProtocol() || null;
+        const alpnProtocol = tlsSocket?.alpnProtocol || null;
         const tlsAuthorized = tlsSocket ? tlsSocket.authorized : null;
         const tlsAuthorizationError = tlsSocket?.authorizationError
           ? String(tlsSocket.authorizationError)
@@ -109,6 +130,7 @@ function performRequest(url: URL, timeoutMs: number) {
             headers: toHeaderRecord(response.headers),
             location: response.headers.location || null,
             tlsVersion,
+            alpnProtocol,
             tlsAuthorized,
             tlsAuthorizationError,
             certificate,
@@ -146,6 +168,7 @@ class HttpInspectorService {
           headers: Record<string, string>;
           location: string | null;
           tlsVersion: string | null;
+          alpnProtocol: string | null;
           tlsAuthorized: boolean | null;
           tlsAuthorizationError: string | null;
           certificate: HttpTlsCertificate | null;
@@ -181,6 +204,24 @@ class HttpInspectorService {
       throw new Error("HTTP inspection did not produce a response");
     }
 
+    const altSvcRaw = lastResponse.headers["alt-svc"] || null;
+    const serviceBindings = await serviceBindingProbe.lookup(currentUrl.hostname);
+    const altSvcProtocols = parseAltSvcHeader(altSvcRaw);
+    const advertisesHttp3 = altSvcProtocols.some((protocol) => protocol.startsWith("h3"))
+      || serviceBindings.records.some((record) => record.alpns.some((alpn) => alpn.startsWith("h3")));
+    const http3 = currentUrl.protocol === "https:" && advertisesHttp3
+      ? await quicHandshakeProbe.probe(currentUrl.toString())
+      : {
+        available: false,
+        binary: null,
+        handshakeSucceeded: null,
+        httpVersion: null,
+        remoteIp: null,
+        detail: currentUrl.protocol !== "https:"
+          ? "HTTP/3 probing only runs for HTTPS targets."
+          : "No HTTP/3 advertisement was visible in Alt-Svc or HTTPS/SVCB evidence.",
+      };
+
     return {
       input,
       requestedUrl: requestedUrl.toString(),
@@ -193,9 +234,16 @@ class HttpInspectorService {
       contentType: lastResponse.headers["content-type"] || null,
       protocol: currentUrl.protocol,
       tlsVersion: lastResponse.tlsVersion,
+      alpnProtocol: lastResponse.alpnProtocol,
       tlsAuthorized: lastResponse.tlsAuthorized,
       tlsAuthorizationError: lastResponse.tlsAuthorizationError,
       certificate: lastResponse.certificate,
+      altSvcRaw,
+      altSvcProtocols,
+      serviceBindings: serviceBindings.records,
+      serviceBindingSource: serviceBindings.source,
+      serviceBindingNotes: serviceBindings.notes,
+      http3,
       timestamp: Date.now(),
     };
   }

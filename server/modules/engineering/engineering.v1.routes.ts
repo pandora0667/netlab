@@ -1,8 +1,9 @@
-import { Router } from "express";
+import express, { Router } from "express";
 import {
   concurrencyRouteError,
   fallbackRouteError,
   firstRouteError,
+  registerGetAction,
   registerPostAction,
   resolveRequesterIp,
   zodRouteError,
@@ -14,11 +15,19 @@ import {
 import {
   emailSecurityGate,
   engineeringGate,
+  packetCaptureGate,
   websiteSecurityGate,
 } from "./engineering.gates.js";
 import { engineeringService } from "./engineering.service.js";
+import {
+  PacketCaptureCapacityError,
+  PacketCaptureResourceMonitor,
+  PacketCaptureValidationError,
+  inspectPacketCaptureUpload,
+} from "./infrastructure/probes/lab-probes.js";
 
 const router = Router();
+const packetCaptureResourceMonitor = new PacketCaptureResourceMonitor();
 
 function buildEngineeringRouteError(
   error: unknown,
@@ -34,6 +43,41 @@ function buildEngineeringRouteError(
   ) ?? fallbackRouteError(error, failedCode, failedMessage);
 }
 
+function buildPacketCaptureRouteError(error: unknown) {
+  if (error instanceof PacketCaptureValidationError) {
+    return {
+      statusCode: error.statusCode,
+      error: {
+        code: error.code,
+        message: error.message,
+        ...(error.details === undefined ? {} : { details: error.details }),
+      },
+    };
+  }
+
+  if (error instanceof PacketCaptureCapacityError) {
+    return {
+      statusCode: error.statusCode,
+      error: {
+        code: error.code,
+        message: error.message,
+        ...(error.details === undefined ? {} : { details: error.details }),
+      },
+    };
+  }
+
+  const concurrency = concurrencyRouteError(error, "PACKET_CAPTURE_LIMIT_REACHED");
+  if (concurrency) {
+    return concurrency;
+  }
+
+  return fallbackRouteError(
+    error,
+    "PACKET_CAPTURE_REPORT_FAILED",
+    "Packet capture analysis failed",
+  );
+}
+
 registerPostAction(router, "/routing-reports", {
   parse: (req) => engineeringTargetSchema.parse(req.body),
   acquire: (req) => engineeringGate.acquire(resolveRequesterIp(req)),
@@ -45,6 +89,20 @@ registerPostAction(router, "/routing-reports", {
     "ROUTING_REPORT_LIMIT_REACHED",
     "ROUTING_REPORT_FAILED",
     "Routing report failed",
+  ),
+});
+
+registerPostAction(router, "/routing-incident-reports", {
+  parse: (req) => engineeringTargetSchema.parse(req.body),
+  acquire: (req) => engineeringGate.acquire(resolveRequesterIp(req)),
+  execute: (request) => engineeringService.getRoutingIncidentReport(request.input),
+  onError: (error) => buildEngineeringRouteError(
+    error,
+    "INVALID_ROUTING_INCIDENT_REQUEST",
+    "Invalid routing incident request",
+    "ROUTING_INCIDENT_LIMIT_REACHED",
+    "ROUTING_INCIDENT_REPORT_FAILED",
+    "Routing incident report failed",
   ),
 });
 
@@ -87,6 +145,90 @@ registerPostAction(router, "/path-mtu-reports", {
     "PATH_MTU_REPORT_LIMIT_REACHED",
     "PATH_MTU_REPORT_FAILED",
     "Path MTU report failed",
+  ),
+});
+
+registerPostAction(router, "/packet-capture-reports", {
+  middlewares: [
+    express.raw({
+      type: () => true,
+      limit: "12mb",
+    }),
+  ],
+  parse: (req) => {
+    const payload = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+    const filename = String(req.header("x-netlab-filename") || "capture.pcapng").trim();
+    const upload = inspectPacketCaptureUpload(payload, filename);
+
+    return {
+      payload,
+      filename: upload.filename,
+    };
+  },
+  acquire: (req) => {
+    const requesterIp = resolveRequesterIp(req);
+    const snapshot = packetCaptureGate.getSnapshot(requesterIp);
+    packetCaptureResourceMonitor.assertCanAccept(snapshot);
+
+    try {
+      return packetCaptureGate.acquire(requesterIp);
+    } catch (error) {
+      if (concurrencyRouteError(error, "PACKET_CAPTURE_LIMIT_REACHED")) {
+        throw new PacketCaptureCapacityError(
+          "The capture workers are currently full. Please try again later.",
+          429,
+          packetCaptureResourceMonitor.getStatus(packetCaptureGate.getSnapshot(requesterIp)),
+        );
+      }
+
+      throw error;
+    }
+  },
+  execute: (request) => engineeringService.getPacketCaptureReport(
+    request.payload,
+    request.filename,
+  ),
+  onError: (error) => buildPacketCaptureRouteError(error),
+});
+
+registerGetAction(router, "/packet-capture-capacity", {
+  execute: (_parsed, req) => (
+    packetCaptureResourceMonitor.getStatus(
+      packetCaptureGate.getSnapshot(resolveRequesterIp(req)),
+    )
+  ),
+  onError: (error) => fallbackRouteError(
+    error,
+    "PACKET_CAPTURE_CAPACITY_STATUS_FAILED",
+    "Packet capture capacity status failed",
+  ),
+});
+
+registerPostAction(router, "/performance-reports", {
+  parse: (req) => engineeringTargetSchema.parse(req.body),
+  acquire: (req) => engineeringGate.acquire(resolveRequesterIp(req)),
+  execute: (request) => engineeringService.getPerformanceLabReport(request.input),
+  onError: (error) => buildEngineeringRouteError(
+    error,
+    "INVALID_PERFORMANCE_REPORT_REQUEST",
+    "Invalid performance analysis request",
+    "PERFORMANCE_REPORT_LIMIT_REACHED",
+    "PERFORMANCE_REPORT_FAILED",
+    "Performance analysis report failed",
+  ),
+});
+
+registerPostAction(router, "/ipv6-transition-reports", {
+  parse: (req) => engineeringDomainSchema.parse(req.body),
+  acquire: (req) => engineeringGate.acquire(resolveRequesterIp(req)),
+  execute: (request) => engineeringService.getIpv6TransitionReport(request.domain),
+  onError: (error) => buildEngineeringRouteError(
+    error,
+    "INVALID_IPV6_TRANSITION_REQUEST",
+    "Invalid IPv6 transition request",
+    "IPV6_TRANSITION_LIMIT_REACHED",
+    "IPV6_TRANSITION_REPORT_FAILED",
+    "IPv6 transition report failed",
   ),
 });
 
