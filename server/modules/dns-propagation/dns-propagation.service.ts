@@ -41,6 +41,20 @@ interface DNSQueryComplete {
   timestamp: number;
 }
 
+export interface DNSPropagationRequestSnapshot {
+  requestId: string;
+  domain: string;
+  region: string;
+  status: "running" | "complete" | "error";
+  totalQueries: number;
+  completedQueries: number;
+  progress: number;
+  startedAt: number;
+  completedAt?: number;
+  error?: string;
+  results: DNSQueryResult[];
+}
+
 interface RegionMapping {
   [key: string]: string[];
 }
@@ -53,6 +67,7 @@ const DNS_SERVER_DATA_PATHS = [
 ];
 const DNS_PROPAGATION_QUERY_TIMEOUT_MS = runtimeConfig.limits.dnsPropagationQueryTimeoutMs;
 const DNS_PROPAGATION_QUERY_CONCURRENCY = runtimeConfig.limits.dnsPropagationQueryConcurrency;
+const DNS_PROPAGATION_REQUEST_TTL_MS = 10 * 60 * 1000;
 
 const REGIONS: RegionMapping = {
   "All Regions": ["*"],
@@ -83,6 +98,8 @@ export class DNSPropagationService extends EventEmitter {
   private dnsServers: DNSServer[] = [];
   private lastUpdate: number = 0;
   private readonly updateIntervalMs = DNS_SERVERS_CACHE_TTL_MS;
+  private readonly requestSnapshots = new Map<string, DNSPropagationRequestSnapshot>();
+  private readonly requestCleanupTimers = new Map<string, NodeJS.Timeout>();
 
   constructor() {
     super();
@@ -167,6 +184,7 @@ export class DNSPropagationService extends EventEmitter {
           timestamp: Date.now(),
         };
 
+        this.recordQueryResult(requestId, result);
         this.emit('queryResult', result);
         return result;
       }
@@ -187,6 +205,7 @@ export class DNSPropagationService extends EventEmitter {
         timestamp: Date.now(),
       };
 
+      this.recordQueryResult(requestId, result);
       this.emit('queryResult', result);
       return result;
     } catch (error) {
@@ -201,11 +220,125 @@ export class DNSPropagationService extends EventEmitter {
         timestamp: Date.now(),
       };
 
+      this.recordQueryResult(requestId, result);
       this.emit('queryResult', result);
       return result;
     } finally {
       resolver.cancel();
     }
+  }
+
+  private initializeRequestSnapshot(
+    requestId: string,
+    domain: string,
+    region: string,
+    totalQueries: number,
+  ) {
+    this.clearRequestCleanup(requestId);
+    this.requestSnapshots.set(requestId, {
+      requestId,
+      domain,
+      region,
+      status: "running",
+      totalQueries,
+      completedQueries: 0,
+      progress: 0,
+      startedAt: Date.now(),
+      results: [],
+    });
+  }
+
+  private recordQueryResult(requestId: string, result: DNSQueryResult) {
+    const snapshot = this.requestSnapshots.get(requestId);
+
+    if (!snapshot) {
+      return;
+    }
+
+    snapshot.results = [...snapshot.results, result];
+  }
+
+  private recordQueryProgress(
+    requestId: string,
+    completedQueries: number,
+    totalQueries: number,
+  ) {
+    const snapshot = this.requestSnapshots.get(requestId);
+
+    if (!snapshot) {
+      return;
+    }
+
+    snapshot.completedQueries = completedQueries;
+    snapshot.totalQueries = totalQueries;
+    snapshot.progress = totalQueries > 0
+      ? Math.round((completedQueries / totalQueries) * 100)
+      : 0;
+  }
+
+  private completeRequestSnapshot(requestId: string) {
+    const snapshot = this.requestSnapshots.get(requestId);
+
+    if (!snapshot) {
+      return;
+    }
+
+    snapshot.status = "complete";
+    snapshot.progress = 100;
+    snapshot.completedAt = Date.now();
+    this.scheduleRequestCleanup(requestId);
+  }
+
+  private failRequestSnapshot(requestId: string, error: string) {
+    const snapshot = this.requestSnapshots.get(requestId);
+
+    if (!snapshot) {
+      return;
+    }
+
+    snapshot.status = "error";
+    snapshot.error = error;
+    snapshot.completedAt = Date.now();
+    this.scheduleRequestCleanup(requestId);
+  }
+
+  private scheduleRequestCleanup(requestId: string) {
+    this.clearRequestCleanup(requestId);
+
+    const timeout = setTimeout(() => {
+      this.requestSnapshots.delete(requestId);
+      this.requestCleanupTimers.delete(requestId);
+    }, DNS_PROPAGATION_REQUEST_TTL_MS);
+
+    timeout.unref?.();
+    this.requestCleanupTimers.set(requestId, timeout);
+  }
+
+  private clearRequestCleanup(requestId: string) {
+    const timeout = this.requestCleanupTimers.get(requestId);
+
+    if (!timeout) {
+      return;
+    }
+
+    clearTimeout(timeout);
+    this.requestCleanupTimers.delete(requestId);
+  }
+
+  getRequestSnapshot(requestId: string): DNSPropagationRequestSnapshot | null {
+    const snapshot = this.requestSnapshots.get(requestId);
+
+    if (!snapshot) {
+      return null;
+    }
+
+    return {
+      ...snapshot,
+      results: snapshot.results.map((result) => ({
+        ...result,
+        server: { ...result.server },
+      })),
+    };
   }
 
   async checkPropagation(
@@ -226,34 +359,45 @@ export class DNSPropagationService extends EventEmitter {
     filteredServers = [...filteredServers].sort((a, b) => b.reliability - a.reliability);
     const totalQueries = filteredServers.length;
     let completedQueries = 0;
+    this.initializeRequestSnapshot(requestId, domain, region, totalQueries);
 
-    const results = await mapWithConcurrency(
-      filteredServers,
-      DNS_PROPAGATION_QUERY_CONCURRENCY,
-      async (server) => {
-        const result = await this.queryDNS(server, domain, requestId);
-        completedQueries += 1;
+    try {
+      const results = await mapWithConcurrency(
+        filteredServers,
+        DNS_PROPAGATION_QUERY_CONCURRENCY,
+        async (server) => {
+          const result = await this.queryDNS(server, domain, requestId);
+          completedQueries += 1;
+          this.recordQueryProgress(requestId, completedQueries, totalQueries);
 
-        this.emit('queryProgress', {
-          requestId,
-          completedQueries,
-          totalQueries,
-          timestamp: Date.now(),
-        } satisfies DNSQueryProgress);
+          this.emit('queryProgress', {
+            requestId,
+            completedQueries,
+            totalQueries,
+            timestamp: Date.now(),
+          } satisfies DNSQueryProgress);
 
-        return result;
-      },
-    );
+          return result;
+        },
+      );
 
-    this.emit('queryComplete', {
-      requestId,
-      domain,
-      region,
-      totalQueries,
-      timestamp: Date.now(),
-    } satisfies DNSQueryComplete);
+      this.completeRequestSnapshot(requestId);
+      this.emit('queryComplete', {
+        requestId,
+        domain,
+        region,
+        totalQueries,
+        timestamp: Date.now(),
+      } satisfies DNSQueryComplete);
 
-    return results;
+      return results;
+    } catch (error) {
+      this.failRequestSnapshot(
+        requestId,
+        error instanceof Error ? error.message : "DNS propagation failed",
+      );
+      throw error;
+    }
   }
 
   // Add methods for WebSocket support

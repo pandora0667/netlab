@@ -331,6 +331,56 @@ describe("API routes", () => {
     assert.equal(payload.error.code, "INVALID_DNS_PROPAGATION_REQUEST");
   });
 
+  it("normalizes supported DNS propagation region aliases", async () => {
+    const response = await request("/api/v1/dns-propagation/requests", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        domain: "example.com",
+        requestId: `test-${Date.now()}`,
+        region: "all",
+      }),
+    });
+
+    assert.equal(response.status, 202);
+    const payload = await response.json();
+
+    assertSuccessEnvelope(payload);
+    assert.equal(payload.data.region, "All Regions");
+  });
+
+  it("rejects unsupported DNS propagation regions", async () => {
+    const response = await request("/api/v1/dns-propagation/requests", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        domain: "example.com",
+        requestId: `test-${Date.now()}-invalid`,
+        region: "mars",
+      }),
+    });
+
+    assert.equal(response.status, 400);
+    const payload = await response.json();
+
+    assertErrorEnvelope(payload);
+    assert.equal(payload.error.code, "INVALID_DNS_PROPAGATION_REQUEST");
+  });
+
+  it("returns a standardized error for unknown v1 DNS propagation request snapshots", async () => {
+    const response = await request("/api/v1/dns-propagation/requests/does-not-exist");
+
+    assert.equal(response.status, 404);
+    const payload = await response.json();
+
+    assertErrorEnvelope(payload);
+    assert.equal(payload.error.code, "DNS_PROPAGATION_REQUEST_NOT_FOUND");
+  });
+
   it("returns a standardized error for non-public v1 trace targets", async () => {
     const response = await request("/api/v1/network/traces", {
       method: "POST",

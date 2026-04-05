@@ -3,6 +3,7 @@ import {
   Suspense,
   useState,
   useEffect,
+  useCallback,
 } from 'react';
 import { Card } from '../ui/card';
 import { Input } from '../ui/input';
@@ -25,7 +26,11 @@ import {
 import { Badge } from '../ui/badge';
 import { Loader2, Download, Map, PieChart, Orbit } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { startDnsPropagationRequest } from "@/domains/dns-propagation/api";
+import {
+  getDnsPropagationRequestStatus,
+  startDnsPropagationRequest,
+} from "@/domains/dns-propagation/api";
+import { ApiClientError } from "@/domains/shared/api-client";
 import {
   createDnsPropagationRequestId,
   useDnsPropagationSocket,
@@ -55,6 +60,67 @@ const DNSPropagationChart = lazy(
   () => import('./dns-propagation/DNSPropagationChart'),
 );
 
+const ACTIVE_DNS_PROPAGATION_REQUEST_STORAGE_KEY =
+  "netlab:dns-propagation:active-request";
+
+interface PersistedDnsPropagationRequest {
+  requestId: string;
+  domain: string;
+  region: string;
+}
+
+function readPersistedDnsPropagationRequest(): PersistedDnsPropagationRequest | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const rawValue = window.sessionStorage.getItem(
+      ACTIVE_DNS_PROPAGATION_REQUEST_STORAGE_KEY,
+    );
+
+    if (!rawValue) {
+      return null;
+    }
+
+    const parsedValue = JSON.parse(rawValue) as Partial<PersistedDnsPropagationRequest>;
+
+    if (
+      typeof parsedValue.requestId !== "string" ||
+      typeof parsedValue.domain !== "string" ||
+      typeof parsedValue.region !== "string"
+    ) {
+      return null;
+    }
+
+    return {
+      requestId: parsedValue.requestId,
+      domain: parsedValue.domain,
+      region: parsedValue.region,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writePersistedDnsPropagationRequest(
+  request: PersistedDnsPropagationRequest | null,
+) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  if (!request) {
+    window.sessionStorage.removeItem(ACTIVE_DNS_PROPAGATION_REQUEST_STORAGE_KEY);
+    return;
+  }
+
+  window.sessionStorage.setItem(
+    ACTIVE_DNS_PROPAGATION_REQUEST_STORAGE_KEY,
+    JSON.stringify(request),
+  );
+}
+
 export default function DNSPropagationChecker() {
   const [domain, setDomain] = useState('');
   const [selectedRegion, setSelectedRegion] = useState('All Regions');
@@ -69,6 +135,12 @@ export default function DNSPropagationChecker() {
     dnssec: 'all'
   });
   const [activeRequestId, setActiveRequestId] = useState<string | null>(null);
+
+  const clearActiveRequest = useCallback(() => {
+    writePersistedDnsPropagationRequest(null);
+    setActiveRequestId(null);
+    setIsLoading(false);
+  }, []);
 
   const {
     isConnected,
@@ -88,18 +160,15 @@ export default function DNSPropagationChecker() {
     },
     onComplete: () => {
       setProgress(100);
-      setIsLoading(false);
-      setActiveRequestId(null);
+      clearActiveRequest();
     },
     onRequestError: (message) => {
       toast.error(message);
-      setIsLoading(false);
-      setActiveRequestId(null);
+      clearActiveRequest();
     },
     onConnectionError: () => {
       toast.error('Connection error occurred');
-      setIsLoading(false);
-      setActiveRequestId(null);
+      clearActiveRequest();
     },
   });
 
@@ -139,6 +208,11 @@ export default function DNSPropagationChecker() {
         requestId: nextRequestId,
       });
 
+      writePersistedDnsPropagationRequest({
+        requestId: request.requestId,
+        domain: request.domain,
+        region: request.region,
+      });
       setActiveRequestId(nextRequestId);
       setIsLoading(true);
       setResults([]);
@@ -150,12 +224,87 @@ export default function DNSPropagationChecker() {
       if (nextRequestId) {
         unsubscribeFromRequest(nextRequestId);
       }
+      writePersistedDnsPropagationRequest(null);
       setActiveRequestId(null);
       setIsLoading(false);
       toast.error(error instanceof Error ? error.message : 'Failed to check DNS propagation');
       console.error('Error:', error);
     }
   };
+
+  useEffect(() => {
+    if (!isConnected || activeRequestId) {
+      return;
+    }
+
+    const persistedRequest = readPersistedDnsPropagationRequest();
+
+    if (!persistedRequest) {
+      return;
+    }
+
+    const subscribed = subscribeToRequest(persistedRequest.requestId);
+
+    if (!subscribed) {
+      return;
+    }
+
+    setDomain(persistedRequest.domain);
+    setSelectedRegion(persistedRequest.region);
+    setActiveRequestId(persistedRequest.requestId);
+    setIsLoading(true);
+  }, [activeRequestId, isConnected, subscribeToRequest]);
+
+  useEffect(() => {
+    if (!activeRequestId) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const syncRequestStatus = async () => {
+      try {
+        const snapshot = await getDnsPropagationRequestStatus(activeRequestId);
+
+        if (cancelled) {
+          return;
+        }
+
+        setResults(snapshot.results);
+        setStats(calculateDnsPropagationStats(snapshot.results));
+        setProgress(snapshot.progress);
+
+        if (snapshot.status === "complete") {
+          clearActiveRequest();
+          return;
+        }
+
+        if (snapshot.status === "error") {
+          toast.error(snapshot.error || "DNS propagation request failed");
+          clearActiveRequest();
+        }
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        if (error instanceof ApiClientError && error.status === 404) {
+          clearActiveRequest();
+          return;
+        }
+      }
+    };
+
+    void syncRequestStatus();
+    const intervalId = window.setInterval(() => {
+      void syncRequestStatus();
+    }, 1000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [activeRequestId, clearActiveRequest]);
 
   useEffect(() => {
     return () => {
@@ -361,11 +510,18 @@ export default function DNSPropagationChecker() {
         </div>
 
         {isLoading && (
-          <div className="mb-4 h-2 w-full overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full rounded-full bg-primary transition-all duration-500"
-              style={{ width: `${progress}%` }}
-            />
+          <div className="space-y-2">
+            <div className="mb-4 h-2 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-primary transition-all duration-500"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            <p className="text-xs text-white/58">
+              {progress > 0
+                ? `Live results are still arriving. ${progress}% of resolver checks have reported so far.`
+                : 'Live results are still arriving. The request will stay open until all resolver checks complete.'}
+            </p>
           </div>
         )}
 

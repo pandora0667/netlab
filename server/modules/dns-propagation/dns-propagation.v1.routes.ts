@@ -6,6 +6,7 @@ import {
   DnsPropagationStartError,
   startDnsPropagationRequest,
 } from "./dns-propagation.start.js";
+import { dnsPropagationService } from "./dns-propagation.registry.js";
 
 const HTTP_ACCEPTED = 202;
 
@@ -47,6 +48,30 @@ router.post("/requests", dnsPropagationLimiter, async (req, res) => {
       message: "Failed to start DNS propagation check",
     });
   }
+});
+
+router.get("/requests/:requestId", (req, res) => {
+  const requestId = typeof req.params.requestId === "string"
+    ? req.params.requestId.trim()
+    : "";
+
+  if (!requestId) {
+    return sendError(res, 400, {
+      code: "INVALID_DNS_PROPAGATION_REQUEST_ID",
+      message: "Request ID is required",
+    });
+  }
+
+  const snapshot = dnsPropagationService.getRequestSnapshot(requestId);
+
+  if (!snapshot) {
+    return sendError(res, 404, {
+      code: "DNS_PROPAGATION_REQUEST_NOT_FOUND",
+      message: "DNS propagation request not found or has expired",
+    });
+  }
+
+  return sendSuccess(res, snapshot);
 });
 
 export default router;
