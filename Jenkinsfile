@@ -173,16 +173,25 @@ pipeline {
                                     baseTagArgs << "--tag ${env.RUNTIME_BASE_IMAGE_REPO}:${env.EXACT_GIT_TAG}"
                                 }
 
+                                def runtimeBaseBuildArgs = [
+                                    "--platform ${env.PLATFORMS}",
+                                    "--file Dockerfile.runtime-base"
+                                ] + baseTagArgs
+
+                                if (runtimeBaseCacheFromArg) {
+                                    runtimeBaseBuildArgs << runtimeBaseCacheFromArg
+                                }
+
+                                runtimeBaseBuildArgs += [
+                                    "--cache-to type=registry,ref=${env.RUNTIME_BASE_CACHE},mode=max",
+                                    "--push",
+                                    "--progress=plain",
+                                    "."
+                                ]
+
                                 sh """
                                     docker buildx build \\
-                                        --platform ${env.PLATFORMS} \\
-                                        --file Dockerfile.runtime-base \\
-                                        ${baseTagArgs.join(' \\\n                                        ')} \\
-                                        ${runtimeBaseCacheFromArg ? "${runtimeBaseCacheFromArg} \\\\" : "" }
-                                        --cache-to type=registry,ref=${env.RUNTIME_BASE_CACHE},mode=max \\
-                                        --push \\
-                                        --progress=plain \\
-                                        .
+                                        ${runtimeBaseBuildArgs.join(' \\\n                                        ')}
                                 """
                             } else if (env.EXACT_GIT_TAG) {
                                 def runtimeTagExists = sh(
@@ -260,6 +269,25 @@ pipeline {
                         tagArgs << "--tag ${env.IMAGE_REPO}:${env.EXACT_GIT_TAG}"
                     }
 
+                    def appBuildArgs = [
+                        "--platform ${env.PLATFORMS}",
+                        "--build-arg APP_BUILD_SHA=${env.SHORT_SHA}",
+                        "--build-arg APP_BUILD_REF=${env.BUILD_REF}",
+                        "--build-arg APP_BUILD_TIME=${env.BUILD_TIMESTAMP}",
+                        "--build-arg RUNTIME_BASE_IMAGE=${env.RUNTIME_BASE_IMAGE}"
+                    ] + tagArgs
+
+                    if (appCacheFromArg) {
+                        appBuildArgs << appCacheFromArg
+                    }
+
+                    appBuildArgs += [
+                        "--cache-to type=registry,ref=${env.IMAGE_CACHE},mode=max",
+                        "--push",
+                        "--progress=plain",
+                        "."
+                    ]
+
                     withCredentials([
                         usernamePassword(
                             credentialsId: env.HARBOR_CREDS_ID,
@@ -271,17 +299,7 @@ pipeline {
                             echo "\$HARBOR_PASSWORD" | docker login ${env.HARBOR_URL} -u "\$HARBOR_USERNAME" --password-stdin
 
                             docker buildx build \\
-                                --platform ${env.PLATFORMS} \\
-                                --build-arg APP_BUILD_SHA=${env.SHORT_SHA} \\
-                                --build-arg APP_BUILD_REF=${env.BUILD_REF} \\
-                                --build-arg APP_BUILD_TIME=${env.BUILD_TIMESTAMP} \\
-                                --build-arg RUNTIME_BASE_IMAGE=${env.RUNTIME_BASE_IMAGE} \\
-                                ${tagArgs.join(' \\\n                                ')} \\
-                                ${appCacheFromArg ? "${appCacheFromArg} \\\\" : "" }
-                                --cache-to type=registry,ref=${env.IMAGE_CACHE},mode=max \\
-                                --push \\
-                                --progress=plain \\
-                                .
+                                ${appBuildArgs.join(' \\\n                                ')}
 
                             docker logout ${env.HARBOR_URL}
                         """
