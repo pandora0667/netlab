@@ -240,7 +240,7 @@ pipeline {
                             docker buildx imagetools inspect $RUNTIME_BASE_SHA
                         fi
 
-                        if [ -n "$EXACT_GIT_TAG" ]; then
+                        if [ -n "${EXACT_GIT_TAG:-}" ]; then
                             echo "Inspecting runtime base git tag manifest"
                             docker buildx imagetools inspect $RUNTIME_BASE_IMAGE
                         fi
@@ -326,7 +326,7 @@ pipeline {
                         echo "Inspecting sha manifest"
                         docker buildx imagetools inspect $IMAGE_REPO:sha-$SHORT_SHA
 
-                        if [ -n "$EXACT_GIT_TAG" ]; then
+                        if [ -n "${EXACT_GIT_TAG:-}" ]; then
                             echo "Inspecting git tag manifest"
                             docker buildx imagetools inspect $IMAGE_REPO:$EXACT_GIT_TAG
                         fi
