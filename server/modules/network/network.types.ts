@@ -87,13 +87,40 @@ export interface HttpServiceBindingRecord {
   raw: string;
 }
 
-export interface Http3ProbeResult {
+export interface HttpProtocolProbeResult {
+  protocol: "http2" | "http3";
   available: boolean;
+  attempted: boolean;
   binary: string | null;
-  handshakeSucceeded: boolean | null;
+  succeeded: boolean | null;
+  statusCode: number | null;
   httpVersion: string | null;
   remoteIp: string | null;
+  connectMs: number | null;
+  tlsHandshakeMs: number | null;
+  ttfbMs: number | null;
   detail: string;
+}
+
+export interface Http3AssessmentResult {
+  advertised: boolean;
+  evidenceSources: string[];
+  verdict:
+    | "not-applicable"
+    | "not-advertised"
+    | "binary-unavailable"
+    | "advertised-working"
+    | "advertised-failed";
+  summary: string;
+  nextStep: string;
+}
+
+export interface HttpProtocolComparison {
+  comparable: boolean;
+  winner: "http2" | "http3" | "tie" | null;
+  ttfbDeltaMs: number | null;
+  connectDeltaMs: number | null;
+  summary: string;
 }
 
 export interface HttpTlsInspectionResult {
@@ -117,6 +144,9 @@ export interface HttpTlsInspectionResult {
   serviceBindings: HttpServiceBindingRecord[];
   serviceBindingSource: "dig" | "doh" | "none";
   serviceBindingNotes: string[];
-  http3: Http3ProbeResult;
+  http2Probe: HttpProtocolProbeResult | null;
+  http3: HttpProtocolProbeResult;
+  http3Assessment: Http3AssessmentResult;
+  httpComparison: HttpProtocolComparison;
   timestamp: number;
 }

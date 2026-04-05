@@ -12,6 +12,25 @@ import {
   type GuidedTroubleshootingItem,
 } from "./GuidedTroubleshooting";
 
+function formatProbeMetric(value: number | null) {
+  return value == null ? "n/a" : `${value.toFixed(1)} ms`;
+}
+
+function verdictBadgeCopy(verdict: HttpTlsInspectionResult["http3Assessment"]["verdict"]) {
+  switch (verdict) {
+    case "advertised-working":
+      return "advertised / working";
+    case "advertised-failed":
+      return "advertised / failed";
+    case "binary-unavailable":
+      return "advertised / unverified";
+    case "not-advertised":
+      return "not advertised";
+    default:
+      return "not applicable";
+  }
+}
+
 function buildInspectorGuidance(
   result: HttpTlsInspectionResult | null,
 ): GuidedTroubleshootingItem[] {
@@ -66,22 +85,40 @@ function buildInspectorGuidance(
     });
   }
 
-  if (result.altSvcProtocols.some((protocol) => protocol.startsWith("h3"))) {
+  if (result.http3Assessment.verdict === "advertised-working") {
     items.push({
-      title: "The service is advertising HTTP/3 candidates.",
+      title: "The edge is advertising and serving HTTP/3.",
       detail:
-        "Alt-Svc or HTTPS records indicate that the edge wants clients to consider an H3 path in addition to HTTP/2 or HTTP/1.1.",
-      nextStep: "Compare the advertised H3 path with the real QUIC probe result before assuming it is usable everywhere.",
+        `${result.http3Assessment.summary} ${result.httpComparison.summary}`,
+      nextStep: result.http3Assessment.nextStep,
+      tone: "good",
+    });
+  }
+
+  if (result.http3Assessment.verdict === "advertised-failed") {
+    items.push({
+      title: "HTTP/3 was advertised, but the real QUIC transaction did not complete cleanly.",
+      detail: `${result.http3Assessment.summary} ${result.http3.detail}`,
+      nextStep: result.http3Assessment.nextStep,
+      tone: "warn",
+    });
+  }
+
+  if (result.http3Assessment.verdict === "binary-unavailable") {
+    items.push({
+      title: "The edge advertises HTTP/3, but this runtime could not validate it.",
+      detail: result.http3Assessment.summary,
+      nextStep: result.http3Assessment.nextStep,
       tone: "info",
     });
   }
 
-  if (result.http3.handshakeSucceeded === false) {
+  if (result.http3Assessment.verdict === "not-advertised" && result.protocol === "https:") {
     items.push({
-      title: "HTTP/3 was advertised, but the real QUIC probe did not complete cleanly.",
-      detail: result.http3.detail,
-      nextStep: "Treat this as a service-edge inconsistency and compare it with Alt-Svc, ALPN, and SVCB evidence.",
-      tone: "warn",
+      title: "The HTTPS edge looks conventional HTTP/2-first right now.",
+      detail: result.http3Assessment.summary,
+      nextStep: result.http3Assessment.nextStep,
+      tone: "info",
     });
   }
 
@@ -228,7 +265,7 @@ export default function HttpTlsInspector() {
                     </div>
                   </div>
 
-                  <div className="grid gap-3 md:grid-cols-4">
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
                     <div className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] p-4">
                       <p className="text-[0.68rem] uppercase tracking-[0.22em] text-white/38">
                         Final status
@@ -263,6 +300,17 @@ export default function HttpTlsInspector() {
                     </div>
                     <div className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] p-4">
                       <p className="text-[0.68rem] uppercase tracking-[0.22em] text-white/38">
+                        Transport
+                      </p>
+                      <p className="mt-3 text-xl font-semibold text-white">
+                        {verdictBadgeCopy(result.http3Assessment.verdict)}
+                      </p>
+                      <p className="mt-2 text-sm text-white/52">
+                        {result.http3Assessment.evidenceSources.join(" + ") || "HTTP/2 only"}
+                      </p>
+                    </div>
+                    <div className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] p-4">
+                      <p className="text-[0.68rem] uppercase tracking-[0.22em] text-white/38">
                         HSTS
                       </p>
                       <p className="mt-3 text-xl font-semibold text-white">
@@ -273,13 +321,22 @@ export default function HttpTlsInspector() {
 
                   <div className="grid gap-4 lg:grid-cols-[0.85fr_1.15fr]">
                     <div className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] p-4">
-                      <p className="text-[0.68rem] uppercase tracking-[0.22em] text-white/38">
-                        HTTP/3 evidence
-                      </p>
+                      <div className="space-y-2">
+                        <p className="text-[0.68rem] uppercase tracking-[0.22em] text-white/38">
+                          HTTP/3 verdict
+                        </p>
+                        <p className="text-lg font-semibold text-white">
+                          {result.http3Assessment.summary}
+                        </p>
+                        <p className="text-sm text-white/54">
+                          {result.http3Assessment.nextStep}
+                        </p>
+                      </div>
                       <div className="mt-4 space-y-3 text-sm text-white/62">
                         <p><span className="text-white/42">Alt-Svc:</span> {result.altSvcRaw ?? "none"}</p>
                         <p><span className="text-white/42">Advertised protocols:</span> {result.altSvcProtocols.join(", ") || "none"}</p>
-                        <p><span className="text-white/42">Probe:</span> {result.http3.handshakeSucceeded == null ? "not attempted" : result.http3.handshakeSucceeded ? "succeeded" : "failed"}</p>
+                        <p><span className="text-white/42">Evidence sources:</span> {result.http3Assessment.evidenceSources.join(", ") || "none"}</p>
+                        <p><span className="text-white/42">HTTP/3 probe:</span> {result.http3.succeeded == null ? "not attempted" : result.http3.succeeded ? "succeeded" : "failed"}</p>
                         <p><span className="text-white/42">Detail:</span> {result.http3.detail}</p>
                         {result.http3.httpVersion ? (
                           <p><span className="text-white/42">HTTP version:</span> {result.http3.httpVersion}</p>
@@ -316,6 +373,81 @@ export default function HttpTlsInspector() {
                           <p key={note} className="text-xs text-white/42">{note}</p>
                         ))}
                       </div>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    {[result.http2Probe, result.http3].filter(Boolean).map((probe) => (
+                      <div
+                        key={probe?.protocol}
+                        className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] p-4"
+                      >
+                        <p className="text-[0.68rem] uppercase tracking-[0.22em] text-white/38">
+                          {probe?.protocol === "http2" ? "HTTP/2 transaction" : "HTTP/3 transaction"}
+                        </p>
+                        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                          <div>
+                            <p className="text-[0.68rem] uppercase tracking-[0.18em] text-white/36">Status</p>
+                            <p className="mt-1 text-base font-semibold text-white">
+                              {probe?.succeeded == null ? "not attempted" : probe.succeeded ? "succeeded" : "failed"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[0.68rem] uppercase tracking-[0.18em] text-white/36">HTTP version</p>
+                            <p className="mt-1 text-base font-semibold text-white">
+                              {probe?.httpVersion ?? "n/a"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[0.68rem] uppercase tracking-[0.18em] text-white/36">Status code</p>
+                            <p className="mt-1 text-base font-semibold text-white">
+                              {probe?.statusCode ?? "n/a"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[0.68rem] uppercase tracking-[0.18em] text-white/36">Remote IP</p>
+                            <p className="mt-1 text-base font-semibold text-white">
+                              {probe?.remoteIp ?? "n/a"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[0.68rem] uppercase tracking-[0.18em] text-white/36">Connect</p>
+                            <p className="mt-1 text-base font-semibold text-white">
+                              {formatProbeMetric(probe?.connectMs ?? null)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[0.68rem] uppercase tracking-[0.18em] text-white/36">TLS handshake</p>
+                            <p className="mt-1 text-base font-semibold text-white">
+                              {formatProbeMetric(probe?.tlsHandshakeMs ?? null)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[0.68rem] uppercase tracking-[0.18em] text-white/36">TTFB</p>
+                            <p className="mt-1 text-base font-semibold text-white">
+                              {formatProbeMetric(probe?.ttfbMs ?? null)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[0.68rem] uppercase tracking-[0.18em] text-white/36">Binary</p>
+                            <p className="mt-1 text-sm text-white/62">
+                              {probe?.binary ?? "n/a"}
+                            </p>
+                          </div>
+                        </div>
+                        <p className="mt-4 text-sm text-white/54">{probe?.detail}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="rounded-[1.2rem] border border-white/8 bg-white/[0.03] p-4">
+                    <p className="text-[0.68rem] uppercase tracking-[0.22em] text-white/38">
+                      Protocol comparison
+                    </p>
+                    <div className="mt-4 space-y-2 text-sm text-white/62">
+                      <p>{result.httpComparison.summary}</p>
+                      <p><span className="text-white/42">TTFB delta:</span> {result.httpComparison.ttfbDeltaMs == null ? "n/a" : `${result.httpComparison.ttfbDeltaMs} ms (HTTP/3 - HTTP/2)`}</p>
+                      <p><span className="text-white/42">Connect delta:</span> {result.httpComparison.connectDeltaMs == null ? "n/a" : `${result.httpComparison.connectDeltaMs} ms (HTTP/3 - HTTP/2)`}</p>
                     </div>
                   </div>
 

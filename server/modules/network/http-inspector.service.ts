@@ -6,6 +6,11 @@ import {
   QuicHandshakeProbe,
   ServiceBindingProbe,
 } from "../engineering/infrastructure/probes/lab-probes.js";
+import {
+  buildHttp3Assessment,
+  compareHttpProtocols,
+  getHttp3EvidenceSources,
+} from "./http-inspector.domain.js";
 import type {
   HttpRedirectHop,
   HttpTlsCertificate,
@@ -207,20 +212,38 @@ class HttpInspectorService {
     const altSvcRaw = lastResponse.headers["alt-svc"] || null;
     const serviceBindings = await serviceBindingProbe.lookup(currentUrl.hostname);
     const altSvcProtocols = parseAltSvcHeader(altSvcRaw);
-    const advertisesHttp3 = altSvcProtocols.some((protocol) => protocol.startsWith("h3"))
-      || serviceBindings.records.some((record) => record.alpns.some((alpn) => alpn.startsWith("h3")));
+    const http3EvidenceSources = getHttp3EvidenceSources(
+      altSvcProtocols,
+      serviceBindings.records,
+    );
+    const advertisesHttp3 = http3EvidenceSources.length > 0;
+    const http2Probe = currentUrl.protocol === "https:"
+      ? await quicHandshakeProbe.probeHttp2(currentUrl.toString())
+      : null;
     const http3 = currentUrl.protocol === "https:" && advertisesHttp3
       ? await quicHandshakeProbe.probe(currentUrl.toString())
       : {
+        protocol: "http3" as const,
         available: false,
+        attempted: false,
         binary: null,
-        handshakeSucceeded: null,
+        succeeded: null,
+        statusCode: null,
         httpVersion: null,
         remoteIp: null,
+        connectMs: null,
+        tlsHandshakeMs: null,
+        ttfbMs: null,
         detail: currentUrl.protocol !== "https:"
           ? "HTTP/3 probing only runs for HTTPS targets."
           : "No HTTP/3 advertisement was visible in Alt-Svc or HTTPS/SVCB evidence.",
       };
+    const http3Assessment = buildHttp3Assessment({
+      protocol: currentUrl.protocol,
+      evidenceSources: http3EvidenceSources,
+      http3,
+    });
+    const httpComparison = compareHttpProtocols(http2Probe, http3);
 
     return {
       input,
@@ -243,7 +266,10 @@ class HttpInspectorService {
       serviceBindings: serviceBindings.records,
       serviceBindingSource: serviceBindings.source,
       serviceBindingNotes: serviceBindings.notes,
+      http2Probe,
       http3,
+      http3Assessment,
+      httpComparison,
       timestamp: Date.now(),
     };
   }

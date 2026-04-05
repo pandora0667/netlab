@@ -36,12 +36,18 @@ export interface ServiceBindingLookupResult {
   notes: string[];
 }
 
-export interface QuicProbeResult {
+export interface HttpProtocolProbeResult {
+  protocol: "http2" | "http3";
   available: boolean;
+  attempted: boolean;
   binary: string | null;
-  handshakeSucceeded: boolean | null;
+  succeeded: boolean | null;
+  statusCode: number | null;
   httpVersion: string | null;
   remoteIp: string | null;
+  connectMs: number | null;
+  tlsHandshakeMs: number | null;
+  ttfbMs: number | null;
   detail: string;
 }
 
@@ -1051,6 +1057,7 @@ async function detectHttp3CurlBinary(binary: string) {
     if (result.code !== 0) {
       return {
         binary,
+        accessible: false,
         supportsHttp3: false,
         detail: result.stderr.trim() || `exit ${result.code ?? "unknown"}`,
       };
@@ -1059,12 +1066,14 @@ async function detectHttp3CurlBinary(binary: string) {
     const features = parseCurlVersionFeatures(result.stdout);
     return {
       binary,
+      accessible: true,
       supportsHttp3: features.includes("HTTP3"),
       detail: result.stdout.split(/\r?\n/)[0]?.trim() || binary,
     };
   } catch (error) {
     return {
       binary,
+      accessible: false,
       supportsHttp3: false,
       detail: error instanceof Error ? error.message : "binary check failed",
     };
@@ -1073,8 +1082,10 @@ async function detectHttp3CurlBinary(binary: string) {
 
 export class QuicHandshakeProbe {
   private detectionPromise: Promise<{
-    binary: string | null;
-    detail: string;
+    anyBinary: string | null;
+    anyBinaryDetail: string;
+    http3Binary: string | null;
+    http3BinaryDetail: string;
   }> | null = null;
 
   private resolveCandidateBinaries() {
@@ -1094,55 +1105,109 @@ export class QuicHandshakeProbe {
     this.detectionPromise = (async () => {
       const candidates = this.resolveCandidateBinaries();
       const results = [];
+      let anyBinary: string | null = null;
+      let anyBinaryDetail = "";
 
       for (const binary of candidates) {
         const result = await detectHttp3CurlBinary(binary);
         results.push(result);
 
+        if (!anyBinary && result.accessible) {
+          anyBinary = result.binary;
+          anyBinaryDetail = result.detail;
+        }
+
         if (result.supportsHttp3) {
           return {
-            binary: result.binary,
-            detail: result.detail,
+            anyBinary: anyBinary ?? result.binary,
+            anyBinaryDetail: anyBinaryDetail || result.detail,
+            http3Binary: result.binary,
+            http3BinaryDetail: result.detail,
           };
         }
       }
 
       return {
-        binary: null,
-        detail: results.map((item) => `${item.binary}: ${item.detail}`).join("; "),
+        anyBinary,
+        anyBinaryDetail:
+          anyBinaryDetail
+          || results.map((item) => `${item.binary}: ${item.detail}`).join("; "),
+        http3Binary: null,
+        http3BinaryDetail:
+          results.map((item) => `${item.binary}: ${item.detail}`).join("; "),
       };
     })();
 
     return this.detectionPromise;
   }
 
-  async probe(url: string): Promise<QuicProbeResult> {
+  private parseMetricMilliseconds(output: string, name: string) {
+    const rawValue = output.match(new RegExp(`${name}=([^\\n]+)`))?.[1]?.trim() || null;
+    if (!rawValue) {
+      return null;
+    }
+
+    const parsedValue = Number.parseFloat(rawValue);
+    if (!Number.isFinite(parsedValue)) {
+      return null;
+    }
+
+    return Math.round(parsedValue * 1000 * 10) / 10;
+  }
+
+  private parseMetricString(output: string, name: string) {
+    return output.match(new RegExp(`${name}=([^\\n]+)`))?.[1]?.trim() || null;
+  }
+
+  private async runProtocolProbe(
+    protocol: "http2" | "http3",
+    url: string,
+  ): Promise<HttpProtocolProbeResult> {
     const resolved = await this.resolveBinary();
-    if (!resolved.binary) {
+    const binary = protocol === "http3" ? resolved.http3Binary : resolved.anyBinary;
+    const detail = protocol === "http3" ? resolved.http3BinaryDetail : resolved.anyBinaryDetail;
+
+    if (!binary) {
       return {
+        protocol,
         available: false,
+        attempted: false,
         binary: null,
-        handshakeSucceeded: null,
+        succeeded: null,
+        statusCode: null,
         httpVersion: null,
         remoteIp: null,
-        detail: resolved.detail || "No HTTP/3-capable curl binary is available.",
+        connectMs: null,
+        tlsHandshakeMs: null,
+        ttfbMs: null,
+        detail: detail || `No ${protocol.toUpperCase()} curl binary is available.`,
       };
     }
 
     try {
+      const writeOut = [
+        "status_code=%{response_code}",
+        "http_version=%{http_version}",
+        "remote_ip=%{remote_ip}",
+        "time_connect=%{time_connect}",
+        "time_appconnect=%{time_appconnect}",
+        "time_starttransfer=%{time_starttransfer}",
+      ].join("\\n");
       const result = await runCommand(
-        resolved.binary,
+        binary,
         [
-          "--http3-only",
-          "-I",
           "-sS",
+          "-k",
+          protocol === "http3" ? "--http3-only" : "--http2",
+          "--connect-timeout",
+          "4",
           "--max-time",
           "8",
           url,
           "-o",
           "/dev/null",
           "-w",
-          "http_version=%{http_version}\nremote_ip=%{remote_ip}\n",
+          writeOut,
         ],
         { timeoutMs: 10_000 },
       );
@@ -1150,47 +1215,83 @@ export class QuicHandshakeProbe {
       const stderr = result.stderr.trim();
       if (/doesn't support this/i.test(stderr)) {
         return {
+          protocol,
           available: false,
-          binary: resolved.binary,
-          handshakeSucceeded: null,
+          attempted: false,
+          binary,
+          succeeded: null,
+          statusCode: null,
           httpVersion: null,
           remoteIp: null,
-          detail: "Installed curl does not support libcurl HTTP/3.",
+          connectMs: null,
+          tlsHandshakeMs: null,
+          ttfbMs: null,
+          detail: `Installed curl does not support libcurl ${protocol.toUpperCase()}.`,
         };
       }
 
       if (result.code !== 0) {
         return {
+          protocol,
           available: true,
-          binary: resolved.binary,
-          handshakeSucceeded: false,
+          attempted: true,
+          binary,
+          succeeded: false,
+          statusCode: null,
           httpVersion: null,
           remoteIp: null,
+          connectMs: null,
+          tlsHandshakeMs: null,
+          ttfbMs: null,
           detail: stderr || `curl exited with code ${result.code ?? "unknown"}`,
         };
       }
 
-      const httpVersion = result.stdout.match(/http_version=([^\n]+)/)?.[1]?.trim() || null;
-      const remoteIp = result.stdout.match(/remote_ip=([^\n]+)/)?.[1]?.trim() || null;
+      const httpVersion = this.parseMetricString(result.stdout, "http_version");
+      const remoteIp = this.parseMetricString(result.stdout, "remote_ip");
+      const statusCodeRaw = this.parseMetricString(result.stdout, "status_code");
+      const statusCode = statusCodeRaw && statusCodeRaw !== "000"
+        ? Number.parseInt(statusCodeRaw, 10)
+        : null;
 
       return {
+        protocol,
         available: true,
-        binary: resolved.binary,
-        handshakeSucceeded: true,
+        attempted: true,
+        binary,
+        succeeded: true,
+        statusCode: Number.isFinite(statusCode) ? statusCode : null,
         httpVersion,
         remoteIp,
-        detail: "HTTP/3 handshake succeeded through curl.",
+        connectMs: this.parseMetricMilliseconds(result.stdout, "time_connect"),
+        tlsHandshakeMs: this.parseMetricMilliseconds(result.stdout, "time_appconnect"),
+        ttfbMs: this.parseMetricMilliseconds(result.stdout, "time_starttransfer"),
+        detail: `${protocol.toUpperCase()} transaction succeeded through curl.`,
       };
     } catch (error) {
       return {
-        available: false,
-        binary: resolved.binary,
-        handshakeSucceeded: null,
+        protocol,
+        available: true,
+        attempted: true,
+        binary,
+        succeeded: null,
+        statusCode: null,
         httpVersion: null,
         remoteIp: null,
-        detail: error instanceof Error ? error.message : "QUIC probe failed",
+        connectMs: null,
+        tlsHandshakeMs: null,
+        ttfbMs: null,
+        detail: error instanceof Error ? error.message : `${protocol.toUpperCase()} probe failed`,
       };
     }
+  }
+
+  async probe(url: string): Promise<HttpProtocolProbeResult> {
+    return this.runProtocolProbe("http3", url);
+  }
+
+  async probeHttp2(url: string): Promise<HttpProtocolProbeResult> {
+    return this.runProtocolProbe("http2", url);
   }
 }
 
