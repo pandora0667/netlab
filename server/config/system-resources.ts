@@ -103,7 +103,18 @@ function normalizeCgroupPath(rawPath: string | null | undefined) {
     return "";
   }
 
-  return rawPath.replace(/^\/+/, "").replace(/\/+$/, "");
+  let start = 0;
+  let end = rawPath.length;
+
+  while (start < end && rawPath[start] === "/") {
+    start += 1;
+  }
+
+  while (end > start && rawPath[end - 1] === "/") {
+    end -= 1;
+  }
+
+  return rawPath.slice(start, end);
 }
 
 function readTextFile(candidatePaths: string[]) {
