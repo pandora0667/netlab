@@ -207,6 +207,17 @@ pipeline {
             }
         }
 
+        stage('Test Coverage') {
+            steps {
+                sh '''
+                    set -eu
+                    corepack enable
+                    pnpm install --frozen-lockfile
+                    pnpm test:coverage
+                '''
+            }
+        }
+
         stage('SonarQube Analysis') {
             steps {
                 script {
@@ -224,6 +235,7 @@ pipeline {
                             sonar.sources=client/src,server,shared
                             sonar.tests=server/src/lib/__tests__
                             sonar.test.inclusions=server/src/lib/__tests__/**/*.test.ts,server/src/lib/__tests__/**/*.spec.ts
+                            sonar.javascript.lcov.reportPaths=coverage/lcov.info
                             sonar.exclusions=**/node_modules/**,**/dist/**,**/coverage/**,**/.pnpm/**,**/.vite/**,**/logs/**,**/output/**,client/public/**,server/data/**,client/src/**/*.test.ts,client/src/**/*.test.tsx,client/src/**/*.spec.ts,client/src/**/*.spec.tsx
                         """.stripIndent().trim() + '\n'
                     )
