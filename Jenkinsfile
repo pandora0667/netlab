@@ -154,6 +154,9 @@ pipeline {
                     env.RUNTIME_BASE_REASON = env.RUNTIME_BASE_CHANGED == 'true'
                         ? "Dockerfile.runtime-base changed in ${diffLabel}"
                         : "reusing published runtime base from ${diffLabel}"
+                    env.FAILURE_CATEGORY = 'build'
+                    env.FAILURE_STAGE = 'Initialize'
+                    env.FAILURE_REASON = '빌드 단계에서 실패했습니다.'
 
                     currentBuild.displayName = "#${env.BUILD_NUMBER} ${env.SHORT_SHA}"
                     currentBuild.description = (
@@ -209,6 +212,11 @@ pipeline {
 
         stage('Test Coverage') {
             steps {
+                script {
+                    env.FAILURE_CATEGORY = 'quality'
+                    env.FAILURE_STAGE = 'Test Coverage'
+                    env.FAILURE_REASON = '테스트 커버리지 수집에 실패해 배포가 중단되었습니다.'
+                }
                 sh '''
                     set -eu
                     corepack enable
@@ -221,6 +229,9 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 script {
+                    env.FAILURE_CATEGORY = 'sonar'
+                    env.FAILURE_STAGE = 'SonarQube Analysis'
+                    env.FAILURE_REASON = 'SonarQube 분석에 실패해 배포가 중단되었습니다.'
                     def scannerHome = tool env.SONAR_SCANNER_TOOL
 
                     writeFile(
@@ -249,6 +260,11 @@ pipeline {
 
         stage('Quality Gate') {
             steps {
+                script {
+                    env.FAILURE_CATEGORY = 'sonar'
+                    env.FAILURE_STAGE = 'Quality Gate'
+                    env.FAILURE_REASON = 'SonarQube 품질 기준을 통과하지 못해 배포가 중단되었습니다.'
+                }
                 timeout(time: 30, unit: 'MINUTES') {
                     waitForQualityGate abortPipeline: true
                 }
@@ -260,6 +276,11 @@ pipeline {
                 expression { env.DEPLOY_REQUIRED == 'true' }
             }
             steps {
+                script {
+                    env.FAILURE_CATEGORY = 'build'
+                    env.FAILURE_STAGE = 'Setup Buildx'
+                    env.FAILURE_REASON = '멀티아키 빌드 환경 준비에 실패했습니다.'
+                }
                 sh '''
                     docker buildx version
                     docker buildx inspect multiarch-builder --bootstrap >/dev/null 2>&1 || \
@@ -279,6 +300,9 @@ pipeline {
             }
             steps {
                 script {
+                    env.FAILURE_CATEGORY = 'build'
+                    env.FAILURE_STAGE = 'Publish Runtime Base'
+                    env.FAILURE_REASON = '런타임 베이스 이미지 준비에 실패했습니다.'
                     withCredentials([
                         usernamePassword(
                             credentialsId: env.HARBOR_CREDS_ID,
@@ -359,6 +383,11 @@ pipeline {
                 expression { env.DEPLOY_REQUIRED == 'true' }
             }
             steps {
+                script {
+                    env.FAILURE_CATEGORY = 'build'
+                    env.FAILURE_STAGE = 'Verify Runtime Base'
+                    env.FAILURE_REASON = '런타임 베이스 이미지 검증에 실패했습니다.'
+                }
                 withCredentials([
                     usernamePassword(
                         credentialsId: env.HARBOR_CREDS_ID,
@@ -395,6 +424,9 @@ pipeline {
             }
             steps {
                 script {
+                    env.FAILURE_CATEGORY = 'build'
+                    env.FAILURE_STAGE = 'Docker Build & Push'
+                    env.FAILURE_REASON = '애플리케이션 이미지 빌드 또는 푸시에 실패했습니다.'
                     def appCacheFromArg = sh(
                         script: "docker buildx imagetools inspect ${env.IMAGE_CACHE} >/dev/null 2>&1",
                         returnStatus: true
@@ -459,6 +491,11 @@ pipeline {
                 expression { env.DEPLOY_REQUIRED == 'true' }
             }
             steps {
+                script {
+                    env.FAILURE_CATEGORY = 'build'
+                    env.FAILURE_STAGE = 'Verify Images'
+                    env.FAILURE_REASON = '푸시한 이미지 검증에 실패했습니다.'
+                }
                 withCredentials([
                     usernamePassword(
                         credentialsId: env.HARBOR_CREDS_ID,
@@ -491,6 +528,11 @@ pipeline {
                 expression { env.DEPLOY_REQUIRED == 'true' }
             }
             steps {
+                script {
+                    env.FAILURE_CATEGORY = 'deploy'
+                    env.FAILURE_STAGE = 'Trigger Watchtower'
+                    env.FAILURE_REASON = '배포 트리거 호출에 실패했습니다.'
+                }
                 sh '''
                     response=$(curl -sS -w "\\n%{http_code}" \
                         -H "Authorization: Bearer $WATCHTOWER_TOKEN" \
@@ -517,6 +559,11 @@ pipeline {
                 expression { env.DEPLOY_REQUIRED == 'true' }
             }
             steps {
+                script {
+                    env.FAILURE_CATEGORY = 'deploy'
+                    env.FAILURE_STAGE = 'Verify Deployment'
+                    env.FAILURE_REASON = '배포 후 상태 검증에 실패했습니다.'
+                }
                 sh '''
                     deadline=$(( $(date +%s) + $DEPLOY_TIMEOUT_SECONDS ))
 
@@ -559,10 +606,28 @@ pipeline {
         }
 
         failure {
-            mattermostSend(
-                color: 'danger',
-                message: ":rotating_light: 빌드 실패... 로그를 확인해주세요.\n프로젝트: ${env.JOB_NAME} #${env.BUILD_NUMBER}\n바로가기: ${env.BUILD_URL}"
-            )
+            script {
+                def failureHeadline
+
+                if (env.FAILURE_CATEGORY == 'sonar') {
+                    failureHeadline = env.DEPLOY_REQUIRED == 'true'
+                        ? ":warning: SonarQube 품질 검증 실패로 배포가 중단되었습니다."
+                        : ":warning: SonarQube 품질 검증에 실패했습니다."
+                } else if (env.FAILURE_CATEGORY == 'quality') {
+                    failureHeadline = env.DEPLOY_REQUIRED == 'true'
+                        ? ":warning: 품질 검증 준비 또는 커버리지 수집 실패로 배포가 중단되었습니다."
+                        : ":warning: 품질 검증 준비 또는 커버리지 수집에 실패했습니다."
+                } else if (env.FAILURE_CATEGORY == 'deploy') {
+                    failureHeadline = ":rotating_light: 이미지 빌드는 완료됐지만 배포 단계에서 실패했습니다."
+                } else {
+                    failureHeadline = ":rotating_light: 빌드 실패... 로그를 확인해주세요."
+                }
+
+                mattermostSend(
+                    color: 'danger',
+                    message: "${failureHeadline}\n실패 단계: ${env.FAILURE_STAGE}\n사유: ${env.FAILURE_REASON}\n프로젝트: ${env.JOB_NAME} #${env.BUILD_NUMBER}\n바로가기: ${env.BUILD_URL}"
+                )
+            }
         }
 
         always {
