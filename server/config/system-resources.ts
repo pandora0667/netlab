@@ -2,10 +2,13 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { resolveFixedExecutable } from "../src/lib/system-binaries.js";
 
 export type ResourceMetricBasis = "cgroup" | "host";
 export type CpuMetricSource = "cgroup" | "loadavg";
 export type MemoryMetricSource = "cgroup" | "host";
+
+const VM_STAT_EXECUTABLE_CANDIDATES = ["/usr/bin/vm_stat"];
 
 export interface RuntimeResourceSnapshot {
   basis: ResourceMetricBasis;
@@ -57,7 +60,10 @@ function readLinuxMemAvailableBytes(hostTotalMemoryBytes: number) {
 
 function readDarwinAvailableMemoryBytes(hostTotalMemoryBytes: number) {
   try {
-    const rawVmStat = execFileSync("vm_stat", { encoding: "utf8" });
+    const rawVmStat = execFileSync(
+      resolveFixedExecutable("vm_stat", VM_STAT_EXECUTABLE_CANDIDATES),
+      { encoding: "utf8" },
+    );
     const pageSizeMatch = rawVmStat.match(/page size of (\d+) bytes/i);
     const pageSize = pageSizeMatch ? Number.parseInt(pageSizeMatch[1], 10) : 4096;
 

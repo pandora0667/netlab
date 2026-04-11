@@ -1,5 +1,6 @@
 import { spawn } from "child_process";
 import { resolvePublicTarget } from "../../src/lib/public-targets.js";
+import { resolveFixedExecutable } from "../../src/lib/system-binaries.js";
 import { isPublicIPAddress } from "../../../shared/network/ip.js";
 import type { TraceHop, TraceSummary } from "./network.types.js";
 
@@ -7,6 +8,98 @@ const DEFAULT_TRACE_TIMEOUT_MS = 2_000;
 const DEFAULT_TRACE_MAX_HOPS = 8;
 const MAX_TRACE_TIMEOUT_MS = 5_000;
 const MAX_TRACE_HOPS = 16;
+const TRACEROUTE_EXECUTABLE_CANDIDATES = process.platform === "win32"
+  ? ["C:\\Windows\\System32\\tracert.exe"]
+  : ["/usr/sbin/traceroute", "/sbin/traceroute", "/usr/bin/traceroute", "/bin/traceroute"];
+
+function splitWhitespaceTokens(value: string) {
+  const tokens: string[] = [];
+  let currentToken = "";
+
+  for (const char of value) {
+    if (char === " " || char === "\t") {
+      if (currentToken) {
+        tokens.push(currentToken);
+        currentToken = "";
+      }
+
+      continue;
+    }
+
+    currentToken += char;
+  }
+
+  if (currentToken) {
+    tokens.push(currentToken);
+  }
+
+  return tokens;
+}
+
+function parseLeadingHop(value: string) {
+  let cursor = 0;
+  let rawHop = "";
+
+  while (cursor < value.length) {
+    const char = value[cursor];
+    if (char < "0" || char > "9") {
+      break;
+    }
+
+    rawHop += char;
+    cursor += 1;
+  }
+
+  if (!rawHop) {
+    return null;
+  }
+
+  while (cursor < value.length) {
+    const char = value[cursor];
+    if (char !== " " && char !== "\t") {
+      break;
+    }
+
+    cursor += 1;
+  }
+
+  return {
+    hop: Number.parseInt(rawHop, 10),
+    rest: value.slice(cursor).trim(),
+  };
+}
+
+function parseTraceResponder(tokens: string[]) {
+  if (tokens.length === 0 || tokens[0] === "*") {
+    return null;
+  }
+
+  if (tokens.length > 1 && tokens[1].startsWith("(") && tokens[1].endsWith(")")) {
+    return tokens[1].slice(1, -1) || tokens[0];
+  }
+
+  return tokens[0];
+}
+
+function parseTraceLatency(tokens: string[]) {
+  for (let index = 0; index < tokens.length; index += 1) {
+    const lowerToken = tokens[index].toLowerCase();
+
+    if (lowerToken === "ms" && index > 0) {
+      const parsedValue = Number.parseFloat(tokens[index - 1]);
+      return Number.isFinite(parsedValue) ? parsedValue : null;
+    }
+
+    if (!lowerToken.endsWith("ms")) {
+      continue;
+    }
+
+    const parsedValue = Number.parseFloat(tokens[index].slice(0, -2));
+    return Number.isFinite(parsedValue) ? parsedValue : null;
+  }
+
+  return null;
+}
 
 function parseTracerouteLine(line: string, targetIp: string): TraceHop | null {
   const trimmedLine = line.trim();
@@ -14,13 +107,12 @@ function parseTracerouteLine(line: string, targetIp: string): TraceHop | null {
     return null;
   }
 
-  const hopMatch = trimmedLine.match(/^(\d+)\s+(.*)$/);
-  if (!hopMatch) {
+  const parsedHop = parseLeadingHop(trimmedLine);
+  if (!parsedHop) {
     return null;
   }
 
-  const hop = Number.parseInt(hopMatch[1], 10);
-  const rest = hopMatch[2].trim();
+  const { hop, rest } = parsedHop;
 
   if (!rest || rest === "*") {
     return {
@@ -33,10 +125,9 @@ function parseTracerouteLine(line: string, targetIp: string): TraceHop | null {
     };
   }
 
-  const responderMatch = rest.match(/([^\s(]+)(?:\s+\(([^)]+)\))?/);
-  const latencyMatch = rest.match(/([0-9.]+)\s*ms/i);
-  const responder = responderMatch?.[2] || responderMatch?.[1] || null;
-  const latencyMs = latencyMatch ? Number.parseFloat(latencyMatch[1]) : null;
+  const tokens = splitWhitespaceTokens(rest);
+  const responder = parseTraceResponder(tokens);
+  const latencyMs = parseTraceLatency(tokens);
   const reachedTarget = responder === targetIp;
 
   return {
@@ -89,9 +180,13 @@ async function runTracerouteCommand(
     "1",
     target,
   ];
+  const tracerouteExecutable = resolveFixedExecutable(
+    "traceroute",
+    TRACEROUTE_EXECUTABLE_CANDIDATES,
+  );
 
   return new Promise((resolve, reject) => {
-    const traceProcess = spawn("traceroute", args, { shell: false });
+    const traceProcess = spawn(tracerouteExecutable, args, { shell: false });
     let stdout = "";
     let stderr = "";
     let settled = false;

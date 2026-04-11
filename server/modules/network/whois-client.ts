@@ -11,30 +11,115 @@ const DEFAULT_WHOIS_PORT = 43;
 const DEFAULT_WHOIS_TIMEOUT_MS = 5_000;
 const MAX_WHOIS_HOPS = 3;
 const WHOIS_CACHE_TTL_MS = 5 * 60 * 1000;
+const WHOIS_REFERRAL_KEYS = new Set([
+  "refer",
+  "whois",
+  "referralserver",
+  "registrar whois server",
+]);
 
 function isLikelyIpAddress(input: string) {
   return net.isIP(input) !== 0;
 }
 
+function isAsciiLetter(char: string) {
+  const code = char.charCodeAt(0);
+  return (code >= 97 && code <= 122) || (code >= 65 && code <= 90);
+}
+
+function isAsciiDigit(char: string) {
+  const code = char.charCodeAt(0);
+  return code >= 48 && code <= 57;
+}
+
+function isValidDomainLabel(label: string) {
+  if (!label || label.startsWith("-") || label.endsWith("-")) {
+    return false;
+  }
+
+  for (const char of label) {
+    if (isAsciiLetter(char) || isAsciiDigit(char) || char === "-") {
+      continue;
+    }
+
+    return false;
+  }
+
+  return true;
+}
+
+function hasAlphabeticTld(label: string) {
+  if (label.length < 2) {
+    return false;
+  }
+
+  for (const char of label) {
+    if (!isAsciiLetter(char)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 function isLikelyDomain(input: string) {
-  return /^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(input);
+  const labels = input.split(".");
+
+  return (
+    labels.length >= 2
+    && labels.every((label) => isValidDomainLabel(label))
+    && hasAlphabeticTld(labels[labels.length - 1] || "")
+  );
+}
+
+function splitLines(value: string) {
+  return value
+    .split("\n")
+    .map((line) => line.endsWith("\r") ? line.slice(0, -1) : line);
+}
+
+function stripWhoisProtocolPrefix(value: string) {
+  return value.toLowerCase().startsWith("whois://")
+    ? value.slice("whois://".length)
+    : value;
+}
+
+function takeUntilWhitespaceOrSlash(value: string) {
+  let end = 0;
+
+  while (end < value.length) {
+    const char = value[end];
+    if (char === "/" || char === " " || char === "\t") {
+      break;
+    }
+
+    end += 1;
+  }
+
+  return value.slice(0, end).trim();
 }
 
 function extractReferralServer(response: string): string | null {
-  const match = response.match(
-    /^(?:refer|whois|ReferralServer|Registrar WHOIS Server)\s*:\s*(.+)$/im,
-  );
+  for (const line of splitLines(response)) {
+    const separatorIndex = line.indexOf(":");
+    if (separatorIndex === -1) {
+      continue;
+    }
 
-  if (!match?.[1]) {
-    return null;
+    const label = line.slice(0, separatorIndex).trim().toLowerCase();
+    if (!WHOIS_REFERRAL_KEYS.has(label)) {
+      continue;
+    }
+
+    const rawValue = stripWhoisProtocolPrefix(line.slice(separatorIndex + 1).trim());
+    if (!rawValue) {
+      continue;
+    }
+
+    return takeUntilWhitespaceOrSlash(rawValue) || null;
   }
 
-  const rawValue = match[1].trim().replace(/^whois:\/\//i, "");
-  if (!rawValue) {
-    return null;
-  }
-
-  return rawValue.split(/[\/\s]/)[0].trim() || null;
+  return null;
 }
 
 class WhoisClient {

@@ -20,6 +20,31 @@ interface CreateAppOptions {
   includeErrorHandler?: boolean;
 }
 
+function normalizeRequestOrigin(origin: string) {
+  try {
+    return new URL(origin).origin;
+  } catch {
+    return null;
+  }
+}
+
+function createCorsOptions(): cors.CorsOptions {
+  const allowedOrigins = new Set(runtimeConfig.server.corsAllowedOrigins);
+
+  return {
+    credentials: true,
+    origin(origin, callback) {
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+
+      const normalizedOrigin = normalizeRequestOrigin(origin);
+      callback(null, Boolean(normalizedOrigin && allowedOrigins.has(normalizedOrigin)));
+    },
+  };
+}
+
 export function registerErrorHandler(app: Express) {
   app.use(
     (err: Error, req: Request, res: Response, next: NextFunction) => {
@@ -47,7 +72,7 @@ export function createApp(options: CreateAppOptions = {}) {
   const app = express();
 
   app.set("trust proxy", runtimeConfig.server.trustProxy);
-  app.use(cors());
+  app.use(cors(createCorsOptions()));
   app.use(requestContextMiddleware);
   app.use(requestLogger);
   app.use(express.json());

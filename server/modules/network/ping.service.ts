@@ -1,6 +1,7 @@
 import { spawn } from "child_process";
 import net from "net";
 import logger from "../../lib/logger.js";
+import { resolveFixedExecutable } from "../../src/lib/system-binaries.js";
 import {
   normalizePingOptions,
   type PingOptions,
@@ -19,6 +20,135 @@ const DEFAULT_PING_TIMEOUT_MS = 5_000;
 const DEFAULT_TCP_PORT = 80;
 const WINDOWS_PING_TIMEOUT_GRACE_MS = 1_000;
 const UNIX_PING_TIMEOUT_PER_PACKET_MS = 1_000;
+const PING_EXECUTABLE_CANDIDATES = process.platform === "win32"
+  ? ["C:\\Windows\\System32\\PING.EXE"]
+  : ["/sbin/ping", "/usr/sbin/ping", "/bin/ping", "/usr/bin/ping"];
+
+function splitLines(value: string) {
+  return value
+    .split("\n")
+    .map((line) => line.endsWith("\r") ? line.slice(0, -1) : line);
+}
+
+function readUnsignedNumber(value: string) {
+  if (!value) {
+    return null;
+  }
+
+  let hasDecimalPoint = false;
+
+  for (const char of value) {
+    const isDigit = char >= "0" && char <= "9";
+    if (isDigit) {
+      continue;
+    }
+
+    if (char === "." && !hasDecimalPoint) {
+      hasDecimalPoint = true;
+      continue;
+    }
+
+    return null;
+  }
+
+  const parsedValue = Number.parseFloat(value);
+  return Number.isFinite(parsedValue) ? parsedValue : null;
+}
+
+function isInlineWhitespace(char: string | undefined) {
+  return char === " " || char === "\t";
+}
+
+function extractWindowsAverageLatency(output: string) {
+  for (const line of splitLines(output)) {
+    const markerIndex = line.indexOf("Average = ");
+    if (markerIndex === -1) {
+      continue;
+    }
+
+    let cursor = markerIndex + "Average = ".length;
+    let rawLatency = "";
+
+    while (cursor < line.length) {
+      const char = line[cursor];
+      if (char < "0" || char > "9") {
+        break;
+      }
+
+      rawLatency += char;
+      cursor += 1;
+    }
+
+    if (!rawLatency) {
+      continue;
+    }
+
+    const suffix = line.slice(cursor).trimStart().toLowerCase();
+    if (!suffix.startsWith("ms")) {
+      continue;
+    }
+
+    return Number.parseInt(rawLatency, 10);
+  }
+
+  return null;
+}
+
+function extractUnixLatencies(output: string) {
+  const latencies: number[] = [];
+
+  for (const rawLine of splitLines(output)) {
+    const line = rawLine.toLowerCase();
+    const markerIndex = line.indexOf("time");
+
+    if (markerIndex === -1) {
+      continue;
+    }
+
+    let cursor = markerIndex + "time".length;
+    const relationChar = line[cursor];
+    if (relationChar === "=" || relationChar === "<") {
+      cursor += 1;
+    }
+
+    while (cursor < line.length && isInlineWhitespace(line[cursor])) {
+      cursor += 1;
+    }
+
+    let rawLatency = "";
+    while (cursor < line.length) {
+      const char = line[cursor];
+      const isDigit = char >= "0" && char <= "9";
+      if (isDigit || char === ".") {
+        rawLatency += char;
+        cursor += 1;
+        continue;
+      }
+
+      break;
+    }
+
+    if (!rawLatency) {
+      continue;
+    }
+
+    const suffix = line.slice(cursor).trimStart();
+    if (!suffix.startsWith("ms")) {
+      continue;
+    }
+
+    const parsedLatency = readUnsignedNumber(rawLatency);
+    if (parsedLatency != null) {
+      latencies.push(parsedLatency);
+    }
+  }
+
+  return latencies;
+}
+
+function countIcmpResponses(output: string) {
+  return splitLines(output).filter((line) => line.includes(" bytes from")).length;
+}
 
 class PingService {
   private async executeICMPCommand(
@@ -30,9 +160,10 @@ class PingService {
     const args = isWindows
       ? ["-n", String(count), "-w", String(timeout), host]
       : ["-c", String(count), host];
+    const pingExecutable = resolveFixedExecutable("ping", PING_EXECUTABLE_CANDIDATES);
 
     return new Promise((resolve, reject) => {
-      const pingProcess = spawn("ping", args, { shell: false });
+      const pingProcess = spawn(pingExecutable, args, { shell: false });
       let stdout = "";
       let stderr = "";
       let settled = false;
@@ -146,21 +277,20 @@ class PingService {
   private parseICMPPingOutput(output: string, isWindows: boolean): number[] {
     try {
       if (isWindows) {
-        const windowsAverageMatch = output.match(/Average = (\d+)ms/);
-        if (windowsAverageMatch) {
-          return [Number.parseInt(windowsAverageMatch[1], 10)];
+        const averageLatency = extractWindowsAverageLatency(output);
+        if (averageLatency != null) {
+          return [averageLatency];
         }
       } else {
-        const timeMatches = [...output.matchAll(/time[=<]?\s*([0-9.]+)\s*ms/gi)];
-        if (timeMatches.length > 0) {
-          return timeMatches.map((match) => Number.parseFloat(match[1]));
+        const latencies = extractUnixLatencies(output);
+        if (latencies.length > 0) {
+          return latencies;
         }
       }
 
-      const responseRegex = /(\d+) bytes from/gi;
-      const responses = [...output.matchAll(responseRegex)];
-      if (responses.length > 0) {
-        return Array(responses.length).fill(0);
+      const responseCount = countIcmpResponses(output);
+      if (responseCount > 0) {
+        return Array(responseCount).fill(0);
       }
 
       return [];

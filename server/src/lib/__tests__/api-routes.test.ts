@@ -82,6 +82,35 @@ describe("API routes", () => {
     assert.equal(payload.message, "This is a private IP address");
   });
 
+  it("allows configured browser origins through CORS", async () => {
+    const response = await request("/healthz", {
+      headers: {
+        Origin: "https://netlab.tools",
+      },
+    });
+
+    assert.equal(response.status, 200);
+    assert.equal(
+      response.headers.get("access-control-allow-origin"),
+      "https://netlab.tools",
+    );
+    assert.equal(
+      response.headers.get("access-control-allow-credentials"),
+      "true",
+    );
+  });
+
+  it("does not grant CORS access to unconfigured browser origins", async () => {
+    const response = await request("/healthz", {
+      headers: {
+        Origin: "https://evil.example",
+      },
+    });
+
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("access-control-allow-origin"), null);
+  });
+
   it("rejects invalid ping hosts before executing a ping", async () => {
     const response = await request("/api/ping", {
       method: "POST",

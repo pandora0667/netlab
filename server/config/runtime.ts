@@ -26,6 +26,66 @@ function readStringEnv(name: string, fallback = ""): string {
   return rawValue.trim() || fallback;
 }
 
+function normalizeOrigin(value: string) {
+  const trimmedValue = value.trim();
+  if (!trimmedValue) {
+    return null;
+  }
+
+  try {
+    return new URL(trimmedValue).origin;
+  } catch {
+    return null;
+  }
+}
+
+function buildDefaultCorsOrigins(siteUrl: string, port: number) {
+  const origins = new Set<string>();
+  const addOrigin = (value: string | null) => {
+    if (!value) {
+      return;
+    }
+
+    origins.add(value);
+  };
+
+  addOrigin(normalizeOrigin(siteUrl));
+
+  for (const host of ["localhost", "127.0.0.1"]) {
+    for (const protocol of ["http", "https"]) {
+      addOrigin(`${protocol}://${host}:${port}`);
+      addOrigin(`${protocol}://${host}:5173`);
+    }
+  }
+
+  return [...origins];
+}
+
+function readOriginListEnv(name: string, fallbacks: string[]) {
+  const origins = new Set<string>();
+  const rawValue = process.env[name];
+
+  for (const fallback of fallbacks) {
+    const normalizedOrigin = normalizeOrigin(fallback);
+    if (normalizedOrigin) {
+      origins.add(normalizedOrigin);
+    }
+  }
+
+  if (!rawValue) {
+    return [...origins];
+  }
+
+  for (const candidate of rawValue.split(",")) {
+    const normalizedOrigin = normalizeOrigin(candidate);
+    if (normalizedOrigin) {
+      origins.add(normalizedOrigin);
+    }
+  }
+
+  return [...origins];
+}
+
 function readTrustProxyEnv(
   name: string,
   fallback: boolean | number | string | string[],
@@ -62,15 +122,19 @@ function readTrustProxyEnv(
 
 const FIFTEEN_MINUTES = 15 * 60 * 1000;
 const DEFAULT_PACKET_CAPTURE_MAX_CONCURRENT_GLOBAL = getDefaultPacketCaptureConcurrency();
+const DEFAULT_SERVER_PORT = readIntegerEnv("PORT", 8080, 1);
+const DEFAULT_SITE_URL = readStringEnv("VITE_SITE_URL", "https://netlab.tools");
+const DEFAULT_CORS_ALLOWED_ORIGINS = buildDefaultCorsOrigins(DEFAULT_SITE_URL, DEFAULT_SERVER_PORT);
 
 export const runtimeConfig = {
   server: {
-    port: readIntegerEnv("PORT", 8080, 1),
+    port: DEFAULT_SERVER_PORT,
     trustProxy: readTrustProxyEnv("TRUST_PROXY", 1),
+    corsAllowedOrigins: readOriginListEnv("CORS_ALLOWED_ORIGINS", DEFAULT_CORS_ALLOWED_ORIGINS),
   },
   seo: {
     indexNowKey: process.env.INDEXNOW_KEY?.trim() || "",
-    siteUrl: process.env.VITE_SITE_URL?.trim() || "https://netlab.tools",
+    siteUrl: DEFAULT_SITE_URL,
   },
   build: {
     sha: readStringEnv("APP_BUILD_SHA", "dev"),
