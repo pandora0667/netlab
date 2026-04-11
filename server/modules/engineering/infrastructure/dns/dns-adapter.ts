@@ -1,5 +1,5 @@
 import dns from "node:dns/promises";
-import { normalizeUnorderedStrings } from "../../domain/inputs.js";
+import { normalizeUnorderedStrings, trimTrailingDots } from "../../domain/inputs.js";
 import type { DnsAuthorityReport } from "../../engineering.types.js";
 import { safeArray } from "../../domain/collections.js";
 import { ExternalJsonClient } from "../http/external-json-client.js";
@@ -23,12 +23,17 @@ interface DnsGoogleResponse {
 }
 
 function normalizeDnsAnswerName(name: string | undefined) {
-  return name?.replace(/\.+$/, "").toLowerCase() || null;
+  if (!name) {
+    return null;
+  }
+
+  const normalizedName = trimTrailingDots(name).toLowerCase();
+  return normalizedName || null;
 }
 
 function readMxHost(mx: { exchange: string; priority: number }) {
   return {
-    exchange: mx.exchange.replace(/\.+$/, ""),
+    exchange: trimTrailingDots(mx.exchange),
     priority: mx.priority,
   };
 }
@@ -92,7 +97,7 @@ export class NodeDnsAdapter {
     try {
       const records = await dns.resolveNs(domain);
       return normalizeUnorderedStrings(
-        [...new Set(records.map((record) => record.replace(/\.+$/, "").toLowerCase()))],
+        [...new Set(records.map((record) => trimTrailingDots(record).toLowerCase()))],
       );
     } catch {
       return [];
@@ -149,4 +154,3 @@ export class NodeDnsAdapter {
     return dns.resolve6(domain).catch(() => [] as string[]);
   }
 }
-

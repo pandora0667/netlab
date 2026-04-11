@@ -20,6 +20,8 @@ const UNKNOWN_DNS_SERVER: DNSServer = {
   is_working: false,
 };
 
+let fallbackRequestCounter = 0;
+
 interface RawDnsQueryResult {
   requestId?: string;
   server?: Partial<DNSServer>;
@@ -107,10 +109,18 @@ function normalizeDnsCompleteEvent(
 }
 
 export function createDnsPropagationRequestId(): string {
-  return (
-    globalThis.crypto?.randomUUID?.() ??
-    `${Date.now()}-${Math.random().toString(16).slice(2)}`
-  );
+  if (globalThis.crypto?.randomUUID) {
+    return globalThis.crypto.randomUUID();
+  }
+
+  if (globalThis.crypto?.getRandomValues) {
+    const buffer = new Uint8Array(16);
+    globalThis.crypto.getRandomValues(buffer);
+    return Array.from(buffer, (value) => value.toString(16).padStart(2, "0")).join("");
+  }
+
+  fallbackRequestCounter += 1;
+  return `${Date.now()}-${fallbackRequestCounter.toString(16)}`;
 }
 
 export interface UseDnsPropagationSocketOptions {

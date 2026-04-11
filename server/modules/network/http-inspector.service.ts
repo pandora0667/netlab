@@ -79,6 +79,21 @@ function parseCertificate(socket: TLSSocket | undefined): HttpTlsCertificate | n
   };
 }
 
+function trimWrappingQuotes(value: string) {
+  let start = 0;
+  let end = value.length;
+
+  if (value.startsWith("\"")) {
+    start = 1;
+  }
+
+  if (end > start && value.endsWith("\"")) {
+    end -= 1;
+  }
+
+  return value.slice(start, end);
+}
+
 function parseAltSvcHeader(value: string | null) {
   if (!value) {
     return [];
@@ -88,7 +103,15 @@ function parseAltSvcHeader(value: string | null) {
     .split(",")
     .map((segment) => segment.trim())
     .filter(Boolean)
-    .map((segment) => segment.match(/^([^=]+)=/)?.[1]?.trim().replace(/^"+|"+$/g, "") ?? null)
+    .map((segment) => {
+      const separatorIndex = segment.indexOf("=");
+      if (separatorIndex === -1) {
+        return null;
+      }
+
+      const protocol = trimWrappingQuotes(segment.slice(0, separatorIndex).trim());
+      return protocol || null;
+    })
     .filter((protocol): protocol is string => Boolean(protocol));
 }
 

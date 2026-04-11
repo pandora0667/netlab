@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { runtimeConfig } from "../../../../config/runtime.js";
 import { getRuntimeResourceSnapshot } from "../../../../config/system-resources.js";
+import { normalizeUnorderedStrings, trimTrailingDots } from "../../domain/inputs.js";
 import type {
   PacketCaptureExpertFinding,
   PacketCaptureFlow,
@@ -78,6 +79,21 @@ export interface PacketCaptureCapacitySnapshot {
   maxConcurrentAnalyses: number;
   activeForRequester: number;
   maxConcurrentPerRequester: number;
+}
+
+function trimWrappingQuotes(value: string) {
+  let start = 0;
+  let end = value.length;
+
+  if (value.startsWith("\"")) {
+    start = 1;
+  }
+
+  if (end > start && value.endsWith("\"")) {
+    end -= 1;
+  }
+
+  return value.slice(start, end);
 }
 
 export interface PacketCaptureCapacityStatus {
@@ -379,7 +395,7 @@ function parseSvcbRecordData(
   const record: ServiceBindingRecord = {
     recordType,
     priority,
-    targetName: tokens[1] === "." ? "." : tokens[1].replace(/\.+$/, ""),
+    targetName: tokens[1] === "." ? "." : trimTrailingDots(tokens[1]),
     alpns: [],
     ipv4Hints: [],
     ipv6Hints: [],
@@ -390,7 +406,7 @@ function parseSvcbRecordData(
 
   for (const token of params) {
     const [key, rawValue = ""] = token.split("=", 2);
-    const value = rawValue.replace(/^"|"$/g, "");
+    const value = trimWrappingQuotes(rawValue);
 
     if (key === "alpn") {
       record.alpns = value.split(",").map((item) => item.trim()).filter(Boolean);
@@ -924,26 +940,26 @@ export class PacketCaptureAnalyzer {
               name: query.name,
               type: query.type,
               responses: query.responses,
-              responseCodes: [...query.responseCodes].sort(),
+              responseCodes: normalizeUnorderedStrings([...query.responseCodes]),
             }))
             .sort((left, right) => left.name.localeCompare(right.name))
             .slice(0, 12),
         },
         http: {
           requestCount: httpMethods.size,
-          hosts: [...httpHosts].sort(),
-          methods: [...httpMethods].sort(),
+          hosts: normalizeUnorderedStrings([...httpHosts]),
+          methods: normalizeUnorderedStrings([...httpMethods]),
           statusCodes: [...httpStatusCodes].sort((left, right) => left - right),
         },
         tls: {
           handshakeCount: tlsServerNames.size + tlsVersions.size + tlsAlpns.size,
-          serverNames: [...tlsServerNames].sort(),
-          versions: [...tlsVersions].sort(),
-          alpns: [...tlsAlpns].sort(),
+          serverNames: normalizeUnorderedStrings([...tlsServerNames]),
+          versions: normalizeUnorderedStrings([...tlsVersions]),
+          alpns: normalizeUnorderedStrings([...tlsAlpns]),
         },
         quic: {
           packetCount: rows.filter((row) => Boolean(row["quic.version"])).length,
-          versions: [...quicVersions].sort(),
+          versions: normalizeUnorderedStrings([...quicVersions]),
           connectionIds: quicConnections.size,
         },
         expertFindings: [...expertFindingsMap.values()].slice(0, 20),
@@ -1045,10 +1061,21 @@ export class ServiceBindingProbe {
 }
 
 function parseCurlVersionFeatures(output: string) {
-  const match = output.match(/^Features:\s+(.+)$/mi);
-  return match
-    ? match[1].split(/\s+/).map((item) => item.trim()).filter(Boolean)
-    : [];
+  for (const rawLine of output.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line.startsWith("Features:")) {
+      continue;
+    }
+
+    return line
+      .slice("Features:".length)
+      .trim()
+      .split(/\s+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return [];
 }
 
 async function detectHttp3CurlBinary(binary: string) {
