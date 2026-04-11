@@ -1,5 +1,18 @@
+def WEBHOOK_TRIGGER_TOKEN_CREDENTIAL_ID = 'GITHUB_WEBHOOK_TRIGGER_TOKEN'
+def REPO_SLUG = 'pandora0667/netlab'
+def MAIN_BRANCH_REF = 'refs/heads/main'
+def DEFAULT_REPO_HTTP_URL = 'https://github.com/pandora0667/netlab.git'
+
 pipeline {
     agent any
+
+    parameters {
+        booleanParam(
+            name: 'FORCE_DEPLOY',
+            defaultValue: false,
+            description: '배포 대상 변경이 없어도 이미지 빌드, 푸시, 배포를 강제로 실행합니다.'
+        )
+    }
 
     triggers {
         GenericTrigger(
@@ -9,10 +22,10 @@ pipeline {
                 [key: 'BEFORE_SHA', value: '$.before', defaultValue: ''],
                 [key: 'AFTER_SHA', value: '$.after', defaultValue: '']
             ],
-            tokenCredentialId: 'nangman-netlab-trigger',
-            causeString: 'Netlab main push detected',
+            tokenCredentialId: WEBHOOK_TRIGGER_TOKEN_CREDENTIAL_ID,
+            causeString: 'netlab main push detected',
             regexpFilterText: '$REPO_URL $GIT_REF',
-            regexpFilterExpression: '.*pandora0667/netlab.* refs/heads/main',
+            regexpFilterExpression: ".*${REPO_SLUG}.* ${MAIN_BRANCH_REF}",
             printContributedVariables: true,
             printPostContent: true
         )
@@ -34,6 +47,10 @@ pipeline {
         WATCHTOWER_TOKEN = credentials('nangman-netlab-watchtower-token')
         APP_HEALTH_URL = 'http://192.168.11.134:8080/healthz'
         DEPLOY_TIMEOUT_SECONDS = '180'
+        SONARQUBE_INSTALLATION = 'sonarqube'
+        SONAR_SCANNER_TOOL = 'SonarScanner'
+        SONAR_PROJECT_KEY = 'netlab'
+        SONAR_PROJECT_NAME = 'netlab'
 
         DOCKER_BUILDKIT = '1'
         DOCKER_CLI_EXPERIMENTAL = 'enabled'
@@ -58,6 +75,7 @@ pipeline {
         stage('Initialize') {
             steps {
                 script {
+                    env.FULL_SHA = sh(script: 'git rev-parse HEAD', returnStdout: true).trim()
                     env.SHORT_SHA = sh(script: 'git rev-parse --short=12 HEAD', returnStdout: true).trim()
                     env.EXACT_GIT_TAG = sh(
                         script: 'git fetch --tags --force >/dev/null 2>&1 || true; git tag --points-at HEAD | head -n 1',
@@ -67,7 +85,10 @@ pipeline {
                         script: 'date -u +%Y-%m-%dT%H:%M:%SZ',
                         returnStdout: true
                     ).trim()
-                    env.BUILD_REF = env.GIT_REF ?: 'refs/heads/main'
+                    env.BUILD_REF = env.GIT_REF ?: MAIN_BRANCH_REF
+                    env.REPO_HTTP_URL = env.REPO_URL?.trim()
+                        ? env.REPO_URL.trim()
+                        : DEFAULT_REPO_HTTP_URL
 
                     def hasBeforeSha = env.BEFORE_SHA?.trim() && sh(
                         script: "git cat-file -e ${env.BEFORE_SHA}^{commit} >/dev/null 2>&1",
@@ -101,32 +122,131 @@ pipeline {
                     }
 
                     def changedFiles = changedFilesText ? changedFilesText.readLines() : []
+                    def deployPaths = [
+                        'Dockerfile',
+                        'Dockerfile.runtime-base',
+                        'docker-compose.yaml',
+                        '.dockerignore',
+                        'package.json',
+                        'pnpm-lock.yaml',
+                        'tsconfig.json',
+                        'vite.config.ts',
+                        'tailwind.config.ts',
+                        'postcss.config.js'
+                    ] as Set
+                    def deployableChanged = diffLabel == 'full-tree' || changedFiles.any { path ->
+                        path.startsWith('client/') ||
+                            path.startsWith('server/') ||
+                            path.startsWith('shared/') ||
+                            deployPaths.contains(path)
+                    }
+                    def forceDeploy = params.FORCE_DEPLOY == true
+
+                    env.FORCE_DEPLOY = forceDeploy ? 'true' : 'false'
+                    env.DEPLOY_REQUIRED = (forceDeploy || deployableChanged) ? 'true' : 'false'
                     env.RUNTIME_BASE_CHANGED = changedFiles.contains('Dockerfile.runtime-base') ? 'true' : 'false'
                     env.RUNTIME_BASE_LATEST = "${env.RUNTIME_BASE_IMAGE_REPO}:latest"
                     env.RUNTIME_BASE_SHA = "${env.RUNTIME_BASE_IMAGE_REPO}:sha-${env.SHORT_SHA}"
                     env.RUNTIME_BASE_IMAGE = env.EXACT_GIT_TAG
                         ? "${env.RUNTIME_BASE_IMAGE_REPO}:${env.EXACT_GIT_TAG}"
                         : env.RUNTIME_BASE_LATEST
+                    env.IMAGE_VERSION = env.EXACT_GIT_TAG ?: "sha-${env.SHORT_SHA}"
                     env.RUNTIME_BASE_REASON = env.RUNTIME_BASE_CHANGED == 'true'
                         ? "Dockerfile.runtime-base changed in ${diffLabel}"
                         : "reusing published runtime base from ${diffLabel}"
 
                     currentBuild.displayName = "#${env.BUILD_NUMBER} ${env.SHORT_SHA}"
-                    currentBuild.description = env.EXACT_GIT_TAG
-                        ? "main -> ${env.EXACT_GIT_TAG}"
-                        : "main -> sha-${env.SHORT_SHA}"
+                    currentBuild.description = (
+                        env.EXACT_GIT_TAG
+                            ? "main -> ${env.EXACT_GIT_TAG}"
+                            : "main -> sha-${env.SHORT_SHA}"
+                    ) + " | deploy=${env.DEPLOY_REQUIRED}, runtime-base=${env.RUNTIME_BASE_CHANGED}"
 
-                    echo "Repository: ${env.REPO_URL ?: 'configured SCM'}"
+                    echo "Repository: ${env.REPO_HTTP_URL}"
                     echo "Branch ref: ${env.BUILD_REF}"
+                    echo "Diff scope: ${diffLabel}"
+                    echo "Changed files: ${changedFiles ? changedFiles.join(', ') : '(none)'}"
                     echo "Image repository: ${env.IMAGE_REPO}"
                     echo "Image tags: latest, sha-${env.SHORT_SHA}${env.EXACT_GIT_TAG ? ", ${env.EXACT_GIT_TAG}" : ''}"
+                    echo "Force deploy requested: ${env.FORCE_DEPLOY}"
+                    echo "Deploy required: ${env.DEPLOY_REQUIRED}"
                     echo "Runtime base strategy: ${env.RUNTIME_BASE_REASON}"
                     echo "Runtime base image: ${env.RUNTIME_BASE_IMAGE}"
+
+                    if (env.FORCE_DEPLOY == 'true') {
+                        echo 'FORCE_DEPLOY=true 이므로 변경 파일과 관계없이 빌드, 푸시, 배포를 진행합니다.'
+                    } else if (env.DEPLOY_REQUIRED != 'true') {
+                        echo 'No deployable changes detected; build, push, and deploy stages will be skipped.'
+                    }
+                }
+            }
+        }
+
+        stage('Notify Build Start') {
+            steps {
+                script {
+                    def startMessage = ":hourglass_flowing_sand: 빌드를 시작합니다.\n프로젝트: ${env.JOB_NAME} #${env.BUILD_NUMBER}\n브랜치: ${env.BUILD_REF}\n태그: sha-${env.SHORT_SHA}"
+
+                    if (env.FORCE_DEPLOY == 'true') {
+                        startMessage += "\n실행 방식: 강제 배포"
+                    } else if (env.DEPLOY_REQUIRED == 'true') {
+                        startMessage += "\n실행 방식: 변경 감지 배포"
+                    } else {
+                        startMessage += "\n실행 방식: 품질 검증 전용"
+                    }
+
+                    try {
+                        mattermostSend(
+                            color: '#439FE0',
+                            message: startMessage
+                        )
+                    } catch (err) {
+                        echo "Mattermost start notification failed: ${err.getMessage()}"
+                    }
+                }
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                script {
+                    def scannerHome = tool env.SONAR_SCANNER_TOOL
+
+                    writeFile(
+                        file: 'sonar-project.properties',
+                        text: """
+                            sonar.projectKey=${env.SONAR_PROJECT_KEY}
+                            sonar.projectName=${env.SONAR_PROJECT_NAME}
+                            sonar.projectVersion=sha-${env.SHORT_SHA}
+                            sonar.projectBaseDir=.
+                            sonar.sourceEncoding=UTF-8
+                            sonar.scm.revision=${env.FULL_SHA}
+                            sonar.sources=client/src,server,shared
+                            sonar.tests=server/src/lib/__tests__
+                            sonar.test.inclusions=server/src/lib/__tests__/**/*.test.ts,server/src/lib/__tests__/**/*.spec.ts
+                            sonar.exclusions=**/node_modules/**,**/dist/**,**/coverage/**,**/.pnpm/**,**/.vite/**,**/logs/**,**/output/**,client/public/**,server/data/**,client/src/**/*.test.ts,client/src/**/*.test.tsx,client/src/**/*.spec.ts,client/src/**/*.spec.tsx
+                        """.stripIndent().trim() + '\n'
+                    )
+
+                    withSonarQubeEnv(env.SONARQUBE_INSTALLATION) {
+                        sh "\"${scannerHome}/bin/sonar-scanner\" -Dproject.settings=sonar-project.properties"
+                    }
+                }
+            }
+        }
+
+        stage('Quality Gate') {
+            steps {
+                timeout(time: 30, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
                 }
             }
         }
 
         stage('Setup Buildx') {
+            when {
+                expression { env.DEPLOY_REQUIRED == 'true' }
+            }
             steps {
                 sh '''
                     docker buildx version
@@ -139,6 +259,9 @@ pipeline {
         }
 
         stage('Publish Runtime Base') {
+            when {
+                expression { env.DEPLOY_REQUIRED == 'true' }
+            }
             options {
                 timeout(time: 45, unit: 'MINUTES')
             }
@@ -220,6 +343,9 @@ pipeline {
         }
 
         stage('Verify Runtime Base') {
+            when {
+                expression { env.DEPLOY_REQUIRED == 'true' }
+            }
             steps {
                 withCredentials([
                     usernamePassword(
@@ -252,6 +378,9 @@ pipeline {
         }
 
         stage('Docker Build & Push') {
+            when {
+                expression { env.DEPLOY_REQUIRED == 'true' }
+            }
             steps {
                 script {
                     def appCacheFromArg = sh(
@@ -274,7 +403,12 @@ pipeline {
                         "--build-arg APP_BUILD_SHA=${env.SHORT_SHA}",
                         "--build-arg APP_BUILD_REF=${env.BUILD_REF}",
                         "--build-arg APP_BUILD_TIME=${env.BUILD_TIMESTAMP}",
-                        "--build-arg RUNTIME_BASE_IMAGE=${env.RUNTIME_BASE_IMAGE}"
+                        "--build-arg RUNTIME_BASE_IMAGE=${env.RUNTIME_BASE_IMAGE}",
+                        "--label org.opencontainers.image.created=${env.BUILD_TIMESTAMP}",
+                        "--label org.opencontainers.image.revision=${env.FULL_SHA}",
+                        "--label org.opencontainers.image.source=${env.REPO_HTTP_URL}",
+                        "--label org.opencontainers.image.version=${env.IMAGE_VERSION}",
+                        "--pull"
                     ] + tagArgs
 
                     if (appCacheFromArg) {
@@ -309,6 +443,9 @@ pipeline {
         }
 
         stage('Verify Images') {
+            when {
+                expression { env.DEPLOY_REQUIRED == 'true' }
+            }
             steps {
                 withCredentials([
                     usernamePassword(
@@ -338,6 +475,9 @@ pipeline {
         }
 
         stage('Trigger Watchtower') {
+            when {
+                expression { env.DEPLOY_REQUIRED == 'true' }
+            }
             steps {
                 sh '''
                     response=$(curl -sS -w "\\n%{http_code}" \
@@ -361,6 +501,9 @@ pipeline {
         }
 
         stage('Verify Deployment') {
+            when {
+                expression { env.DEPLOY_REQUIRED == 'true' }
+            }
             steps {
                 sh '''
                     deadline=$(( $(date +%s) + $DEPLOY_TIMEOUT_SECONDS ))
@@ -391,10 +534,16 @@ pipeline {
 
     post {
         success {
-            mattermostSend(
-                color: 'good',
-                message: ":tada: 빌드 성공! 배포가 완료되었습니다.\n프로젝트: ${env.JOB_NAME} #${env.BUILD_NUMBER}\n바로가기: ${env.BUILD_URL}"
-            )
+            script {
+                def successMessage = env.DEPLOY_REQUIRED == 'true'
+                    ? ":tada: 빌드 성공! 배포가 완료되었습니다.\n프로젝트: ${env.JOB_NAME} #${env.BUILD_NUMBER}\n바로가기: ${env.BUILD_URL}"
+                    : ":white_check_mark: 빌드와 품질 검증이 성공했습니다. 배포 대상 변경이 없어 이미지 푸시와 배포는 생략되었습니다.\n프로젝트: ${env.JOB_NAME} #${env.BUILD_NUMBER}\n바로가기: ${env.BUILD_URL}"
+
+                mattermostSend(
+                    color: 'good',
+                    message: successMessage
+                )
+            }
         }
 
         failure {
