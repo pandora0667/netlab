@@ -9,6 +9,8 @@ export type CpuMetricSource = "cgroup" | "loadavg";
 export type MemoryMetricSource = "cgroup" | "host";
 
 const VM_STAT_EXECUTABLE_CANDIDATES = ["/usr/bin/vm_stat"];
+const MEM_AVAILABLE_REGEX = /^MemAvailable:\s+(\d+)\s+kB$/mi;
+const VM_STAT_PAGE_SIZE_REGEX = /page size of (\d+) bytes/i;
 
 export interface RuntimeResourceSnapshot {
   basis: ResourceMetricBasis;
@@ -50,7 +52,7 @@ function readLinuxMemAvailableBytes(hostTotalMemoryBytes: number) {
     return null;
   }
 
-  const match = rawMeminfo.match(/^MemAvailable:\s+(\d+)\s+kB$/mi);
+  const match = MEM_AVAILABLE_REGEX.exec(rawMeminfo);
   if (!match) {
     return null;
   }
@@ -64,7 +66,7 @@ function readDarwinAvailableMemoryBytes(hostTotalMemoryBytes: number) {
       resolveFixedExecutable("vm_stat", VM_STAT_EXECUTABLE_CANDIDATES),
       { encoding: "utf8" },
     );
-    const pageSizeMatch = rawVmStat.match(/page size of (\d+) bytes/i);
+    const pageSizeMatch = VM_STAT_PAGE_SIZE_REGEX.exec(rawVmStat);
     const pageSize = pageSizeMatch ? Number.parseInt(pageSizeMatch[1], 10) : 4096;
 
     if (!Number.isFinite(pageSize) || pageSize <= 0) {
@@ -72,7 +74,7 @@ function readDarwinAvailableMemoryBytes(hostTotalMemoryBytes: number) {
     }
 
     const pagesFor = (label: string) => {
-      const match = rawVmStat.match(new RegExp(`${label}:\\s+([\\d.]+)`, "i"));
+      const match = new RegExp(`${label}:\\s+([\\d.]+)`, "i").exec(rawVmStat);
       return match ? Number.parseFloat(match[1].replace(/\./g, "")) : 0;
     };
 

@@ -32,31 +32,34 @@ function registerRouteAction<TParsed, TResult>(
   path: string,
   options: RouteActionOptions<TParsed, TResult>,
 ) {
-  const handler: RequestHandler = async (req, res) => {
-    let release = () => {};
+  const handler: RequestHandler = (req, res) => {
+    void (async () => {
+      let release = () => {};
 
-    try {
-      const parsed = options.parse
-        ? options.parse(req)
-        : (undefined as TParsed);
+      try {
+        const parsed = options.parse
+          ? options.parse(req)
+          : (undefined as TParsed);
 
-      if (options.acquire) {
-        release = options.acquire(req);
+        if (options.acquire) {
+          release = options.acquire(req);
+        }
+
+        const result = await options.execute(parsed, req, res);
+
+        if (options.onSuccess) {
+          options.onSuccess(result, req, res);
+          return;
+        }
+
+        sendSuccess(res, result);
+      } catch (error) {
+        const routeError = options.onError(error, req, res);
+        sendError(res, routeError.statusCode, routeError.error);
+      } finally {
+        release();
       }
-
-      const result = await options.execute(parsed, req, res);
-
-      if (options.onSuccess) {
-        return options.onSuccess(result, req, res);
-      }
-
-      return sendSuccess(res, result);
-    } catch (error) {
-      const routeError = options.onError(error, req, res);
-      return sendError(res, routeError.statusCode, routeError.error);
-    } finally {
-      release();
-    }
+    })();
   };
 
   const middlewares = options.middlewares ?? [];
@@ -139,4 +142,3 @@ export function firstRouteError(
 ) {
   return matches.find((match) => match !== null) ?? null;
 }
-

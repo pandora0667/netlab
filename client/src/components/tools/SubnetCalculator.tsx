@@ -86,7 +86,7 @@ export default function SubnetCalculator() {
 
   const canMergeSubnets = useMemo(() => {
     if (selectedSubnets.length !== 2) return false;
-    const [index1, index2] = selectedSubnets.sort();
+    const [index1, index2] = [...selectedSubnets].sort((left, right) => left - right);
     const subnet1 = subnets[index1];
     const subnet2 = subnets[index2];
     return subnet1 && subnet2 && areAdjacent(subnet1, subnet2);
@@ -143,7 +143,7 @@ export default function SubnetCalculator() {
   const handleJoin = () => {
     if (!canMergeSubnets) return;
 
-    const [index1, index2] = selectedSubnets.sort();
+    const [index1, index2] = [...selectedSubnets].sort((left, right) => left - right);
     const subnet1 = subnets[index1];
     const subnet2 = subnets[index2];
 

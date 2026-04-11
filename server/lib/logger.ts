@@ -10,6 +10,22 @@ const consoleLogLevel = process.env.CONSOLE_LOG_LEVEL?.trim() || loggerLevel;
 const prettyConsoleLogs = (process.env.LOG_PRETTY_CONSOLE?.trim()
   || (isProduction ? 'false' : 'true')) === 'true';
 
+function normalizeLogMessage(message: unknown) {
+  if (typeof message === 'string') {
+    return message;
+  }
+
+  if (message instanceof Error) {
+    return message.message;
+  }
+
+  try {
+    return JSON.stringify(message);
+  } catch {
+    return String(message);
+  }
+}
+
 const consoleFormat = winston.format.combine(
   winston.format.colorize(),
   winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
@@ -18,7 +34,15 @@ const consoleFormat = winston.format.combine(
       ? ` ${JSON.stringify(meta)}`
       : '';
 
-    return `${timestamp} ${level}${requestId ? ` [${requestId}]` : ''}: ${message}${metadata}`;
+    const normalizedRequestId = typeof requestId === 'string'
+      ? requestId
+      : requestId instanceof Error
+        ? requestId.message
+        : requestId == null
+          ? ''
+          : String(requestId);
+
+    return `${timestamp} ${level}${normalizedRequestId ? ` [${normalizedRequestId}]` : ''}: ${normalizeLogMessage(message)}${metadata}`;
   }),
 );
 

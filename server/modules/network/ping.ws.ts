@@ -21,6 +21,22 @@ const pingGate = new ConcurrencyGate(
   runtimeConfig.limits.pingMaxConcurrentPerIp,
 );
 
+function readSocketMessageText(message: unknown) {
+  if (typeof message === "string") {
+    return message;
+  }
+
+  if (message instanceof Uint8Array) {
+    return Buffer.from(message).toString();
+  }
+
+  if (Array.isArray(message)) {
+    return Buffer.concat(message.map((chunk) => Buffer.from(chunk))).toString();
+  }
+
+  return null;
+}
+
 export function handlePingWebSocket(ws: WebSocket, req: IncomingMessage) {
   logger.info("Ping WebSocket connected", {
     ip: req.socket.remoteAddress,
@@ -43,7 +59,12 @@ export function handlePingWebSocket(ws: WebSocket, req: IncomingMessage) {
         return;
       }
 
-      const { type, data } = JSON.parse(message.toString());
+      const rawMessage = readSocketMessageText(message);
+      if (!rawMessage) {
+        return;
+      }
+
+      const { type, data } = JSON.parse(rawMessage);
       if (type !== "startPing") {
         return;
       }

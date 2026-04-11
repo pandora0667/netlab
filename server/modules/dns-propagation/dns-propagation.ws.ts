@@ -3,6 +3,22 @@ import { WebSocket } from "ws";
 import logger from "../../lib/logger.js";
 import { dnsPropagationService } from "./dns-propagation.registry.js";
 
+function readSocketMessageText(message: unknown) {
+  if (typeof message === "string") {
+    return message;
+  }
+
+  if (message instanceof Uint8Array) {
+    return Buffer.from(message).toString();
+  }
+
+  if (Array.isArray(message)) {
+    return Buffer.concat(message.map((chunk) => Buffer.from(chunk))).toString();
+  }
+
+  return null;
+}
+
 export function handleDnsPropagationWebSocket(
   ws: WebSocket,
   req: IncomingMessage,
@@ -49,7 +65,12 @@ export function handleDnsPropagationWebSocket(
 
   ws.on("message", (message) => {
     try {
-      const { type, data } = JSON.parse(message.toString());
+      const rawMessage = readSocketMessageText(message);
+      if (!rawMessage) {
+        return;
+      }
+
+      const { type, data } = JSON.parse(rawMessage);
 
       if (type === "subscribe" && typeof data?.requestId === "string") {
         subscribedRequests.add(data.requestId);

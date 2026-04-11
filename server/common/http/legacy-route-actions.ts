@@ -20,30 +20,33 @@ function registerLegacyRouteAction<TParsed, TResult>(
   path: string,
   options: LegacyRouteActionOptions<TParsed, TResult>,
 ) {
-  const handler: RequestHandler = async (req, res) => {
-    let release = () => {};
+  const handler: RequestHandler = (req, res) => {
+    void (async () => {
+      let release = () => {};
 
-    try {
-      const parsed = options.parse
-        ? options.parse(req)
-        : (undefined as TParsed);
+      try {
+        const parsed = options.parse
+          ? options.parse(req)
+          : (undefined as TParsed);
 
-      if (options.acquire) {
-        release = options.acquire(req);
+        if (options.acquire) {
+          release = options.acquire(req);
+        }
+
+        const result = await options.execute(parsed, req, res);
+
+        if (options.onSuccess) {
+          options.onSuccess(result, req, res);
+          return;
+        }
+
+        res.json(result);
+      } catch (error) {
+        options.onError(error, req, res);
+      } finally {
+        release();
       }
-
-      const result = await options.execute(parsed, req, res);
-
-      if (options.onSuccess) {
-        return options.onSuccess(result, req, res);
-      }
-
-      return res.json(result);
-    } catch (error) {
-      return options.onError(error, req, res);
-    } finally {
-      release();
-    }
+    })();
   };
 
   const middlewares = options.middlewares ?? [];
@@ -65,4 +68,3 @@ export function registerLegacyPostAction<TParsed, TResult>(
 ) {
   registerLegacyRouteAction(router, "post", path, options);
 }
-
