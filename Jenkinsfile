@@ -1,10 +1,14 @@
 def WEBHOOK_TRIGGER_TOKEN_CREDENTIAL_ID = 'GITHUB_WEBHOOK_TRIGGER_TOKEN'
+def SPOT_AGENT_LABEL = 'spot-agent'
+def ONPREM_WATCHTOWER_TRIGGER_AGENT_LABEL = 'onprem-watchtower-trigger'
+def PRIMARY_BUILDX_BUILDER = 'default'
+def FALLBACK_BUILDX_BUILDER = 'multiarch-builder'
 def REPO_SLUG = 'pandora0667/netlab'
 def MAIN_BRANCH_REF = 'refs/heads/main'
 def DEFAULT_REPO_HTTP_URL = 'https://github.com/pandora0667/netlab.git'
 
 pipeline {
-    agent any
+    agent none
 
     parameters {
         booleanParam(
@@ -58,6 +62,7 @@ pipeline {
     }
 
     options {
+        skipDefaultCheckout(true)
         disableConcurrentBuilds()
         buildDiscarder(logRotator(numToKeepStr: '10'))
         timeout(time: 60, unit: 'MINUTES')
@@ -66,256 +71,268 @@ pipeline {
     }
 
     stages {
-        stage('Checkout') {
-            steps {
-                checkout scm
-            }
-        }
-
-        stage('Initialize') {
-            steps {
-                script {
-                    env.FULL_SHA = sh(script: 'git rev-parse HEAD', returnStdout: true).trim()
-                    env.SHORT_SHA = sh(script: 'git rev-parse --short=12 HEAD', returnStdout: true).trim()
-                    env.EXACT_GIT_TAG = sh(
-                        script: 'git fetch --tags --force >/dev/null 2>&1 || true; git tag --points-at HEAD | head -n 1',
-                        returnStdout: true
-                    ).trim()
-                    env.BUILD_TIMESTAMP = sh(
-                        script: 'date -u +%Y-%m-%dT%H:%M:%SZ',
-                        returnStdout: true
-                    ).trim()
-                    env.BUILD_REF = env.GIT_REF ?: MAIN_BRANCH_REF
-                    env.REPO_HTTP_URL = env.REPO_URL?.trim()
-                        ? env.REPO_URL.trim()
-                        : DEFAULT_REPO_HTTP_URL
-
-                    def hasBeforeSha = env.BEFORE_SHA?.trim() && sh(
-                        script: "git cat-file -e ${env.BEFORE_SHA}^{commit} >/dev/null 2>&1",
-                        returnStatus: true
-                    ) == 0
-                    def hasAfterSha = env.AFTER_SHA?.trim() && sh(
-                        script: "git cat-file -e ${env.AFTER_SHA}^{commit} >/dev/null 2>&1",
-                        returnStatus: true
-                    ) == 0
-                    def diffLabel
-                    def changedFilesText
-
-                    if (hasBeforeSha && hasAfterSha) {
-                        diffLabel = "${env.BEFORE_SHA.take(12)}..${env.AFTER_SHA.take(12)}"
-                        changedFilesText = sh(
-                            script: "git diff --name-only ${env.BEFORE_SHA} ${env.AFTER_SHA}",
-                            returnStdout: true
-                        ).trim()
-                    } else if (sh(script: 'git rev-parse HEAD^ >/dev/null 2>&1', returnStatus: true) == 0) {
-                        diffLabel = 'HEAD^..HEAD'
-                        changedFilesText = sh(
-                            script: 'git diff --name-only HEAD^ HEAD',
-                            returnStdout: true
-                        ).trim()
-                    } else {
-                        diffLabel = 'full-tree'
-                        changedFilesText = sh(
-                            script: 'git ls-tree --name-only -r HEAD',
-                            returnStdout: true
-                        ).trim()
-                    }
-
-                    def changedFiles = changedFilesText ? changedFilesText.readLines() : []
-                    def deployPaths = [
-                        'Dockerfile',
-                        'Dockerfile.runtime-base',
-                        'docker-compose.yaml',
-                        '.dockerignore',
-                        'package.json',
-                        'pnpm-lock.yaml',
-                        'tsconfig.json',
-                        'vite.config.ts',
-                        'tailwind.config.ts',
-                        'postcss.config.js'
-                    ] as Set
-                    def deployableChanged = diffLabel == 'full-tree' || changedFiles.any { path ->
-                        path.startsWith('client/') ||
-                            path.startsWith('server/') ||
-                            path.startsWith('shared/') ||
-                            deployPaths.contains(path)
-                    }
-                    def forceDeploy = params.FORCE_DEPLOY == true
-
-                    env.FORCE_DEPLOY = forceDeploy ? 'true' : 'false'
-                    env.DEPLOY_REQUIRED = (forceDeploy || deployableChanged) ? 'true' : 'false'
-                    env.RUNTIME_BASE_CHANGED = changedFiles.contains('Dockerfile.runtime-base') ? 'true' : 'false'
-                    env.RUNTIME_BASE_LATEST = "${env.RUNTIME_BASE_IMAGE_REPO}:latest"
-                    env.RUNTIME_BASE_SHA = "${env.RUNTIME_BASE_IMAGE_REPO}:sha-${env.SHORT_SHA}"
-                    env.RUNTIME_BASE_IMAGE = env.EXACT_GIT_TAG
-                        ? "${env.RUNTIME_BASE_IMAGE_REPO}:${env.EXACT_GIT_TAG}"
-                        : env.RUNTIME_BASE_LATEST
-                    env.IMAGE_VERSION = env.EXACT_GIT_TAG ?: "sha-${env.SHORT_SHA}"
-                    env.RUNTIME_BASE_REASON = env.RUNTIME_BASE_CHANGED == 'true'
-                        ? "Dockerfile.runtime-base changed in ${diffLabel}"
-                        : "reusing published runtime base from ${diffLabel}"
-                    env.FAILURE_CATEGORY = 'build'
-                    env.FAILURE_STAGE = 'Initialize'
-                    env.FAILURE_REASON = '빌드 단계에서 실패했습니다.'
-
-                    currentBuild.displayName = "#${env.BUILD_NUMBER} ${env.SHORT_SHA}"
-                    currentBuild.description = (
-                        env.EXACT_GIT_TAG
-                            ? "main -> ${env.EXACT_GIT_TAG}"
-                            : "main -> sha-${env.SHORT_SHA}"
-                    ) + " | deploy=${env.DEPLOY_REQUIRED}, runtime-base=${env.RUNTIME_BASE_CHANGED}"
-
-                    echo "Repository: ${env.REPO_HTTP_URL}"
-                    echo "Branch ref: ${env.BUILD_REF}"
-                    echo "Diff scope: ${diffLabel}"
-                    echo "Changed files: ${changedFiles ? changedFiles.join(', ') : '(none)'}"
-                    echo "Image repository: ${env.IMAGE_REPO}"
-                    echo "Image tags: latest, sha-${env.SHORT_SHA}${env.EXACT_GIT_TAG ? ", ${env.EXACT_GIT_TAG}" : ''}"
-                    echo "Force deploy requested: ${env.FORCE_DEPLOY}"
-                    echo "Deploy required: ${env.DEPLOY_REQUIRED}"
-                    echo "Runtime base strategy: ${env.RUNTIME_BASE_REASON}"
-                    echo "Runtime base image: ${env.RUNTIME_BASE_IMAGE}"
-
-                    if (env.FORCE_DEPLOY == 'true') {
-                        echo 'FORCE_DEPLOY=true 이므로 변경 파일과 관계없이 빌드, 푸시, 배포를 진행합니다.'
-                    } else if (env.DEPLOY_REQUIRED != 'true') {
-                        echo 'No deployable changes detected; build, push, and deploy stages will be skipped.'
+        stage('Validate And Build On Spot') {
+            agent { label SPOT_AGENT_LABEL }
+            stages {
+                stage('Checkout') {
+                    steps {
+                        checkout scm
                     }
                 }
-            }
-        }
 
-        stage('Notify Build Start') {
-            steps {
-                script {
-                    def startMessage = ":hourglass_flowing_sand: 빌드를 시작합니다.\n프로젝트: ${env.JOB_NAME} #${env.BUILD_NUMBER}\n브랜치: ${env.BUILD_REF}\n태그: sha-${env.SHORT_SHA}"
+                stage('Initialize') {
+                    steps {
+                        script {
+                            env.FULL_SHA = sh(script: 'git rev-parse HEAD', returnStdout: true).trim()
+                            env.SHORT_SHA = sh(script: 'git rev-parse --short=12 HEAD', returnStdout: true).trim()
+                            env.EXACT_GIT_TAG = sh(
+                                script: 'git fetch --tags --force >/dev/null 2>&1 || true; git tag --points-at HEAD | head -n 1',
+                                returnStdout: true
+                            ).trim()
+                            env.BUILD_TIMESTAMP = sh(
+                                script: 'date -u +%Y-%m-%dT%H:%M:%SZ',
+                                returnStdout: true
+                            ).trim()
+                            env.BUILD_REF = env.GIT_REF ?: MAIN_BRANCH_REF
+                            env.REPO_HTTP_URL = env.REPO_URL?.trim()
+                                ? env.REPO_URL.trim()
+                                : DEFAULT_REPO_HTTP_URL
 
-                    if (env.FORCE_DEPLOY == 'true') {
-                        startMessage += "\n실행 방식: 강제 배포"
-                    } else if (env.DEPLOY_REQUIRED == 'true') {
-                        startMessage += "\n실행 방식: 변경 감지 배포"
-                    } else {
-                        startMessage += "\n실행 방식: 품질 검증 전용"
+                            def hasBeforeSha = env.BEFORE_SHA?.trim() && sh(
+                                script: "git cat-file -e ${env.BEFORE_SHA}^{commit} >/dev/null 2>&1",
+                                returnStatus: true
+                            ) == 0
+                            def hasAfterSha = env.AFTER_SHA?.trim() && sh(
+                                script: "git cat-file -e ${env.AFTER_SHA}^{commit} >/dev/null 2>&1",
+                                returnStatus: true
+                            ) == 0
+                            def diffLabel
+                            def changedFilesText
+
+                            if (hasBeforeSha && hasAfterSha) {
+                                diffLabel = "${env.BEFORE_SHA.take(12)}..${env.AFTER_SHA.take(12)}"
+                                changedFilesText = sh(
+                                    script: "git diff --name-only ${env.BEFORE_SHA} ${env.AFTER_SHA}",
+                                    returnStdout: true
+                                ).trim()
+                            } else if (sh(script: 'git rev-parse HEAD^ >/dev/null 2>&1', returnStatus: true) == 0) {
+                                diffLabel = 'HEAD^..HEAD'
+                                changedFilesText = sh(
+                                    script: 'git diff --name-only HEAD^ HEAD',
+                                    returnStdout: true
+                                ).trim()
+                            } else {
+                                diffLabel = 'full-tree'
+                                changedFilesText = sh(
+                                    script: 'git ls-tree --name-only -r HEAD',
+                                    returnStdout: true
+                                ).trim()
+                            }
+
+                            def changedFiles = changedFilesText ? changedFilesText.readLines() : []
+                            def deployPaths = [
+                                'Dockerfile',
+                                'Dockerfile.runtime-base',
+                                'docker-compose.yaml',
+                                '.dockerignore',
+                                'package.json',
+                                'pnpm-lock.yaml',
+                                'tsconfig.json',
+                                'vite.config.ts',
+                                'tailwind.config.ts',
+                                'postcss.config.js'
+                            ] as Set
+                            def deployableChanged = diffLabel == 'full-tree' || changedFiles.any { path ->
+                                path.startsWith('client/') ||
+                                    path.startsWith('server/') ||
+                                    path.startsWith('shared/') ||
+                                    deployPaths.contains(path)
+                            }
+                            def forceDeploy = params.FORCE_DEPLOY == true
+
+                            env.FORCE_DEPLOY = forceDeploy ? 'true' : 'false'
+                            env.DEPLOY_REQUIRED = (forceDeploy || deployableChanged) ? 'true' : 'false'
+                            env.RUNTIME_BASE_CHANGED = changedFiles.contains('Dockerfile.runtime-base') ? 'true' : 'false'
+                            env.RUNTIME_BASE_LATEST = "${env.RUNTIME_BASE_IMAGE_REPO}:latest"
+                            env.RUNTIME_BASE_SHA = "${env.RUNTIME_BASE_IMAGE_REPO}:sha-${env.SHORT_SHA}"
+                            env.RUNTIME_BASE_IMAGE = env.EXACT_GIT_TAG
+                                ? "${env.RUNTIME_BASE_IMAGE_REPO}:${env.EXACT_GIT_TAG}"
+                                : env.RUNTIME_BASE_LATEST
+                            env.IMAGE_VERSION = env.EXACT_GIT_TAG ?: "sha-${env.SHORT_SHA}"
+                            env.RUNTIME_BASE_REASON = env.RUNTIME_BASE_CHANGED == 'true'
+                                ? "Dockerfile.runtime-base changed in ${diffLabel}"
+                                : "reusing published runtime base from ${diffLabel}"
+                            env.FAILURE_CATEGORY = 'build'
+                            env.FAILURE_STAGE = 'Initialize'
+                            env.FAILURE_REASON = '빌드 단계에서 실패했습니다.'
+
+                            currentBuild.displayName = "#${env.BUILD_NUMBER} ${env.SHORT_SHA}"
+                            currentBuild.description = (
+                                env.EXACT_GIT_TAG
+                                    ? "main -> ${env.EXACT_GIT_TAG}"
+                                    : "main -> sha-${env.SHORT_SHA}"
+                            ) + " | deploy=${env.DEPLOY_REQUIRED}, runtime-base=${env.RUNTIME_BASE_CHANGED}"
+
+                            echo "Repository: ${env.REPO_HTTP_URL}"
+                            echo "Branch ref: ${env.BUILD_REF}"
+                            echo "Diff scope: ${diffLabel}"
+                            echo "Changed files: ${changedFiles ? changedFiles.join(', ') : '(none)'}"
+                            echo "Image repository: ${env.IMAGE_REPO}"
+                            echo "Image tags: latest, sha-${env.SHORT_SHA}${env.EXACT_GIT_TAG ? ", ${env.EXACT_GIT_TAG}" : ''}"
+                            echo "Force deploy requested: ${env.FORCE_DEPLOY}"
+                            echo "Deploy required: ${env.DEPLOY_REQUIRED}"
+                            echo "Runtime base strategy: ${env.RUNTIME_BASE_REASON}"
+                            echo "Runtime base image: ${env.RUNTIME_BASE_IMAGE}"
+
+                            if (env.FORCE_DEPLOY == 'true') {
+                                echo 'FORCE_DEPLOY=true 이므로 변경 파일과 관계없이 빌드, 푸시, 배포를 진행합니다.'
+                            } else if (env.DEPLOY_REQUIRED != 'true') {
+                                echo 'No deployable changes detected; build, push, and deploy stages will be skipped.'
+                            }
+                        }
                     }
+                }
 
-                    try {
-                        mattermostSend(
-                            color: '#439FE0',
-                            message: startMessage
-                        )
-                    } catch (err) {
-                        echo "Mattermost start notification failed: ${err.getMessage()}"
+                stage('Notify Build Start') {
+                    steps {
+                        script {
+                            def startMessage = ":hourglass_flowing_sand: 빌드를 시작합니다.\n프로젝트: ${env.JOB_NAME} #${env.BUILD_NUMBER}\n브랜치: ${env.BUILD_REF}\n태그: sha-${env.SHORT_SHA}"
+
+                            if (env.FORCE_DEPLOY == 'true') {
+                                startMessage += "\n실행 방식: 강제 배포"
+                            } else if (env.DEPLOY_REQUIRED == 'true') {
+                                startMessage += "\n실행 방식: 변경 감지 배포"
+                            } else {
+                                startMessage += "\n실행 방식: 품질 검증 전용"
+                            }
+
+                            try {
+                                mattermostSend(
+                                    color: '#439FE0',
+                                    message: startMessage
+                                )
+                            } catch (err) {
+                                echo "Mattermost start notification failed: ${err.getMessage()}"
+                            }
+                        }
                     }
                 }
-            }
-        }
 
-        stage('Test Coverage') {
-            steps {
-                script {
-                    env.FAILURE_CATEGORY = 'quality'
-                    env.FAILURE_STAGE = 'Test Coverage'
-                    env.FAILURE_REASON = '테스트 커버리지 수집에 실패해 배포가 중단되었습니다.'
-                }
-                sh '''
-                    set -eu
-                    corepack enable
-                    pnpm install --frozen-lockfile
-                    pnpm test:coverage
-                '''
-            }
-        }
-
-        stage('SonarQube Analysis') {
-            steps {
-                script {
-                    env.FAILURE_CATEGORY = 'sonar'
-                    env.FAILURE_STAGE = 'SonarQube Analysis'
-                    env.FAILURE_REASON = 'SonarQube 분석에 실패해 배포가 중단되었습니다.'
-                    def scannerHome = tool env.SONAR_SCANNER_TOOL
-
-                    writeFile(
-                        file: 'sonar-project.properties',
-                        text: """
-                            sonar.projectKey=${env.SONAR_PROJECT_KEY}
-                            sonar.projectName=${env.SONAR_PROJECT_NAME}
-                            sonar.projectVersion=sha-${env.SHORT_SHA}
-                            sonar.projectBaseDir=.
-                            sonar.sourceEncoding=UTF-8
-                            sonar.scm.revision=${env.FULL_SHA}
-                            sonar.sources=client/src,server,shared
-                            sonar.tests=server/src/lib/__tests__
-                            sonar.test.inclusions=server/src/lib/__tests__/**/*.test.ts,server/src/lib/__tests__/**/*.spec.ts
-                            sonar.javascript.lcov.reportPaths=coverage/lcov.info
-                            sonar.exclusions=**/node_modules/**,**/dist/**,**/coverage/**,**/.pnpm/**,**/.vite/**,**/logs/**,**/output/**,client/public/**,server/data/**,client/src/**/*.test.ts,client/src/**/*.test.tsx,client/src/**/*.spec.ts,client/src/**/*.spec.tsx
-                        """.stripIndent().trim() + '\n'
-                    )
-
-                    withSonarQubeEnv(env.SONARQUBE_INSTALLATION) {
-                        sh "\"${scannerHome}/bin/sonar-scanner\" -Dproject.settings=sonar-project.properties"
-                    }
-                }
-            }
-        }
-
-        stage('Quality Gate') {
-            steps {
-                script {
-                    env.FAILURE_CATEGORY = 'sonar'
-                    env.FAILURE_STAGE = 'Quality Gate'
-                    env.FAILURE_REASON = 'SonarQube 품질 기준을 통과하지 못해 배포가 중단되었습니다.'
-                }
-                timeout(time: 30, unit: 'MINUTES') {
-                    waitForQualityGate abortPipeline: true
-                }
-            }
-        }
-
-        stage('Setup Buildx') {
-            when {
-                expression { env.DEPLOY_REQUIRED == 'true' }
-            }
-            steps {
-                script {
-                    env.FAILURE_CATEGORY = 'build'
-                    env.FAILURE_STAGE = 'Setup Buildx'
-                    env.FAILURE_REASON = '멀티아키 빌드 환경 준비에 실패했습니다.'
-                }
-                sh '''
-                    docker buildx version
-                    docker buildx inspect multiarch-builder --bootstrap >/dev/null 2>&1 || \
-                    docker buildx create --name multiarch-builder --use --platform linux/amd64,linux/arm64
-                    docker buildx use multiarch-builder
-                    docker buildx inspect multiarch-builder --bootstrap
-                '''
-            }
-        }
-
-        stage('Publish Runtime Base') {
-            when {
-                expression { env.DEPLOY_REQUIRED == 'true' }
-            }
-            options {
-                timeout(time: 45, unit: 'MINUTES')
-            }
-            steps {
-                script {
-                    env.FAILURE_CATEGORY = 'build'
-                    env.FAILURE_STAGE = 'Publish Runtime Base'
-                    env.FAILURE_REASON = '런타임 베이스 이미지 준비에 실패했습니다.'
-                    withCredentials([
-                        usernamePassword(
-                            credentialsId: env.HARBOR_CREDS_ID,
-                            usernameVariable: 'HARBOR_USERNAME',
-                            passwordVariable: 'HARBOR_PASSWORD'
-                        )
-                    ]) {
-                        sh """
+                stage('Test Coverage') {
+                    steps {
+                        script {
+                            env.FAILURE_CATEGORY = 'quality'
+                            env.FAILURE_STAGE = 'Test Coverage'
+                            env.FAILURE_REASON = '테스트 커버리지 수집에 실패해 배포가 중단되었습니다.'
+                        }
+                        sh '''
                             set -eu
-                            echo "\$HARBOR_PASSWORD" | docker login ${env.HARBOR_URL} -u "\$HARBOR_USERNAME" --password-stdin
-                        """
+                            corepack enable
+                            pnpm install --frozen-lockfile
+                            pnpm test:coverage
+                        '''
+                    }
+                }
 
-                        try {
+                stage('SonarQube Analysis') {
+                    steps {
+                        script {
+                            env.FAILURE_CATEGORY = 'sonar'
+                            env.FAILURE_STAGE = 'SonarQube Analysis'
+                            env.FAILURE_REASON = 'SonarQube 분석에 실패해 배포가 중단되었습니다.'
+                            def scannerHome = tool env.SONAR_SCANNER_TOOL
+
+                            writeFile(
+                                file: 'sonar-project.properties',
+                                text: """
+                                    sonar.projectKey=${env.SONAR_PROJECT_KEY}
+                                    sonar.projectName=${env.SONAR_PROJECT_NAME}
+                                    sonar.projectVersion=sha-${env.SHORT_SHA}
+                                    sonar.projectBaseDir=.
+                                    sonar.sourceEncoding=UTF-8
+                                    sonar.scm.revision=${env.FULL_SHA}
+                                    sonar.sources=client/src,server,shared
+                                    sonar.tests=server/src/lib/__tests__
+                                    sonar.test.inclusions=server/src/lib/__tests__/**/*.test.ts,server/src/lib/__tests__/**/*.spec.ts
+                                    sonar.javascript.lcov.reportPaths=coverage/lcov.info
+                                    sonar.exclusions=**/node_modules/**,**/dist/**,**/coverage/**,**/.pnpm/**,**/.vite/**,**/logs/**,**/output/**,client/public/**,server/data/**,client/src/**/*.test.ts,client/src/**/*.test.tsx,client/src/**/*.spec.ts,client/src/**/*.spec.tsx
+                                """.stripIndent().trim() + '\n'
+                            )
+
+                            withSonarQubeEnv(env.SONARQUBE_INSTALLATION) {
+                                sh "\"${scannerHome}/bin/sonar-scanner\" -Dproject.settings=sonar-project.properties"
+                            }
+                        }
+                    }
+                }
+
+                stage('Quality Gate') {
+                    steps {
+                        script {
+                            env.FAILURE_CATEGORY = 'sonar'
+                            env.FAILURE_STAGE = 'Quality Gate'
+                            env.FAILURE_REASON = 'SonarQube 품질 기준을 통과하지 못해 배포가 중단되었습니다.'
+                        }
+                        timeout(time: 30, unit: 'MINUTES') {
+                            waitForQualityGate abortPipeline: true
+                        }
+                    }
+                }
+
+                stage('Setup Buildx') {
+                    when {
+                        expression { env.DEPLOY_REQUIRED == 'true' }
+                    }
+                    steps {
+                        script {
+                            env.FAILURE_CATEGORY = 'build'
+                            env.FAILURE_STAGE = 'Setup Buildx'
+                            env.FAILURE_REASON = '멀티아키 빌드 환경 준비에 실패했습니다.'
+                        }
+                        sh """
+                            docker buildx version
+
+                            if docker buildx inspect ${PRIMARY_BUILDX_BUILDER} >/dev/null 2>&1; then
+                                docker buildx use ${PRIMARY_BUILDX_BUILDER}
+                                docker buildx inspect ${PRIMARY_BUILDX_BUILDER} --bootstrap
+                            else
+                                if docker buildx inspect ${FALLBACK_BUILDX_BUILDER} >/dev/null 2>&1; then
+                                    docker buildx use ${FALLBACK_BUILDX_BUILDER}
+                                else
+                                    docker buildx create --name ${FALLBACK_BUILDX_BUILDER} --use --platform "\$PLATFORMS"
+                                fi
+
+                                docker buildx inspect ${FALLBACK_BUILDX_BUILDER} --bootstrap
+                            fi
+                        """
+                    }
+                }
+
+                stage('Publish Runtime Base') {
+                    when {
+                        expression { env.DEPLOY_REQUIRED == 'true' }
+                    }
+                    options {
+                        timeout(time: 45, unit: 'MINUTES')
+                    }
+                    steps {
+                        script {
+                            env.FAILURE_CATEGORY = 'build'
+                            env.FAILURE_STAGE = 'Publish Runtime Base'
+                            env.FAILURE_REASON = '런타임 베이스 이미지 준비에 실패했습니다.'
+                            withCredentials([
+                                usernamePassword(
+                                    credentialsId: env.HARBOR_CREDS_ID,
+                                    usernameVariable: 'HARBOR_USERNAME',
+                                    passwordVariable: 'HARBOR_PASSWORD'
+                                )
+                            ]) {
+                                sh """
+                                    set -eu
+                                    echo "\$HARBOR_PASSWORD" | docker login ${env.HARBOR_URL} -u "\$HARBOR_USERNAME" --password-stdin
+                                """
+
+                                try {
                             if (env.RUNTIME_BASE_CHANGED == 'true') {
                                 def runtimeBaseCacheFromArg = sh(
                                     script: "docker buildx imagetools inspect ${env.RUNTIME_BASE_CACHE} >/dev/null 2>&1",
@@ -378,215 +395,219 @@ pipeline {
             }
         }
 
-        stage('Verify Runtime Base') {
-            when {
-                expression { env.DEPLOY_REQUIRED == 'true' }
-            }
-            steps {
-                script {
-                    env.FAILURE_CATEGORY = 'build'
-                    env.FAILURE_STAGE = 'Verify Runtime Base'
-                    env.FAILURE_REASON = '런타임 베이스 이미지 검증에 실패했습니다.'
-                }
-                withCredentials([
-                    usernamePassword(
-                        credentialsId: env.HARBOR_CREDS_ID,
-                        usernameVariable: 'HARBOR_USERNAME',
-                        passwordVariable: 'HARBOR_PASSWORD'
-                    )
-                ]) {
-                    sh '''
-                        set -eu
-                        echo "$HARBOR_PASSWORD" | docker login $HARBOR_URL -u "$HARBOR_USERNAME" --password-stdin
-
-                        echo "Inspecting runtime base latest manifest"
-                        docker buildx imagetools inspect $RUNTIME_BASE_LATEST
-
-                        if [ "$RUNTIME_BASE_CHANGED" = "true" ]; then
-                            echo "Inspecting runtime base sha manifest"
-                            docker buildx imagetools inspect $RUNTIME_BASE_SHA
-                        fi
-
-                        if [ -n "${EXACT_GIT_TAG:-}" ]; then
-                            echo "Inspecting runtime base git tag manifest"
-                            docker buildx imagetools inspect $RUNTIME_BASE_IMAGE
-                        fi
-
-                        docker logout $HARBOR_URL
-                    '''
-                }
-            }
-        }
-
-        stage('Docker Build & Push') {
-            when {
-                expression { env.DEPLOY_REQUIRED == 'true' }
-            }
-            steps {
-                script {
-                    env.FAILURE_CATEGORY = 'build'
-                    env.FAILURE_STAGE = 'Docker Build & Push'
-                    env.FAILURE_REASON = '애플리케이션 이미지 빌드 또는 푸시에 실패했습니다.'
-                    def appCacheFromArg = sh(
-                        script: "docker buildx imagetools inspect ${env.IMAGE_CACHE} >/dev/null 2>&1",
-                        returnStatus: true
-                    ) == 0
-                        ? "--cache-from type=registry,ref=${env.IMAGE_CACHE}"
-                        : ""
-                    def tagArgs = [
-                        "--tag ${env.IMAGE_LATEST}",
-                        "--tag ${env.IMAGE_REPO}:sha-${env.SHORT_SHA}"
-                    ]
-
-                    if (env.EXACT_GIT_TAG) {
-                        tagArgs << "--tag ${env.IMAGE_REPO}:${env.EXACT_GIT_TAG}"
+                stage('Verify Runtime Base') {
+                    when {
+                        expression { env.DEPLOY_REQUIRED == 'true' }
                     }
+                    steps {
+                        script {
+                            env.FAILURE_CATEGORY = 'build'
+                            env.FAILURE_STAGE = 'Verify Runtime Base'
+                            env.FAILURE_REASON = '런타임 베이스 이미지 검증에 실패했습니다.'
+                        }
+                        withCredentials([
+                            usernamePassword(
+                                credentialsId: env.HARBOR_CREDS_ID,
+                                usernameVariable: 'HARBOR_USERNAME',
+                                passwordVariable: 'HARBOR_PASSWORD'
+                            )
+                        ]) {
+                            sh '''
+                                set -eu
+                                echo "$HARBOR_PASSWORD" | docker login $HARBOR_URL -u "$HARBOR_USERNAME" --password-stdin
 
-                    def appBuildArgs = [
-                        "--platform ${env.PLATFORMS}",
-                        "--build-arg APP_BUILD_SHA=${env.SHORT_SHA}",
-                        "--build-arg APP_BUILD_REF=${env.BUILD_REF}",
-                        "--build-arg APP_BUILD_TIME=${env.BUILD_TIMESTAMP}",
-                        "--build-arg RUNTIME_BASE_IMAGE=${env.RUNTIME_BASE_IMAGE}",
-                        "--label org.opencontainers.image.created=${env.BUILD_TIMESTAMP}",
-                        "--label org.opencontainers.image.revision=${env.FULL_SHA}",
-                        "--label org.opencontainers.image.source=${env.REPO_HTTP_URL}",
-                        "--label org.opencontainers.image.version=${env.IMAGE_VERSION}",
-                        "--pull"
-                    ] + tagArgs
+                                echo "Inspecting runtime base latest manifest"
+                                docker buildx imagetools inspect $RUNTIME_BASE_LATEST
 
-                    if (appCacheFromArg) {
-                        appBuildArgs << appCacheFromArg
-                    }
+                                if [ "$RUNTIME_BASE_CHANGED" = "true" ]; then
+                                    echo "Inspecting runtime base sha manifest"
+                                    docker buildx imagetools inspect $RUNTIME_BASE_SHA
+                                fi
 
-                    appBuildArgs += [
-                        "--cache-to type=registry,ref=${env.IMAGE_CACHE},mode=max",
-                        "--push",
-                        "--progress=plain",
-                        "."
-                    ]
+                                if [ -n "${EXACT_GIT_TAG:-}" ]; then
+                                    echo "Inspecting runtime base git tag manifest"
+                                    docker buildx imagetools inspect $RUNTIME_BASE_IMAGE
+                                fi
 
-                    withCredentials([
-                        usernamePassword(
-                            credentialsId: env.HARBOR_CREDS_ID,
-                            usernameVariable: 'HARBOR_USERNAME',
-                            passwordVariable: 'HARBOR_PASSWORD'
-                        )
-                    ]) {
-                        sh """
-                            echo "\$HARBOR_PASSWORD" | docker login ${env.HARBOR_URL} -u "\$HARBOR_USERNAME" --password-stdin
-
-                            docker buildx build \\
-                                ${appBuildArgs.join(' \\\n                                ')}
-
-                            docker logout ${env.HARBOR_URL}
-                        """
+                                docker logout $HARBOR_URL
+                            '''
+                        }
                     }
                 }
+
+                stage('Docker Build & Push') {
+                    when {
+                        expression { env.DEPLOY_REQUIRED == 'true' }
+                    }
+                    steps {
+                        script {
+                            env.FAILURE_CATEGORY = 'build'
+                            env.FAILURE_STAGE = 'Docker Build & Push'
+                            env.FAILURE_REASON = '애플리케이션 이미지 빌드 또는 푸시에 실패했습니다.'
+                            def appCacheFromArg = sh(
+                                script: "docker buildx imagetools inspect ${env.IMAGE_CACHE} >/dev/null 2>&1",
+                                returnStatus: true
+                            ) == 0
+                                ? "--cache-from type=registry,ref=${env.IMAGE_CACHE}"
+                                : ""
+                            def tagArgs = [
+                                "--tag ${env.IMAGE_LATEST}",
+                                "--tag ${env.IMAGE_REPO}:sha-${env.SHORT_SHA}"
+                            ]
+
+                            if (env.EXACT_GIT_TAG) {
+                                tagArgs << "--tag ${env.IMAGE_REPO}:${env.EXACT_GIT_TAG}"
+                            }
+
+                            def appBuildArgs = [
+                                "--platform ${env.PLATFORMS}",
+                                "--build-arg APP_BUILD_SHA=${env.SHORT_SHA}",
+                                "--build-arg APP_BUILD_REF=${env.BUILD_REF}",
+                                "--build-arg APP_BUILD_TIME=${env.BUILD_TIMESTAMP}",
+                                "--build-arg RUNTIME_BASE_IMAGE=${env.RUNTIME_BASE_IMAGE}",
+                                "--label org.opencontainers.image.created=${env.BUILD_TIMESTAMP}",
+                                "--label org.opencontainers.image.revision=${env.FULL_SHA}",
+                                "--label org.opencontainers.image.source=${env.REPO_HTTP_URL}",
+                                "--label org.opencontainers.image.version=${env.IMAGE_VERSION}",
+                                "--pull"
+                            ] + tagArgs
+
+                            if (appCacheFromArg) {
+                                appBuildArgs << appCacheFromArg
+                            }
+
+                            appBuildArgs += [
+                                "--cache-to type=registry,ref=${env.IMAGE_CACHE},mode=max",
+                                "--push",
+                                "--progress=plain",
+                                "."
+                            ]
+
+                            withCredentials([
+                                usernamePassword(
+                                    credentialsId: env.HARBOR_CREDS_ID,
+                                    usernameVariable: 'HARBOR_USERNAME',
+                                    passwordVariable: 'HARBOR_PASSWORD'
+                                )
+                            ]) {
+                                sh """
+                                    echo "\$HARBOR_PASSWORD" | docker login ${env.HARBOR_URL} -u "\$HARBOR_USERNAME" --password-stdin
+
+                                    docker buildx build \\
+                                        ${appBuildArgs.join(' \\\n                                        ')}
+
+                                    docker logout ${env.HARBOR_URL}
+                                """
+                            }
+                        }
+                    }
+                }
+
+                stage('Verify Images') {
+                    when {
+                        expression { env.DEPLOY_REQUIRED == 'true' }
+                    }
+                    steps {
+                        script {
+                            env.FAILURE_CATEGORY = 'build'
+                            env.FAILURE_STAGE = 'Verify Images'
+                            env.FAILURE_REASON = '푸시한 이미지 검증에 실패했습니다.'
+                        }
+                        withCredentials([
+                            usernamePassword(
+                                credentialsId: env.HARBOR_CREDS_ID,
+                                usernameVariable: 'HARBOR_USERNAME',
+                                passwordVariable: 'HARBOR_PASSWORD'
+                            )
+                        ]) {
+                            sh '''
+                                echo "$HARBOR_PASSWORD" | docker login $HARBOR_URL -u "$HARBOR_USERNAME" --password-stdin
+
+                                echo "Inspecting latest manifest"
+                                docker buildx imagetools inspect $IMAGE_LATEST
+
+                                echo "Inspecting sha manifest"
+                                docker buildx imagetools inspect $IMAGE_REPO:sha-$SHORT_SHA
+
+                                if [ -n "${EXACT_GIT_TAG:-}" ]; then
+                                    echo "Inspecting git tag manifest"
+                                    docker buildx imagetools inspect $IMAGE_REPO:$EXACT_GIT_TAG
+                                fi
+
+                                docker logout $HARBOR_URL
+                            '''
+                        }
+                    }
+                }
             }
         }
 
-        stage('Verify Images') {
+        stage('Deploy On Onprem') {
+            agent { label ONPREM_WATCHTOWER_TRIGGER_AGENT_LABEL }
             when {
                 expression { env.DEPLOY_REQUIRED == 'true' }
             }
-            steps {
-                script {
-                    env.FAILURE_CATEGORY = 'build'
-                    env.FAILURE_STAGE = 'Verify Images'
-                    env.FAILURE_REASON = '푸시한 이미지 검증에 실패했습니다.'
+            stages {
+                stage('Trigger Watchtower') {
+                    steps {
+                        script {
+                            env.FAILURE_CATEGORY = 'deploy'
+                            env.FAILURE_STAGE = 'Trigger Watchtower'
+                            env.FAILURE_REASON = '배포 트리거 호출에 실패했습니다.'
+                        }
+                        sh '''
+                            response=$(curl -sS -w "\\n%{http_code}" \
+                                -H "Authorization: Bearer $WATCHTOWER_TOKEN" \
+                                "$WATCHTOWER_URL/v1/update")
+
+                            http_code=$(echo "$response" | tail -n1)
+                            body=$(echo "$response" | sed '$d')
+
+                            if [ "$http_code" -eq 200 ]; then
+                                echo "Watchtower update triggered successfully"
+                                echo "Response: $body"
+                            else
+                                echo "Failed to trigger Watchtower update"
+                                echo "HTTP Code: $http_code"
+                                echo "Response: $body"
+                                exit 1
+                            fi
+                        '''
+                    }
                 }
-                withCredentials([
-                    usernamePassword(
-                        credentialsId: env.HARBOR_CREDS_ID,
-                        usernameVariable: 'HARBOR_USERNAME',
-                        passwordVariable: 'HARBOR_PASSWORD'
-                    )
-                ]) {
-                    sh '''
-                        echo "$HARBOR_PASSWORD" | docker login $HARBOR_URL -u "$HARBOR_USERNAME" --password-stdin
 
-                        echo "Inspecting latest manifest"
-                        docker buildx imagetools inspect $IMAGE_LATEST
+                stage('Verify Deployment') {
+                    steps {
+                        script {
+                            env.FAILURE_CATEGORY = 'deploy'
+                            env.FAILURE_STAGE = 'Verify Deployment'
+                            env.FAILURE_REASON = '배포 후 상태 검증에 실패했습니다.'
+                        }
+                        sh '''
+                            deadline=$(( $(date +%s) + $DEPLOY_TIMEOUT_SECONDS ))
 
-                        echo "Inspecting sha manifest"
-                        docker buildx imagetools inspect $IMAGE_REPO:sha-$SHORT_SHA
+                            while [ "$(date +%s)" -lt "$deadline" ]; do
+                                body=$(curl -fsS "$APP_HEALTH_URL" || true)
 
-                        if [ -n "${EXACT_GIT_TAG:-}" ]; then
-                            echo "Inspecting git tag manifest"
-                            docker buildx imagetools inspect $IMAGE_REPO:$EXACT_GIT_TAG
-                        fi
+                                if [ -n "$body" ]; then
+                                    echo "Health response: $body"
 
-                        docker logout $HARBOR_URL
-                    '''
+                                    case "$body" in
+                                      *buildSha*"$SHORT_SHA"*)
+                                        echo "Deployment verified at $APP_HEALTH_URL"
+                                        exit 0
+                                        ;;
+                                    esac
+                                fi
+
+                                sleep 5
+                            done
+
+                            echo "Deployment verification timed out after ${DEPLOY_TIMEOUT_SECONDS}s"
+                            exit 1
+                        '''
+                    }
                 }
-            }
-        }
-
-        stage('Trigger Watchtower') {
-            when {
-                expression { env.DEPLOY_REQUIRED == 'true' }
-            }
-            steps {
-                script {
-                    env.FAILURE_CATEGORY = 'deploy'
-                    env.FAILURE_STAGE = 'Trigger Watchtower'
-                    env.FAILURE_REASON = '배포 트리거 호출에 실패했습니다.'
-                }
-                sh '''
-                    response=$(curl -sS -w "\\n%{http_code}" \
-                        -H "Authorization: Bearer $WATCHTOWER_TOKEN" \
-                        "$WATCHTOWER_URL/v1/update")
-
-                    http_code=$(echo "$response" | tail -n1)
-                    body=$(echo "$response" | sed '$d')
-
-                    if [ "$http_code" -eq 200 ]; then
-                        echo "Watchtower update triggered successfully"
-                        echo "Response: $body"
-                    else
-                        echo "Failed to trigger Watchtower update"
-                        echo "HTTP Code: $http_code"
-                        echo "Response: $body"
-                        exit 1
-                    fi
-                '''
-            }
-        }
-
-        stage('Verify Deployment') {
-            when {
-                expression { env.DEPLOY_REQUIRED == 'true' }
-            }
-            steps {
-                script {
-                    env.FAILURE_CATEGORY = 'deploy'
-                    env.FAILURE_STAGE = 'Verify Deployment'
-                    env.FAILURE_REASON = '배포 후 상태 검증에 실패했습니다.'
-                }
-                sh '''
-                    deadline=$(( $(date +%s) + $DEPLOY_TIMEOUT_SECONDS ))
-
-                    while [ "$(date +%s)" -lt "$deadline" ]; do
-                        body=$(curl -fsS "$APP_HEALTH_URL" || true)
-
-                        if [ -n "$body" ]; then
-                            echo "Health response: $body"
-
-                            case "$body" in
-                              *buildSha*"$SHORT_SHA"*)
-                                echo "Deployment verified at $APP_HEALTH_URL"
-                                exit 0
-                                ;;
-                            esac
-                        fi
-
-                        sleep 5
-                    done
-
-                    echo "Deployment verification timed out after ${DEPLOY_TIMEOUT_SECONDS}s"
-                    exit 1
-                '''
             }
         }
     }
