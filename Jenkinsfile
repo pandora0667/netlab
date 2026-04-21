@@ -47,7 +47,7 @@ pipeline {
         RUNTIME_BASE_IMAGE_REPO = "${HARBOR_URL}/${HARBOR_PROJECT}/netlab-runtime-base"
         RUNTIME_BASE_CACHE = "${RUNTIME_BASE_IMAGE_REPO}:buildcache"
 
-        WATCHTOWER_URL = 'http://192.168.11.134:18081'
+        WATCHTOWER_URL = 'http://172.16.0.15:18081'
         WATCHTOWER_TOKEN = credentials('nangman-netlab-watchtower-token')
         APP_HEALTH_URL = 'http://192.168.11.134:8080/healthz'
         DEPLOY_TIMEOUT_SECONDS = '180'
