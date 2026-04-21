@@ -38,7 +38,7 @@ pipeline {
     environment {
         HARBOR_URL = 'harbor.nangman.cloud'
         HARBOR_PROJECT = 'library'
-        HARBOR_CREDS_ID = 'harbor-auth'
+        HARBOR_CREDS_ID = 'NANGMAN_HARBOR_ROBOT_ACCOUNT'
 
         IMAGE_NAME = 'netlab'
         IMAGE_REPO = "${HARBOR_URL}/${HARBOR_PROJECT}/${IMAGE_NAME}"
